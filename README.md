@@ -40,6 +40,14 @@ git subtree pull --prefix rollback_netcode/third_party/ggpo \
   https://github.com/pond3r/ggpo master --squash
 ```
 
+## License
+
+This project's own code is MIT — see [`LICENSE`](LICENSE). Vendored libggpo
+under `rollback_netcode/third_party/ggpo/` is MIT
+([its LICENSE](rollback_netcode/third_party/ggpo/LICENSE)). FBNeo itself is not
+redistributed here — only a small patch under `rollback_netcode/patches/fbneo/`;
+building requires your own FBNeo checkout under its own license.
+
 ## Status
 
 - [x] `state_ring` — deterministic save-state ring
