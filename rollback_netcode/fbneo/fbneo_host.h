@@ -1,0 +1,58 @@
+// ---------------------------------------------------------------------------
+// fbneo_host.h - Concrete FBNeo implementation of GgpoBridgeHost.
+//
+// This is the one module that is *allowed* to know both FBNeo and the rollback
+// core. It:
+//   * builds a deterministic driver-input <-> compact-bitmask map at Start;
+//   * implements poll_local_input / step_frame / on_event for ggpo_bridge;
+//   * defers StateRingInit until the driver has run its first frame;
+//   * exposes FbnHostRunFrame() to be called once per frame from RunFrame().
+//
+// v1 scope: digital inputs only (fighting games). Analog inputs are logged and
+// left unsynchronised. DIP switches are match-static and travel in the save
+// state, not per frame - both peers must pick the same DIPs before Start.
+// ---------------------------------------------------------------------------
+#ifndef ROLLBACK_FBNEO_HOST_H
+#define ROLLBACK_FBNEO_HOST_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct FbnHostConfig {
+	char           szGameId[64];     // opaque id for libggpo (use the FBNeo short name)
+	int            nPlayers;         // 2 .. 4
+	int            nLocalPlayer;     // 1-based player this machine drives
+	unsigned short nLocalPort;       // local UDP port
+	char           szRemoteIp[32];   // remote peer (v1: single remote, 2p)
+	unsigned short nRemotePort;
+	int            nFrameDelay;      // local input delay frames; 0 => default 2
+	int            nStateSlots;      // 0 => state_ring default (16)
+} FbnHostConfig;
+
+// Start a networked session / an offline determinism check. The active FBNeo
+// driver must already be initialised (BurnDrvInit done). Returns 0 on success.
+int  FbnHostStart(const FbnHostConfig* cfg);
+int  FbnHostStartSyncTest(const FbnHostConfig* cfg, int nCheckDistance);
+void FbnHostStop(void);
+int  FbnHostIsActive(void);
+
+// Call once per emulated frame from RunFrame(), AFTER GetInput(true) has
+// populated the driver input bytes and AFTER pBurnDraw / pBurnSoundOut have
+// been set for a live frame. Runs exactly one synchronized frame; any rollback
+// re-simulation runs silently and synchronously inside this call.
+//   1  => a frame advanced; present video (VidRedraw)
+//   0  => no advance this tick (libggpo is catching up); present nothing
+//  <0  => fatal; caller should FbnHostStop()
+int  FbnHostRunFrame(void);
+
+// diagnostics (emu thread) - snapshots for the gRPC agent
+int       FbnHostInputBytesPerPlayer(void);
+long long FbnHostFrameCount(void);
+int       FbnHostLastError(void);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#endif // ROLLBACK_FBNEO_HOST_H

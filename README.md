@@ -45,6 +45,9 @@ git subtree pull --prefix rollback_netcode/third_party/ggpo \
 - [x] `state_ring` — deterministic save-state ring
 - [x] `ggpo_bridge` — libggpo session + callback glue
 - [x] libggpo vendored
-- [ ] FBNeo host layer (implements `GgpoBridgeHost`, calls `GgpoBridgeTick`)
-- [ ] unified build (core + libggpo)
+- [x] `fbneo_host` — implements `GgpoBridgeHost` (input map, step_frame, lifecycle)
+- [x] `run.cpp` patch — routes the per-frame step through `FbnHostRunFrame()`
+- [ ] unified build (core + fbneo_host + libggpo → makefile.vc / meson)
+- [ ] a caller for `FbnHostStart` (menu / CLI / gRPC agent)
+- [ ] audio-pacing reconciliation (GGPO tick vs DirectSound segments)
 - [ ] gRPC control agent + command queue
