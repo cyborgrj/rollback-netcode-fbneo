@@ -10,23 +10,25 @@ build — com a lógica de verdade morando em `rollback_netcode/`. Isso deixa o
 | patch | mexe em | propósito |
 |-------|---------|-----------|
 | `0001-run-cpp-ggpo-tick.diff` | `src/burner/win32/run.cpp` | rotear o passo de emulação por frame via `FbnHostRunFrame()` quando uma sessão de rollback está ativa |
+| `0002-mingw-link-rollback.diff` | `makefile.mingw` | `-I` para achar `fbneo_host.h` + linkar `../rollback_netcode/build/librollbackfbneo.a -lws2_32` |
 
 ## Aplicando
 
 ```bash
 cd fbneo
 git apply ../rollback_netcode/patches/fbneo/0001-run-cpp-ggpo-tick.diff
+git apply ../rollback_netcode/patches/fbneo/0002-mingw-link-rollback.diff
 ```
 
-(ou `git apply -R` para reverter). A árvore de trabalho já está com ele aplicado
-se você seguiu a sessão que o criou.
+(ou `git apply -R` para reverter). O script
+[`../../build/setup-fbneo.sh`](../../build/setup-fbneo.sh) aplica os dois de forma
+idempotente e já compila a lib. A árvore de trabalho já está com eles aplicados
+se você seguiu a sessão que os criou.
 
 ## Ainda falta (não está nestes patches)
 
-- **Ligação na build**: adicionar `rollback_netcode/core/*.cpp`,
-  `rollback_netcode/fbneo/*.cpp` e os fontes do libggpo ao
-  `makefile.vc` / `meson.build`, com os include paths do comentário de
-  cabeçalho do `fbneo_host.cpp`.
+- **Build MSVC / meson**: só o `makefile.mingw` está ligado. Falta o
+  `makefile.vc` / `meson.build`.
 - **Setup de sessão / config**: algo precisa chamar `FbnHostStart()` com um
   `FbnHostConfig` preenchido (item de menu, linha de comando, ou o agente gRPC).
 - **Pacing de áudio**: o tick ao vivo hoje emite som no buffer que o

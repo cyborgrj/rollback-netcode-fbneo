@@ -17,6 +17,7 @@ rollback_netcode/
     README.md              docs do módulo
   fbneo/
     fbneo_host.{h,cpp}     implementação concreta de GgpoBridgeHost p/ o FBNeo
+  build/                   Makefile de librollbackfbneo.a + setup-fbneo.sh
   patches/fbneo/           diffs mínimos contra o FBNeo upstream
   third_party/
     ggpo/                  libggpo, vendorizado via `git subtree` (ver abaixo)
@@ -58,7 +59,8 @@ compilar exige o seu próprio checkout do FBNeo, sob a licença dele.
 - [x] libggpo vendorizado
 - [x] `fbneo_host` — implementa `GgpoBridgeHost` (mapa de input, step_frame, ciclo de vida)
 - [x] patch no `run.cpp` — roteia o passo por frame via `FbnHostRunFrame()`
-- [ ] build unificada (core + fbneo_host + libggpo → makefile.vc / meson)
+- [x] build MinGW — `librollbackfbneo.a` ([build/](rollback_netcode/build/)) + patch no `makefile.mingw` (ainda não compilado ponta a ponta)
+- [ ] build MSVC / meson
 - [ ] um chamador para `FbnHostStart` (menu / CLI / agente gRPC)
 - [ ] conciliação do pacing de áudio (tick do GGPO vs segmentos do DirectSound)
 - [ ] agente de controle gRPC + fila de comandos

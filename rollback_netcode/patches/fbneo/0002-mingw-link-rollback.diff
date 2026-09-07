@@ -1,0 +1,27 @@
+diff --git a/makefile.mingw b/makefile.mingw
+index 96cf743..99d643d 100644
+--- a/makefile.mingw
++++ b/makefile.mingw
+@@ -124,6 +124,12 @@ lib	+=	-luser32 -lgdi32 -lcomdlg32 -lcomctl32 -lshell32 -lwinmm -lshlwapi -ladva
+ ifdef INCLUDE_AVI_RECORDING
+ lib +=	-lvfw32
+ endif
++
++# rollback_netcode: prebuilt static lib (our core + fbneo_host + vendored libggpo)
++# plus winsock. Build it first, from the same MinGW shell:
++#     make -C ../rollback_netcode/build            (32-bit, matches `make mingw`)
++#     make -C ../rollback_netcode/build BUILD_X64_EXE=1
++lib +=	../rollback_netcode/build/librollbackfbneo.a -lws2_32
+ 		
+ 
+ depobj	+=	resource.o \
+@@ -311,6 +317,9 @@ ASFLAGS	=  -O1 -f coff -w-orphan-labels
+ 
+ 	DEF	:= -DBUILD_WIN32 -DUSE_SPEEDHACKS -DFILENAME=$(NAME) -DMMX=$(MMX)
+ 
++# rollback_netcode: let run.cpp (and anything else) find fbneo_host.h
++	DEF	:= $(DEF) -I../rollback_netcode/fbneo
++
+ ifdef UNICODE
+ 	DEF	:= $(DEF) -D_UNICODE
+ endif
