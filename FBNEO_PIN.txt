@@ -1,0 +1,5 @@
+repo:   https://github.com/finalburnneo/FBNeo
+branch: master
+commit: c579e2a0eb49b82469ec8596588d3bfbebda26f0
+date:   2026-09-07T20:44:12+02:00
+note:   shallow clone (--depth 1); run 'git fetch --unshallow' for full history
