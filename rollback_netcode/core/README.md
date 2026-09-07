@@ -1,73 +1,77 @@
-# `state_ring` — pinned circular save-state pool
+# `state_ring` — pool circular de save states, memória fixa
 
-The deterministic memory layer under the libggpo integration.
+A camada determinística de memória por baixo da integração com o libggpo.
 
-## Why it exists
+## Por que existe
 
-Rollback netcode re-simulates the recent past every time a remote input
-arrives late. To do that it must, on the emulation thread:
+O rollback netcode re-simula o passado recente toda vez que um input remoto
+chega atrasado. Para isso, na thread de emulação, ele precisa:
 
-1. **Save** the full volatile machine state once per simulated frame.
-2. **Load** any of the last ~8 frames instantly, then fast-forward.
+1. **Salvar** o estado volátil completo da máquina uma vez por frame simulado.
+2. **Carregar** qualquer um dos últimos ~8 frames instantaneamente e então
+   avançar rápido (fast-forward).
 
-Doing that with `malloc`/`free` per frame (what FBNeo's `BurnStateCompress`
-and the libggpo `vectorwar` sample both do) causes heap fragmentation and
-frame-time spikes. `state_ring` allocates **one** contiguous pool at init and
-never touches the heap again while the match runs.
+Fazer isso com `malloc`/`free` por frame (o que o `BurnStateCompress` do FBNeo e
+o exemplo `vectorwar` do libggpo ambos fazem) causa fragmentação de heap e
+picos no tempo de frame. O `state_ring` aloca **um único** pool contíguo na
+inicialização e nunca mais toca no heap enquanto a partida roda.
 
 ```
-pool  = one malloc:  [ slot 0 ][ slot 1 ][ slot 2 ] ... [ slot N-1 ]
-                        each slot = full volatile state, fixed size
-slot(frame) = frame & (N - 1)          // N is a power of two (default 16)
+pool  = um malloc:  [ slot 0 ][ slot 1 ][ slot 2 ] ... [ slot N-1 ]
+                       cada slot = estado volátil completo, tamanho fixo
+slot(frame) = frame & (N - 1)          // N é potência de dois (padrão 16)
 ```
 
-Because libggpo never rolls back further than its prediction window (8) and
-never stores two states for the same frame number, `frame & (N-1)` only ever
-overwrites a frame that is already too old to matter.
+Como o libggpo nunca faz rollback além da janela de previsão dele (8) e nunca
+guarda dois estados para o mesmo número de frame, `frame & (N-1)` só sobrescreve
+frames que já são antigos demais para importar.
 
-## What it captures
+## O que ele captura
 
-Exactly FBNeo's RunAhead volatile set: `BurnAreaScan(ACB_FULLSCAN | ACB_RUNAHEAD, …)`.
-That set is already proven to re-simulate deterministically — RunAhead does it
-every frame today. `state_ring` is a straight N-slot generalisation of
-`StateRunAheadSave` / `StateRunAheadLoad` in `fbneo/src/burn/burn.cpp`.
+Exatamente o conjunto volátil do RunAhead do FBNeo:
+`BurnAreaScan(ACB_FULLSCAN | ACB_RUNAHEAD, …)`. Esse conjunto já é comprovadamente
+re-simulável de forma determinística — o RunAhead faz isso todo frame hoje. O
+`state_ring` é uma generalização direta, para N slots, de `StateRunAheadSave` /
+`StateRunAheadLoad` em `fbneo/src/burn/burn.cpp`.
 
 ## API
 
-See [`state_ring.h`](state_ring.h). Shapes onto libggpo's `GGPOSessionCallbacks`:
+Ver [`state_ring.h`](state_ring.h). Encaixa nos `GGPOSessionCallbacks` do libggpo:
 
-| libggpo callback   | maps to               |
-|--------------------|-----------------------|
-| `save_game_state`  | `StateRingSave`       |
-| `load_game_state`  | `StateRingLoad`       |
-| `free_buffer`      | `StateRingFree` (no-op) |
+| callback do libggpo | mapeia para           |
+|---------------------|-----------------------|
+| `save_game_state`   | `StateRingSave`       |
+| `load_game_state`   | `StateRingLoad`       |
+| `free_buffer`       | `StateRingFree` (no-op) |
 
-`StateRingInit` must be called **after** the driver has run its first frame,
-so the measured state size is stable; the size is then locked for the session
-(a mid-session change returns `STATE_RING_ERR_SIZE_DRIFT` rather than
-reallocating, which would corrupt in-flight rollbacks).
+`StateRingInit` precisa ser chamado **depois** que o driver rodou o primeiro
+frame, para o tamanho medido do estado estar estável; o tamanho fica então
+travado para a sessão inteira (uma mudança no meio retorna
+`STATE_RING_ERR_SIZE_DRIFT` em vez de realocar, o que corromperia rollbacks em
+andamento).
 
-All calls run on the emulation thread only — they borrow the global `BurnAcb`
-pointer, exactly as RunAhead / Rewind / `BurnStateSave` do.
+Todas as chamadas rodam só na thread de emulação — elas pegam emprestado o
+ponteiro global `BurnAcb`, exatamente como RunAhead / Rewind / `BurnStateSave`.
 
-## Not done yet
+## Ainda falta
 
-- Not added to any FBNeo makefile / meson build.
-- No `StateRingInit` call site wired into the frame loop.
+- Não foi adicionado a nenhum makefile / build meson do FBNeo.
+- Nenhum ponto de chamada de `StateRingInit` ligado ao loop de frame (isso vem
+  do `fbneo_host`).
 
 ---
 
-# `ggpo_bridge` — libggpo session + callback glue
+# `ggpo_bridge` — sessão libggpo + cola dos callbacks
 
 [`ggpo_bridge.h`](ggpo_bridge.h) / [`ggpo_bridge.cpp`](ggpo_bridge.cpp).
 
-Owns the `GGPOSession`, the player handles, and all 7 `GGPOSessionCallbacks`.
-Depends on `state_ring` for save/load/free, and on a small **host interface**
-(`GgpoBridgeHost`) so the file never names an FBNeo symbol — it stays
-unit-testable and reusable from the gRPC agent.
+Dono do `GGPOSession`, dos handles de jogador e dos 7 `GGPOSessionCallbacks`.
+Depende do `state_ring` para save/load/free, e de uma pequena **interface de
+host** (`GgpoBridgeHost`) para que o arquivo nunca cite um símbolo do FBNeo —
+assim ele fica testável isolado e reutilizável pelo agente gRPC.
 
 ```
-                 GgpoBridgeTick()  (once per rendered frame, emu thread)
+                 GgpoBridgeTick()  (uma vez por frame renderizado, thread de emu)
                          |
    ggpo_idle -> poll_local_input -> ggpo_add_local_input
                          |
@@ -75,46 +79,47 @@ unit-testable and reusable from the gRPC agent.
                          |
    ggpo_synchronize_input -> host.step_frame(..., bRollback=0) -> ggpo_advance_frame
                          |
-        (if a late input arrived, libggpo now calls back, synchronously:)
+        (se um input atrasado chegou, o libggpo chama de volta, síncrono:)
    cb_load_game_state  -> StateRingLoad
-   cb_advance_frame    -> stepOnce(bRollback=1)   x (frames to replay)
-   cb_save_game_state  -> StateRingSave           (re-save each replayed frame)
+   cb_advance_frame    -> stepOnce(bRollback=1)   x (frames a repetir)
+   cb_save_game_state  -> StateRingSave           (re-salva cada frame repetido)
 ```
 
-libggpo callback -> bridge mapping:
+Mapeamento callback do libggpo -> bridge:
 
-| callback           | bridge                                            |
-|--------------------|---------------------------------------------------|
-| `begin_game`       | `return true`                                     |
-| `save_game_state`  | `StateRingSave`                                   |
-| `load_game_state`  | `StateRingLoad`                                   |
-| `free_buffer`      | `StateRingFree` (no-op)                           |
-| `advance_frame`    | `stepOnce(bRollback=1)` — silent re-simulation    |
-| `on_event`         | translated to `GgpoBridgeEvent` -> `host.on_event`|
-| `log_game_state`   | `host.log_state` if provided, else `return true`  |
+| callback           | bridge                                              |
+|--------------------|-----------------------------------------------------|
+| `begin_game`       | `return true`                                       |
+| `save_game_state`  | `StateRingSave`                                     |
+| `load_game_state`  | `StateRingLoad`                                     |
+| `free_buffer`      | `StateRingFree` (no-op)                             |
+| `advance_frame`    | `stepOnce(bRollback=1)` — re-simulação silenciosa   |
+| `on_event`         | traduzido p/ `GgpoBridgeEvent` -> `host.on_event`   |
+| `log_game_state`   | `host.log_state` se fornecido, senão `return true`  |
 
-### Host contract
+### Contrato do host
 
-- `poll_local_input(out, nBytes, user)` — this machine's input for the frame.
-- `step_frame(syncInputs, nPlayers, disconnectFlags, bRollback, user)` — run
-  **exactly one** deterministic core frame. When `bRollback == 1`: **no draw,
-  no audio**. Return 0 on success.
-- `StateRingInit()` must have run before `GgpoBridgeStart()` (host warms the
-  driver one frame first). The bridge does a loud late-init fallback but that
-  path risks a size probe before the driver is stable.
+- `poll_local_input(out, nBytes, user)` — o input desta máquina para o frame.
+- `step_frame(syncInputs, nPlayers, disconnectFlags, bRollback, user)` — roda
+  **exatamente um** frame determinístico do core. Quando `bRollback == 1`: **sem
+  desenho, sem áudio**. Retorna 0 em sucesso.
+- `StateRingInit()` precisa ter rodado antes de `GgpoBridgeStart()` (o host
+  aquece o driver um frame antes). O bridge tem um fallback de init tardio
+  barulhento, mas esse caminho arrisca sondar o tamanho antes de o driver
+  estabilizar.
 
-### Offline determinism check
+### Verificação de determinismo offline
 
-`GgpoBridgeStartSyncTest(cfg, host, nCheckDistance)` runs libggpo's synctest:
-no sockets, saves every frame, rolls back `nCheckDistance` and compares the
-`state_ring` checksums. Run this in CI per driver before trusting a game.
+`GgpoBridgeStartSyncTest(cfg, host, nCheckDistance)` roda o synctest do libggpo:
+sem sockets, salva todo frame, faz rollback de `nCheckDistance` e compara os
+checksums do `state_ring`. Rode isso na CI, por driver, antes de confiar num jogo.
 
-### Build deps
+### Dependências de build
 
-Needs libggpo's `ggponet.h` on the include path and the libggpo lib linked.
-libggpo will be vendored under `rollback_netcode/third_party/ggpo/` (submodule).
+Precisa do `ggponet.h` do libggpo no include path e da lib do libggpo linkada.
+O libggpo está vendorizado em `rollback_netcode/third_party/ggpo/` (git subtree).
 
 ### Threading
 
-Everything here runs on the **emulation thread**. The gRPC agent posts commands
-to a queue the emu thread drains between ticks; it must not call these directly.
+Tudo aqui roda na **thread de emulação**. O agente gRPC enfileira comandos que a
+thread de emulação drena entre os ticks; ele não pode chamar isto direto.

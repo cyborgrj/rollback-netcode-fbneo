@@ -1,61 +1,62 @@
-# `fbneo_host` — FBNeo ↔ rollback core integration
+# `fbneo_host` — integração FBNeo ↔ core de rollback
 
-The one module allowed to know both FBNeo and the rollback core. Implements
-`GgpoBridgeHost` in concrete FBNeo terms.
+O único módulo autorizado a conhecer tanto o FBNeo quanto o core de rollback.
+Implementa `GgpoBridgeHost` em termos concretos do FBNeo.
 
 [`fbneo_host.h`](fbneo_host.h) / [`fbneo_host.cpp`](fbneo_host.cpp)
 
-## What it does
+## O que ele faz
 
-### 1. Deterministic input map (built at `FbnHostStart`)
+### 1. Mapa de input determinístico (montado no `FbnHostStart`)
 
-Walks the active driver's input list via `BurnDrvGetInputInfo` in its natural
-order. Every `BIT_DIGITAL` input named `P<n> …` is assigned the next bit index
-for player `n`. Result: a compact little-endian bitmask per player,
-`ceil(maxBits/8)` bytes wide (uniform across players — libggpo uses one
-`input_size`). The list order is identical on both peers for a given build, so
-the mapping agrees implicitly — nothing is negotiated.
+Percorre a lista de inputs do driver ativo via `BurnDrvGetInputInfo` na ordem
+natural. Todo input `BIT_DIGITAL` chamado `P<n> …` recebe o próximo índice de bit
+do jogador `n`. Resultado: um bitmask compacto (little-endian) por jogador,
+`ceil(maxBits/8)` bytes de largura — uniforme entre jogadores, porque o libggpo
+usa um único `input_size`. A ordem da lista é idêntica nos dois peers para um
+dado build, então o mapeamento concorda implicitamente — nada é negociado.
 
-- **Analog / constant inputs** — logged once, left unsynchronised (v1 targets
-  digital fighting games).
-- **Genuine common inputs** (Reset, Service, Diagnostic) — not transmitted.
-- **DIP switches** — match-static; they live in the save state, not the
-  per-frame input. Both peers must select the same DIPs before `FbnHostStart`.
+- **Inputs analógicos / constantes** — logados uma vez, deixados sem sincronizar
+  (o v1 mira jogos de luta digitais).
+- **Inputs comuns de verdade** (Reset, Service, Diagnostic) — não transmitidos.
+- **DIP switches** — estáticos na partida; vivem no save state, não no input por
+  frame. Os dois peers precisam escolher os mesmos DIPs antes do `FbnHostStart`.
 
-### 2. `GgpoBridgeHost` callbacks
+### 2. Callbacks do `GgpoBridgeHost`
 
-| callback | does |
-|----------|------|
-| `poll_local_input` | packs the local player's slice of the driver bytes (already filled by `GetInput(true)`) into the bitmask |
-| `step_frame` | writes libggpo's synchronized inputs for **all** players back into the driver bytes, then `BurnDrvFrame()`. When `bRollback`: nulls `pBurnDraw`/`pBurnSoundOut` and sets `bBurnRunAheadFrame` first — the exact silent-frame recipe from FBNeo's RunAhead |
-| `on_event` | logs via `bprintf` (TODO: forward to the gRPC agent) |
+| callback | faz |
+|----------|-----|
+| `poll_local_input` | empacota a fatia do jogador local dos bytes do driver (já preenchidos por `GetInput(true)`) no bitmask |
+| `step_frame` | escreve os inputs sincronizados do libggpo (de **todos** os jogadores, corrigidos por previsão) de volta nos bytes do driver, depois `BurnDrvFrame()`. Quando `bRollback`: zera `pBurnDraw`/`pBurnSoundOut` e liga `bBurnRunAheadFrame` antes — a mesma receita do frame silencioso do RunAhead |
+| `on_event` | loga via `bprintf` (TODO: encaminhar ao agente gRPC) |
 
-### 3. Lifecycle + per-frame entry point
+### 3. Ciclo de vida + ponto de entrada por frame
 
 ```c
-FbnHostStart(&cfg);            // build map + GgpoBridgeStart  (driver must be initialised)
-FbnHostStartSyncTest(&cfg, n); // offline determinism check
-FbnHostRunFrame();             // once per frame from RunFrame(); 1=advanced 0=catching-up <0=fatal
+FbnHostStart(&cfg);            // monta o mapa + GgpoBridgeStart  (driver já iniciado)
+FbnHostStartSyncTest(&cfg, n); // verificação de determinismo offline
+FbnHostRunFrame();             // uma vez por frame, do RunFrame(); 1=avançou 0=recuperando <0=fatal
 FbnHostStop();
 ```
 
-`StateRingInit` is **deferred** to the first `FbnHostRunFrame()` — by then the
-driver has executed a frame and its volatile-state size is stable to lock in.
+`StateRingInit` é **adiado** para o primeiro `FbnHostRunFrame()` — aí o driver já
+executou um frame e o tamanho do estado volátil está estável para travar.
 
-## Wiring into FBNeo
+## Ligação no FBNeo
 
-One patch: [`../patches/fbneo/0001-run-cpp-ggpo-tick.diff`](../patches/fbneo/0001-run-cpp-ggpo-tick.diff)
-routes the per-frame step through `FbnHostRunFrame()` in
-`RunFrame()` when `FbnHostIsActive()`. Everything else (Kaillera, replay,
-RunAhead, Rewind) is untouched and mutually exclusive with an active session.
+Um patch: [`../patches/fbneo/0001-run-cpp-ggpo-tick.diff`](../patches/fbneo/0001-run-cpp-ggpo-tick.diff)
+roteia o passo por frame via `FbnHostRunFrame()` dentro de `RunFrame()` quando
+`FbnHostIsActive()`. Todo o resto (Kaillera, replay, RunAhead, Rewind) fica
+intacto e é mutuamente exclusivo com uma sessão ativa.
 
-Still needed: build wiring (add `core/*.cpp`, `fbneo/*.cpp`, libggpo sources +
-include paths to `makefile.vc` / `meson.build`), a caller for `FbnHostStart`
-(menu / CLI / gRPC agent), and audio-pacing reconciliation.
+Ainda falta: ligar na build (adicionar `core/*.cpp`, `fbneo/*.cpp` e os fontes do
+libggpo ao `makefile.vc` / `meson.build`, com os include paths do comentário de
+cabeçalho do `fbneo_host.cpp`), um chamador para `FbnHostStart` (menu / CLI /
+agente gRPC) e a conciliação do pacing de áudio.
 
-## Boundary
+## Fronteira
 
-`fbneo_host.cpp` includes `burnint.h` and our two core headers — nothing from
-the win32 burner. The only burner-level symbol it uses is `bDrvOkay`, re-declared
-locally (same as `burn/cheat.cpp` does). Keeps it close to buildable for the
-SDL burner too.
+`fbneo_host.cpp` inclui `burnint.h` e nossos dois headers de core — nada do
+burner win32. O único símbolo de nível burner que ele usa é `bDrvOkay`,
+re-declarado localmente (igual ao que `burn/cheat.cpp` faz). Isso o deixa perto
+de compilável para o burner SDL também.

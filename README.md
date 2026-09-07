@@ -1,61 +1,64 @@
-# Rollback Netcode for FinalBurn Neo
+# Rollback Netcode para o FinalBurn Neo
 
-Integrating [libggpo](https://github.com/pond3r/ggpo) rollback netcode into the
-FinalBurn Neo core, driven by a gRPC control agent.
+Integração do rollback netcode do [libggpo](https://github.com/pond3r/ggpo) ao
+core do FinalBurn Neo, orquestrada por um agente de controle gRPC.
 
-Design priorities: **determinism**, **strict save-state memory management**
-(fixed circular buffers, zero per-frame heap allocation), and safe use of the
-FBNeo state API (`BurnStateSave` / `BurnStateLoad`, `BurnAreaScan`).
+Prioridades de projeto: **determinismo**, **gerência estrita de memória de save
+state** (buffers circulares fixos, zero alocação de heap por frame) e uso seguro
+da API de estado do FBNeo (`BurnStateSave` / `BurnStateLoad`, `BurnAreaScan`).
 
-## Layout
+## Organização
 
 ```
 rollback_netcode/
-  core/                    our code
-    state_ring.{h,cpp}     pinned N-slot circular save-state pool
-    ggpo_bridge.{h,cpp}    GGPOSession + the 7 GGPO callbacks
-    README.md              module docs
+  core/                    nosso código
+    state_ring.{h,cpp}     pool circular de save states, N slots fixos
+    ggpo_bridge.{h,cpp}    GGPOSession + os 7 callbacks do GGPO
+    README.md              docs do módulo
+  fbneo/
+    fbneo_host.{h,cpp}     implementação concreta de GgpoBridgeHost p/ o FBNeo
+  patches/fbneo/           diffs mínimos contra o FBNeo upstream
   third_party/
-    ggpo/                  libggpo, vendored via `git subtree` (see below)
+    ggpo/                  libggpo, vendorizado via `git subtree` (ver abaixo)
 
-fbneo/                     upstream FBNeo checkout — NOT tracked here
-                           (its own git repo; pinned in FBNEO_PIN.txt)
+fbneo/                     checkout do FBNeo upstream — NÃO versionado aqui
+                           (repo git próprio; commit fixado em FBNEO_PIN.txt)
 ```
 
 ## FBNeo
 
-`fbneo/` is a separate upstream checkout, git-ignored. The exact commit it must
-build against is recorded in [`FBNEO_PIN.txt`](FBNEO_PIN.txt).
+`fbneo/` é um checkout upstream separado, no `.gitignore`. O commit exato contra
+o qual a build deve rodar está em [`FBNEO_PIN.txt`](FBNEO_PIN.txt).
 
-## Vendored libggpo
+## libggpo vendorizado
 
-`rollback_netcode/third_party/ggpo/` is pulled in with `git subtree` so a plain
-`git clone` of this repo gets everything, and local patches to libggpo are
-possible.
+`rollback_netcode/third_party/ggpo/` entra via `git subtree`, então um
+`git clone` simples deste repo já traz tudo, e dá para aplicar patches locais no
+libggpo.
 
-Update it later with:
+Para atualizar depois:
 
 ```bash
 git subtree pull --prefix rollback_netcode/third_party/ggpo \
   https://github.com/pond3r/ggpo master --squash
 ```
 
-## License
+## Licença
 
-This project's own code is MIT — see [`LICENSE`](LICENSE). Vendored libggpo
-under `rollback_netcode/third_party/ggpo/` is MIT
-([its LICENSE](rollback_netcode/third_party/ggpo/LICENSE)). FBNeo itself is not
-redistributed here — only a small patch under `rollback_netcode/patches/fbneo/`;
-building requires your own FBNeo checkout under its own license.
+O código próprio deste projeto é MIT — ver [`LICENSE`](LICENSE). O libggpo
+vendorizado em `rollback_netcode/third_party/ggpo/` é MIT
+([LICENSE dele](rollback_netcode/third_party/ggpo/LICENSE)). O FBNeo em si não é
+redistribuído aqui — apenas um patch pequeno em `rollback_netcode/patches/fbneo/`;
+compilar exige o seu próprio checkout do FBNeo, sob a licença dele.
 
-## Status
+## Situação
 
-- [x] `state_ring` — deterministic save-state ring
-- [x] `ggpo_bridge` — libggpo session + callback glue
-- [x] libggpo vendored
-- [x] `fbneo_host` — implements `GgpoBridgeHost` (input map, step_frame, lifecycle)
-- [x] `run.cpp` patch — routes the per-frame step through `FbnHostRunFrame()`
-- [ ] unified build (core + fbneo_host + libggpo → makefile.vc / meson)
-- [ ] a caller for `FbnHostStart` (menu / CLI / gRPC agent)
-- [ ] audio-pacing reconciliation (GGPO tick vs DirectSound segments)
-- [ ] gRPC control agent + command queue
+- [x] `state_ring` — anel determinístico de save states
+- [x] `ggpo_bridge` — sessão libggpo + cola dos callbacks
+- [x] libggpo vendorizado
+- [x] `fbneo_host` — implementa `GgpoBridgeHost` (mapa de input, step_frame, ciclo de vida)
+- [x] patch no `run.cpp` — roteia o passo por frame via `FbnHostRunFrame()`
+- [ ] build unificada (core + fbneo_host + libggpo → makefile.vc / meson)
+- [ ] um chamador para `FbnHostStart` (menu / CLI / agente gRPC)
+- [ ] conciliação do pacing de áudio (tick do GGPO vs segmentos do DirectSound)
+- [ ] agente de controle gRPC + fila de comandos
