@@ -11,7 +11,7 @@ build — com a lógica de verdade morando em `rollback_netcode/`. Isso deixa o
 |-------|---------|-----------|
 | `0001-run-cpp-ggpo-tick.diff` | `src/burner/win32/run.cpp` | rotear o passo de emulação por frame via `FbnHostRunFrame()` quando uma sessão de rollback está ativa |
 | `0002-mingw-link-rollback.diff` | `makefile.mingw` | `-I` para achar `fbneo_host.h` + linkar `../rollback_netcode/build/librollbackfbneo.a -lws2_32` |
-| `0003-cmdline-rbfnet-session.diff` | `src/burner/win32/main.cpp`, `drv.cpp` | parse de `-rbfnet player=..,localport=..,peerip=..,peerport=..,delay=..` na linha de comando → `FbnHostStart()` após o `DrvInit`; `FbnHostStop()` no `DrvExit` |
+| `0003-cmdline-rbfnet-session.diff` | `src/burner/win32/main.cpp`, `drv.cpp` | parse de `-rbfnet player=..,localport=..,peerip=..,peerport=..,delay=..` → `FbnHostStart()` após `DrvInit`; `FbnHostStop()` no `DrvExit`; `-rbfnet` ou `-noscan` desliga o audit de ROMs no startup (`bSkipStartupCheck`) |
 
 ## Aplicando
 

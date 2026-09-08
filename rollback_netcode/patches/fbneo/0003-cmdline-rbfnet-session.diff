@@ -19,7 +19,7 @@ index 8882b27..3db5a03 100644
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..02190ad 100644
+index 9039ec6..73843d0 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
 @@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
@@ -30,7 +30,21 @@ index 9039ec6..02190ad 100644
  
  HINSTANCE hAppInst = NULL;			// Application Instance
  HANDLE hMainThread;
-@@ -1041,6 +1042,50 @@ static void tp_validate()
+@@ -863,6 +864,13 @@ static int AppInit()
+ 	//  2 Silent + specified path
+ 	INT32 nExport = ParseExportPath(szCmdLine, NULL, NULL);
+ 
++	// rollback_netcode: a direct / netplay launch must not stall on the startup
++	// ROM audit (variable length -> desyncs the two peers' start). -rbfnet or an
++	// explicit -noscan suppresses it for this run.
++	if (_tcsstr(szCmdLine, _T("-rbfnet ")) || _tcsstr(szCmdLine, _T("-noscan"))) {
++		bSkipStartupCheck = true;
++	}
++
+ 	// Suppresses ROMs scanning when full list is exported
+ 	if (-1 == nExport) {
+ 		// Build the ROM information
+@@ -1041,6 +1049,50 @@ static void tp_validate()
  	return;
  }
  
@@ -81,7 +95,7 @@ index 9039ec6..02190ad 100644
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1450,15 @@ int ProcessCmdLine()
+@@ -1405,6 +1457,15 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();
