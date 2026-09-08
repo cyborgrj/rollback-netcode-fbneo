@@ -16,6 +16,8 @@
 #ifndef ROLLBACK_GGPO_BRIDGE_H
 #define ROLLBACK_GGPO_BRIDGE_H
 
+#include <stddef.h>   // size_t (used by the inline helper below)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
