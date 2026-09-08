@@ -22,7 +22,11 @@ extern "C" {
 typedef struct FbnHostConfig {
 	char           szGameId[64];     // opaque id for libggpo (use the FBNeo short name)
 	int            nPlayers;         // 2 .. 4
-	int            nLocalPlayer;     // 1-based player this machine drives
+	int            nLocalPlayer;     // 1-based side this machine plays in the match
+	int            nInputPlayer;     // 1-based driver player the LOCAL controls are
+	                                 // bound to in FBNeo. 0 => 1 (the default binding).
+	                                 // NOT the same as nLocalPlayer: the keyboard is
+	                                 // wired to P1 even when you are P2 in the match.
 	unsigned short nLocalPort;       // local UDP port
 	char           szRemoteIp[32];   // remote peer (v1: single remote, 2p)
 	unsigned short nRemotePort;

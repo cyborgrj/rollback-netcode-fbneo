@@ -59,7 +59,8 @@ typedef struct {
 static FbnPlayerMap  g_map[GGPO_BRIDGE_MAX_PLAYERS];
 static int           g_nPlayers    = 0;
 static int           g_nInputBytes = 0;
-static int           g_localPlayer = 1;
+static int           g_localPlayer = 1;   // our side in the match (1 or 2)
+static int           g_inputPlayer = 1;   // driver player the LOCAL controls are bound to
 static int           g_active      = 0;
 static int           g_ringReady   = 0;
 static int           g_analogWarned = 0;
@@ -132,7 +133,10 @@ static int buildInputMap(void)
 static void host_poll_local_input(void* out, int nInputBytes, void* /*user*/)
 {
 	memset(out, 0, nInputBytes);
-	const FbnPlayerMap* m = &g_map[g_localPlayer - 1];
+	// FBNeo binds the physical controls to ONE driver player (P1 by default),
+	// whichever side we are in the match - so "my" input always comes from that
+	// player's bytes, never from g_localPlayer's.
+	const FbnPlayerMap* m = &g_map[g_inputPlayer - 1];
 	unsigned char* o = (unsigned char*)out;
 	for (int b = 0; b < m->nBits; b++)
 		if (m->pVal[b] && *m->pVal[b]) o[b >> 3] |= (unsigned char)(1 << (b & 7));
@@ -229,6 +233,7 @@ static int startCommon(const FbnHostConfig* cfg)
 	g_cfg         = *cfg;
 	g_nPlayers    = cfg->nPlayers;
 	g_localPlayer = cfg->nLocalPlayer;
+	g_inputPlayer = (cfg->nInputPlayer >= 1 && cfg->nInputPlayer <= cfg->nPlayers) ? cfg->nInputPlayer : 1;
 	g_ringReady   = 0;
 
 	return buildInputMap();
@@ -261,8 +266,9 @@ int FbnHostStart(const FbnHostConfig* cfg)
 	GgpoBridgeConfig bc;
 	toBridgeConfig(&bc);
 
-	RbfLog("---- starting session: game=%s local P%d/%d bind :%d peer %s:%d delay %d ----",
-	       bc.szGameId, bc.nLocalPlayer, bc.nPlayers, bc.nLocalPort, bc.szRemoteIp, bc.nRemotePort, bc.nFrameDelay);
+	RbfLog("---- starting session: game=%s  side=P%d/%d  controls=P%d  bind :%d  peer %s:%d  delay %d ----",
+	       bc.szGameId, bc.nLocalPlayer, bc.nPlayers, g_inputPlayer,
+	       bc.nLocalPort, bc.szRemoteIp, bc.nRemotePort, bc.nFrameDelay);
 
 	int r = GgpoBridgeStart(&bc, &g_hostVtbl);
 	if (r < 0) {

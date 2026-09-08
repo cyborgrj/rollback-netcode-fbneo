@@ -37,7 +37,7 @@ namespace Rbf.Server
                             return;
                         }
 
-                        session = _hub.Login(msg.Hello.Username, ip, out var reject);
+                        session = _hub.Login(msg.Hello.Username, ip, msg.Hello.LanIp, out var reject);
                         if (session == null)
                         {
                             await responseStream.WriteAsync(new ServerMsg

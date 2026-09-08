@@ -28,6 +28,8 @@ message ClientMsg {
 message Hello {
   string username   = 1;
   string client_ver = 2;
+  string lan_ip     = 3;   // the client's own LAN IPv4 - used as peer_ip for matches
+                           // (more reliable than the address the server sees through NAT)
 }
 
 message JoinRoom  { string game = 1; }   // FBNeo short name, e.g. "sfa2"

@@ -60,11 +60,15 @@ namespace Rbf.Server
         private static readonly TimeSpan ChallengeTtl = TimeSpan.FromSeconds(30);
 
         // ---- login / disconnect --------------------------------------------
-        public Session Login(string username, string remoteIp, out string reject)
+        public Session Login(string username, string connIp, string lanIp, out string reject)
         {
             reject = null;
             username = (username ?? "").Trim();
             if (username.Length < 1 || username.Length > 24) { reject = "Nome inválido (1–24 caracteres)."; return null; }
+
+            // Prefer the IP the client reports for itself - the address the server
+            // sees is wrong when the client is behind NAT relative to the server.
+            string peerIp = !string.IsNullOrWhiteSpace(lanIp) ? lanIp.Trim() : (connIp ?? "");
 
             lock (_gate)
             {
@@ -78,12 +82,12 @@ namespace Rbf.Server
                 {
                     UserId = Guid.NewGuid().ToString("N").Substring(0, 12),
                     Username = username,
-                    RemoteIp = remoteIp ?? "",
+                    RemoteIp = peerIp,
                 };
                 _sessions[s.UserId] = s;
                 s.Send(new ServerMsg { Welcome = new Welcome { UserId = s.UserId, Username = s.Username } });
                 BroadcastRosterLocked();
-                Console.WriteLine($"+ {username} ({s.UserId}) @ {s.RemoteIp}");
+                Console.WriteLine($"+ {username} ({s.UserId})  peer-ip={s.RemoteIp}  (conn {connIp}, reported {lanIp})");
                 return s;
             }
         }

@@ -19,7 +19,7 @@ index 8882b27..3db5a03 100644
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..73843d0 100644
+index 9039ec6..ba61440 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
 @@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
@@ -44,7 +44,7 @@ index 9039ec6..73843d0 100644
  	// Suppresses ROMs scanning when full list is exported
  	if (-1 == nExport) {
  		// Build the ROM information
-@@ -1041,6 +1049,50 @@ static void tp_validate()
+@@ -1041,6 +1049,52 @@ static void tp_validate()
  	return;
  }
  
@@ -67,6 +67,7 @@ index 9039ec6..73843d0 100644
 +	memset(cfg, 0, sizeof(*cfg));
 +	cfg->nPlayers     = 2;
 +	cfg->nLocalPlayer = 1;
++	cfg->nInputPlayer = 1;   // FBNeo binds the local controls to P1 by default
 +	cfg->nFrameDelay  = 2;
 +	cfg->nStateSlots  = 0;
 +	strncpy(cfg->szGameId, BurnDrvGetTextA(DRV_NAME), sizeof(cfg->szGameId) - 1);
@@ -78,7 +79,8 @@ index 9039ec6..73843d0 100644
 +		TCHAR* key = tok;
 +		TCHAR* val = eq + 1;
 +
-+		if      (_tcscmp(key, _T("player"))    == 0) cfg->nLocalPlayer = _ttoi(val);
++		if      (_tcscmp(key, _T("player"))      == 0) cfg->nLocalPlayer = _ttoi(val);
++		else if (_tcscmp(key, _T("inputplayer")) == 0) cfg->nInputPlayer = _ttoi(val);
 +		else if (_tcscmp(key, _T("players"))   == 0) cfg->nPlayers     = _ttoi(val);
 +		else if (_tcscmp(key, _T("localport")) == 0) cfg->nLocalPort   = (unsigned short)_ttoi(val);
 +		else if (_tcscmp(key, _T("peerport"))  == 0) cfg->nRemotePort  = (unsigned short)_ttoi(val);
@@ -95,7 +97,7 @@ index 9039ec6..73843d0 100644
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1457,15 @@ int ProcessCmdLine()
+@@ -1405,6 +1459,15 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
@@ -29,7 +31,32 @@ namespace RbfLauncher.Net
 
         public string UserId { get; private set; }
         public string Username { get; private set; }
+        public string LanIp { get; private set; } = "";
         public bool LoggedIn => UserId != null;
+
+        /// <summary>Best-guess local LAN IPv4: the source address the OS would use
+        /// to reach the given host (or, failing that, the first non-loopback
+        /// IPv4). No packet is sent - UDP Connect only sets route selection.</summary>
+        public static string GuessLanIp(string towardHost)
+        {
+            try
+            {
+                using (var s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+                {
+                    s.Connect(towardHost, 9);
+                    return ((IPEndPoint)s.LocalEndPoint).Address.ToString();
+                }
+            }
+            catch { }
+            try
+            {
+                foreach (var a in Dns.GetHostAddresses(Dns.GetHostName()))
+                    if (a.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a))
+                        return a.ToString();
+            }
+            catch { }
+            return "";
+        }
 
         public event Action<string> LoginOk;                             // username
         public event Action<string> LoginRejected;                       // reason
@@ -49,10 +76,12 @@ namespace RbfLauncher.Net
             _channel = new Channel(host, port, ChannelCredentials.Insecure);
             await _channel.ConnectAsync(DateTime.UtcNow.Add(timeout)).ConfigureAwait(false);
 
+            LanIp = GuessLanIp(host);
+
             _call = new Lobby.LobbyClient(_channel).Connect(cancellationToken: _cts.Token);
             await _call.RequestStream.WriteAsync(new ClientMsg
             {
-                Hello = new Hello { Username = username, ClientVer = "0.1" }
+                Hello = new Hello { Username = username, ClientVer = "0.1", LanIp = LanIp }
             }).ConfigureAwait(false);
 
             _ = Task.Run(() => ReadLoopAsync(_cts.Token));

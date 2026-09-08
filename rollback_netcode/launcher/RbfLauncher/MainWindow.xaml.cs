@@ -142,6 +142,9 @@ namespace RbfLauncher
         {
             bool on = _client != null && _client.LoggedIn;
             PlayerLabel.Text = on ? "● " + _client.Username : _config.PlayerName + " · offline";
+            PlayerLabel.ToolTip = on && !string.IsNullOrEmpty(_client.LanIp)
+                ? "meu IP na rede: " + _client.LanIp
+                : null;
             ConnectButton.Content = on ? "Desconectar" : "Conectar";
         }
 
