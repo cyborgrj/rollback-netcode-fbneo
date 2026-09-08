@@ -112,11 +112,17 @@ namespace Rbf.Server
             game = (game ?? "").Trim();
             lock (_gate)
             {
-                if (s.State == PlayerState.PlayerInMatch || s.State == PlayerState.PlayerChallenging)
+                // Changing rooms implicitly abandons whatever the player was in.
+                // Never refuse: a stale InMatch/Challenging state would strand them
+                // in the old room forever (their emulator may have died silently).
+                if (s.State == PlayerState.PlayerChallenging)
+                    CancelChallengesInvolvingLocked(s.UserId, Outcome.Cancelled);
+                if (s.ActiveMatchId != null)
                 {
-                    s.Send(Err("Termine a partida/desafio antes de trocar de sala."));
-                    return;
+                    AbortMatchesInvolvingLocked(s.UserId, "adversário saiu da partida");
+                    s.ActiveMatchId = null;
                 }
+
                 s.Game = game;
                 s.State = string.IsNullOrEmpty(game) ? PlayerState.PlayerIdle : PlayerState.PlayerInRoom;
                 BroadcastRosterLocked();
@@ -277,7 +283,16 @@ namespace Rbf.Server
             }
         }
 
-        public void Pong(Session s, long t) => s.Send(new ServerMsg { Pong = new Pong { T = t } });
+        // Ping doubles as a lobby resync: answering with the roster guarantees the
+        // client converges within one ping period even if a broadcast was missed.
+        public void Pong(Session s, long t)
+        {
+            lock (_gate)
+            {
+                s.Send(new ServerMsg { Pong = new Pong { T = t } });
+                s.Send(BuildRosterMsgLocked());
+            }
+        }
 
         // ---- helpers ------------------------------------------------
         private int AllocPortLocked()
@@ -313,13 +328,17 @@ namespace Rbf.Server
             }
         }
 
-        private void BroadcastRosterLocked()
+        private ServerMsg BuildRosterMsgLocked()
         {
             var r = new Roster { Epoch = ++_epoch };
             foreach (var s in _sessions.Values)
                 r.Players.Add(new Player { UserId = s.UserId, Username = s.Username, Game = s.Game, State = s.State });
+            return new ServerMsg { Roster = r };
+        }
 
-            var msg = new ServerMsg { Roster = r };
+        private void BroadcastRosterLocked()
+        {
+            var msg = BuildRosterMsgLocked();
             foreach (var s in _sessions.Values) s.Send(msg);
         }
 

@@ -138,6 +138,11 @@ namespace RbfLauncher.Core
             if (!string.IsNullOrWhiteSpace(extraArgs))
                 args += " " + extraArgs.Trim();
 
+            // We always boot a specific game, so FBNeo's startup ROM audit is never
+            // wanted - it just delays the launch (and desyncs two peers' starts).
+            if (args.IndexOf("-noscan", StringComparison.OrdinalIgnoreCase) < 0)
+                args += " -noscan";
+
             var psi = new ProcessStartInfo
             {
                 FileName = exe,

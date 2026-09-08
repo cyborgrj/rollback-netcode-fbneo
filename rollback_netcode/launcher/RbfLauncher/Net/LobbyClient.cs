@@ -85,6 +85,22 @@ namespace RbfLauncher.Net
             }).ConfigureAwait(false);
 
             _ = Task.Run(() => ReadLoopAsync(_cts.Token));
+            _ = Task.Run(() => HeartbeatAsync(_cts.Token));
+        }
+
+        // Periodic ping. The server answers with Pong AND the current roster, so the
+        // lobby self-heals within one period if a push was ever missed.
+        private async Task HeartbeatAsync(CancellationToken ct)
+        {
+            try
+            {
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
+                    Send(new ClientMsg { Ping = new Ping { T = DateTime.UtcNow.Ticks } });
+                }
+            }
+            catch { /* cancelled */ }
         }
 
         private async Task ReadLoopAsync(CancellationToken ct)
