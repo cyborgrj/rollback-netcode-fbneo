@@ -30,7 +30,8 @@ namespace RbfLauncher.Views
 
             TitleText.Text = game.Title;
 
-            var bmp = ArtLoader.Load(game.ArtFile);
+            // portrait <short>box art; fall back to the 4:3 thumb, then a placeholder
+            var bmp = ArtLoader.Load(game.Box) ?? ArtLoader.Load(game.Thumb);
             if (bmp != null)
             {
                 ArtImage.Source = bmp;

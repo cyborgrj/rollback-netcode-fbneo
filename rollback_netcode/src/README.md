@@ -1,16 +1,23 @@
 # src/ — game art
 
-Box art used by the RBF Launcher. Copied next to `RbfLauncher.exe` as `src\` at
-build time (see `launcher/RbfLauncher/RbfLauncher.csproj`).
+Art used by the RBF Launcher. Copied next to `RbfLauncher.exe` as `src\` at
+build time (`launcher/RbfLauncher/RbfLauncher.csproj`).
 
-Expected names (referenced by `GameCatalog.All` in `launcher/RbfLauncher/Core/Model.cs`):
+Two images per game (referenced by `GameCatalog.All` in
+`launcher/RbfLauncher/Core/Model.cs`):
 
-| file | game |
-|------|------|
-| `vampire.png` | Vampire Savior (`vsav`) |
-| `kof98.png` | The King of Fighters '98 (`kof98`) |
-| `sfa2.jpg` | Street Fighter Alpha 2 (`sfa2`) |
-| `sf2ce.png` | Street Fighter II': Champion Edition (`sf2ce`) |
+| game | thumbnail (library grid, ~4:3) | portrait (room screen) |
+|------|-------------------------------|------------------------|
+| Vampire Savior (`vsav`)      | `vampire.png` | `vsavbox.png` / `.jpg` |
+| KOF '98 (`kof98`)            | `kof98.png`   | `kof98box.png` / `.jpg` |
+| SF Alpha 2 (`sfa2`)          | `sfa2.jpg`    | `sfa2box.png` / `.jpg` |
+| SF II' CE (`sf2ce`)          | `sf2ce.png`   | `sf2cebox.png` / `.jpg` |
 
-Any format WPF decodes (PNG/JPG/BMP/GIF). Missing file → the launcher shows a
-plain placeholder tile with the game's short name.
+- **Thumbnail** — an in-game screenshot, roughly 320×240 / 4:3. Shown whole (no
+  crop) on a dark mat in the game grid.
+- **Portrait (`<short>box`)** — a tall image for the room screen. Extension is
+  auto-resolved (`.png`, `.jpg`, `.jpeg`, `.bmp`, `.gif`), so just name it
+  `vsavbox.png` or `vsavbox.jpg`. Shown whole (no crop). If absent, the room
+  screen falls back to the thumbnail, then to a plain placeholder.
+
+Any format WPF decodes works.

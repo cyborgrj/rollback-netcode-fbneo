@@ -48,9 +48,13 @@ RBF\
 
 ## Game art
 
-Lives in the project-wide [`rollback_netcode/src/`](../src/) folder
-(`vampire.png`, `kof98.png`, `sfa2.jpg`, `sf2ce.png`). The csproj copies it next
-to the exe as `src\` on build. Missing art → a placeholder tile.
+Lives in the project-wide [`rollback_netcode/src/`](../src/) folder — two images
+per game: a ~4:3 **screenshot** for the library grid (`vampire.png`, `kof98.png`,
+`sfa2.jpg`, `sf2ce.png`) and a **portrait** `<short>box` for the room screen
+(`vsavbox`, `kof98box`, `sfa2box`, `sf2cebox`; `.png`/`.jpg` auto-detected). Both
+are shown whole, never cropped. The csproj copies the folder next to the exe as
+`src\`. Missing art → placeholder / thumbnail fallback. Details in
+[`src/README.md`](../src/README.md).
 
 ## Config (`rbf-launcher.json`, next to the exe)
 

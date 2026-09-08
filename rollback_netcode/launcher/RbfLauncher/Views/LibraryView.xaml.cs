@@ -22,43 +22,44 @@ namespace RbfLauncher.Views
                 Grid.Children.Add(BuildCard(game));
         }
 
+        private const double ThumbHeight = 264;   // ~4:3 for a ~350px-wide card
+
         private UIElement BuildCard(GameInfo game)
         {
             bool hasRom = _roms.RomExists(game);
 
-            // art or placeholder
-            FrameworkElement art;
-            BitmapImage bmp = ArtLoader.Load(game.ArtFile);
+            // Screenshot shown WHOLE (no crop) on a dark mat.
+            UIElement inner;
+            BitmapImage bmp = ArtLoader.Load(game.Thumb);
             if (bmp != null)
             {
-                art = new Image
+                inner = new Image
                 {
                     Source = bmp,
-                    Stretch = Stretch.UniformToFill,
-                    Height = 160
+                    Stretch = Stretch.Uniform,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
                 };
             }
             else
             {
-                art = new Border
+                inner = new TextBlock
                 {
-                    Height = 160,
-                    Background = (Brush)FindResource("BgPanelHi"),
-                    Child = new TextBlock
-                    {
-                        Text = game.ShortName,
-                        FontSize = 20,
-                        Foreground = (Brush)FindResource("TextDim"),
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
+                    Text = game.ShortName,
+                    FontSize = 20,
+                    Foreground = (Brush)FindResource("TextDim"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
                 };
             }
+
             var artClip = new Border
             {
+                Height = ThumbHeight,
+                Background = (Brush)FindResource("BgPanelHi"),
                 CornerRadius = new CornerRadius(8, 8, 0, 0),
                 ClipToBounds = true,
-                Child = art
+                Child = inner
             };
 
             var title = new TextBlock

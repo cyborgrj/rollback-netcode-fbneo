@@ -12,15 +12,16 @@
 
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="360" />
+        <ColumnDefinition Width="340" />
         <ColumnDefinition Width="*" />
       </Grid.ColumnDefinitions>
 
-      <!-- art -->
+      <!-- portrait art, shown WHOLE (no crop) -->
       <Border Grid.Column="0" CornerRadius="10" ClipToBounds="True" VerticalAlignment="Top"
+              MinHeight="255" MaxHeight="540"
               Background="{StaticResource BgPanelHi}" BorderBrush="{StaticResource Stroke}" BorderThickness="1">
         <Grid>
-          <Image x:Name="ArtImage" Stretch="UniformToFill" MaxHeight="460" />
+          <Image x:Name="ArtImage" Stretch="Uniform" />
           <TextBlock x:Name="ArtPlaceholder" Visibility="Collapsed" FontSize="26"
                      Foreground="{StaticResource TextDim}" HorizontalAlignment="Center"
                      VerticalAlignment="Center" Margin="0,80" />
