@@ -22,10 +22,19 @@ git apply ../rollback_netcode/patches/fbneo/0002-mingw-link-rollback.diff
 git apply ../rollback_netcode/patches/fbneo/0003-cmdline-rbfnet-session.diff
 ```
 
-(ou `git apply -R` para reverter). O script
-[`../../build/setup-fbneo.sh`](../../build/setup-fbneo.sh) aplica os dois de forma
-idempotente e já compila a lib. A árvore de trabalho já está com eles aplicados
-se você seguiu a sessão que os criou.
+Os fontes do FBNeo são CRLF e estes `.diff` são LF — sempre passe
+**`--ignore-whitespace`** ao `git apply`, senão o git do MSYS2 recusa:
+
+```bash
+cd fbneo
+for p in ../rollback_netcode/patches/fbneo/*.diff; do git apply --ignore-whitespace "$p"; done
+```
+
+(`git apply -R --ignore-whitespace` para reverter). O script
+[`../../build/setup-fbneo.sh`](../../build/setup-fbneo.sh) já faz isso, de forma
+idempotente, e compila a lib. A árvore de trabalho já está com eles aplicados se
+você seguiu a sessão que os criou — nesse caso pule a aplicação e vá direto ao
+`make`.
 
 ## Ainda falta (não está nestes patches)
 
