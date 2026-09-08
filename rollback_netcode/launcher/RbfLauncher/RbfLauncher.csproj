@@ -45,10 +45,11 @@
     <Content Include="..\..\src\**\*" Link="src\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Optional rom-database JSON(s). The repo ships none; whatever the user drops
-       into json_roms\ is copied next to the exe and read at runtime. -->
+  <!-- Optional rom-database JSON(s) in the project-wide  rollback_netcode\json_roms\ .
+       The repo ships none (git-ignored); whatever the user drops in is copied
+       next to the exe as json_roms\ and read at runtime. -->
   <ItemGroup>
-    <Content Include="json_roms\**\*" Link="json_roms\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\json_roms\**\*" Link="json_roms\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

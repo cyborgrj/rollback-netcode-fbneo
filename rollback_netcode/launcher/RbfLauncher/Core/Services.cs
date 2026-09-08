@@ -130,10 +130,14 @@ namespace RbfLauncher.Core
             if (!System.IO.File.Exists(exe))
                 throw new FileNotFoundException("Emulador não encontrado. Ajuste o caminho em Configurações.", exe);
 
+            string args = g.ShortName;
+            if (!string.IsNullOrWhiteSpace(_cfg.EmulatorArgs))
+                args += " " + _cfg.EmulatorArgs.Trim();
+
             var psi = new ProcessStartInfo
             {
                 FileName = exe,
-                Arguments = g.ShortName,
+                Arguments = args,                       // e.g. "sfa2 -w"  (-w = windowed; FBNeo defaults to fullscreen)
                 WorkingDirectory = Path.GetDirectoryName(exe) ?? AppContext.BaseDirectory,
                 UseShellExecute = false,
             };

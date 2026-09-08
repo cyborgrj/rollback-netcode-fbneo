@@ -1,3 +1,0 @@
-# Optional rom-database JSON files are read from this folder at runtime.
-# Expected shape:  { "<setname>": { "download": "<url>", "require": ["<dep>", ...] } }
-# The repository ships none. *.json here is git-ignored.

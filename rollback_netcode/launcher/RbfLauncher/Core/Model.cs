@@ -37,6 +37,12 @@ namespace RbfLauncher.Core
         [JsonPropertyName("romsDir")]
         public string RomsDir { get; set; } = Path.Combine("roms", "arcade");
 
+        /// <summary>Extra args appended after the game name. FBNeo boots FULLSCREEN
+        /// when given only a game name; "-w" forces a window. Other useful values:
+        /// "-r 800 x 600 x 32" (fullscreen at that mode).</summary>
+        [JsonPropertyName("emulatorArgs")]
+        public string EmulatorArgs { get; set; } = "-w";
+
         [JsonPropertyName("playerName")]
         public string PlayerName { get; set; } = Environment.UserName;
 

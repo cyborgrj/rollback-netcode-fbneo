@@ -57,6 +57,7 @@ to the exe as `src\` on build. Missing art → a placeholder tile.
 ```json
 {
   "emulatorPath": "fbneo.exe",
+  "emulatorArgs": "-w",
   "romsDir": "roms\\arcade",
   "playerName": "you"
 }
@@ -65,6 +66,12 @@ to the exe as `src\` on build. Missing art → a placeholder tile.
 Relative paths resolve against the launcher folder. `romsDir` defaults to
 FBNeo's own arcade default; if you point it elsewhere you must also tell FBNeo
 (future: pass a rom path / write `fbneo.ini`).
+
+**`emulatorArgs`** is appended after the game name. FBNeo boots **fullscreen**
+when given only a game name, which fails on some setups; the default `-w` forces
+a window. FBNeo remembers the window size / blitter you pick from its own menu in
+`config\fbneo.ini` next to `fbneo.exe`. For a low fullscreen mode instead, use
+`-r 800 x 600 x 32`.
 
 ## ROMs
 
