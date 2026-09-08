@@ -53,7 +53,7 @@ public:
          } network_interrupted;
       } u;
 
-      UdpProtocol::Event(Type t = Unknown) : type(t) { }
+      Event(Type t = Unknown) : type(t) { }   // LOCAL PATCH: was "UdpProtocol::Event(" - GCC rejects the redundant qualifier on an in-class ctor
    };
 
 public:

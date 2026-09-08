@@ -17,3 +17,15 @@ Change:
 ```
 
 This project builds FBNeo (and this lib) with MinGW-w64, so `_WIN32` must work.
+
+## 2. `src/lib/ggpo/network/udp_proto.h` — GCC rejects a redundant ctor qualifier
+
+Line 56 declared the nested `Event` constructor as `UdpProtocol::Event(Type t = Unknown)`.
+MSVC tolerates the extra `UdpProtocol::` qualifier; GCC fails to parse it while
+`UdpProtocol` is still an incomplete type (`expected ')' before 't'`). Dropped the
+qualifier:
+
+```c
+Event(Type t = Unknown) : type(t) { }
+```
+
