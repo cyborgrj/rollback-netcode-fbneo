@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    RBF Launcher - desktop lobby for Rollback FinalBurn Neo.
+    RBF Launcher - desktop lobby for Rollback FinalBurn Neo created by CyborgRJ.
 
     net48 on purpose: .NET Framework 4.8 ships with every Windows 7 SP1 .. 11,
     so end users install nothing. Building needs only the .NET SDK
@@ -23,7 +23,7 @@
     <RootNamespace>RbfLauncher</RootNamespace>
     <Version>0.1.0</Version>
     <Company>RBF</Company>
-    <Product>Rollback FinalBurn Neo Launcher</Product>
+    <Product>Rollback FinalBurn Neo Launcher - CyborgRJ 2026.</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -32,6 +32,11 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="Grpc.Core" Version="2.46.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\net\RbfProtocol\RbfProtocol.csproj" />
   </ItemGroup>
 
   <!-- framework assemblies not referenced by default under the SDK -->

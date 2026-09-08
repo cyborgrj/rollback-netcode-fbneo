@@ -1,0 +1,99 @@
+diff --git a/src/burner/win32/drv.cpp b/src/burner/win32/drv.cpp
+index 8882b27..3db5a03 100644
+--- a/src/burner/win32/drv.cpp
++++ b/src/burner/win32/drv.cpp
+@@ -2,6 +2,7 @@
+ #include "burner.h"
+ #include "neocdlist.h"
+ #include "pcecdlist.h"
++#include "fbneo_host.h"		// rollback_netcode: libggpo session host
+ 
+ int bDrvOkay = 0;						// 1 if the Driver has been initted okay, and it's okay to use the BurnDrv functions
+ 
+@@ -314,6 +315,7 @@ int DrvInitCallback()
+ int DrvExit()
+ {
+ 	if (bDrvOkay) {
++		FbnHostStop();				// rollback_netcode: close any GGPO session
+ 		NeoCDZRateChangeback();
+ 		StopReplay();
+ 		VidExit();
+diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
+index 9039ec6..02190ad 100644
+--- a/src/burner/win32/main.cpp
++++ b/src/burner/win32/main.cpp
+@@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
+ #endif
+ 
+ #include "version.h"
++#include "fbneo_host.h"		// rollback_netcode: libggpo session host
+ 
+ HINSTANCE hAppInst = NULL;			// Application Instance
+ HANDLE hMainThread;
+@@ -1041,6 +1042,50 @@ static void tp_validate()
+ 	return;
+ }
+ 
++// rollback_netcode: parse  -rbfnet player=1,localport=7000,peerip=1.2.3.4,peerport=7000,delay=2
++// from the command line into an FbnHostConfig. Returns true when a usable config
++// was found (peer ip + both ports present). Independent of FBNeo's own option
++// parser, same as the -sub / -ips handling does.
++static bool RbfParseNetCfg(FbnHostConfig* cfg)
++{
++	TCHAR* p = _tcsstr(szCmdLine, _T("-rbfnet "));
++	if (p == NULL) return false;
++	p += _tcslen(_T("-rbfnet "));
++
++	TCHAR list[512];
++	_tcsncpy(list, p, 511);
++	list[511] = _T('\0');
++	TCHAR* sp = _tcschr(list, _T(' '));		// the comma-list ends at the next space
++	if (sp) *sp = _T('\0');
++
++	memset(cfg, 0, sizeof(*cfg));
++	cfg->nPlayers     = 2;
++	cfg->nLocalPlayer = 1;
++	cfg->nFrameDelay  = 2;
++	cfg->nStateSlots  = 0;
++	strncpy(cfg->szGameId, BurnDrvGetTextA(DRV_NAME), sizeof(cfg->szGameId) - 1);
++
++	for (TCHAR* tok = _tcstok(list, _T(",")); tok != NULL; tok = _tcstok(NULL, _T(","))) {
++		TCHAR* eq = _tcschr(tok, _T('='));
++		if (eq == NULL) continue;
++		*eq = _T('\0');
++		TCHAR* key = tok;
++		TCHAR* val = eq + 1;
++
++		if      (_tcscmp(key, _T("player"))    == 0) cfg->nLocalPlayer = _ttoi(val);
++		else if (_tcscmp(key, _T("players"))   == 0) cfg->nPlayers     = _ttoi(val);
++		else if (_tcscmp(key, _T("localport")) == 0) cfg->nLocalPort   = (unsigned short)_ttoi(val);
++		else if (_tcscmp(key, _T("peerport"))  == 0) cfg->nRemotePort  = (unsigned short)_ttoi(val);
++		else if (_tcscmp(key, _T("delay"))     == 0) cfg->nFrameDelay  = _ttoi(val);
++		else if (_tcscmp(key, _T("peerip"))    == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szRemoteIp, a, sizeof(cfg->szRemoteIp) - 1);
++		}
++	}
++
++	return (cfg->nLocalPort != 0 && cfg->nRemotePort != 0 && cfg->szRemoteIp[0] != '\0');
++}
++
+ int ProcessCmdLine()
+ {
+ 	unsigned int i;
+@@ -1405,6 +1450,15 @@ int ProcessCmdLine()
+ 					}
+ 
+ 					IpsPatchExit();
++
++					// rollback_netcode: if -rbfnet was given, open the GGPO session now
++					if (bDrvOkay) {
++						FbnHostConfig rbfCfg;
++						if (RbfParseNetCfg(&rbfCfg)) {
++							if (FbnHostStart(&rbfCfg) != 0)
++								bprintf(PRINT_ERROR, _T("[rbf] FbnHostStart failed; running offline.\n"));
++						}
++					}
+ 					break;
+ 				}
+ 			}

@@ -1,7 +1,7 @@
 <Window x:Class="RbfLauncher.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Rollback FinalBurn Neo" Height="720" Width="1040"
+        Title="Rollback FinalBurn Neo by CyborgRJ" Height="720" Width="1040"
         MinHeight="560" MinWidth="820"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}">
@@ -17,6 +17,8 @@
         </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
           <TextBlock x:Name="PlayerLabel" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
+          <Button x:Name="ConnectButton" Style="{StaticResource Btn}" Padding="10,6" Margin="0,0,8,0"
+                  Click="ConnectButton_Click" Content="Conectar" />
           <Button x:Name="SettingsButton" Style="{StaticResource Btn}" Padding="10,6" Click="SettingsButton_Click"
                   Content="Configura&#231;&#245;es" />
         </StackPanel>

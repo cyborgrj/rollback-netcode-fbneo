@@ -1,0 +1,16 @@
+<Window x:Class="RbfLauncher.Views.MatchReadyDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Partida pronta" Height="240" Width="440"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource Bg}" Topmost="True">
+  <StackPanel Margin="24">
+    <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+    <TextBlock x:Name="DetailText" Foreground="{StaticResource TextDim}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" />
+    <TextBlock x:Name="StatusText" Foreground="{StaticResource TextDim}" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap" />
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+      <Button x:Name="CancelButton" Content="Cancelar" Style="{StaticResource Btn}" MinWidth="100" Click="Cancel_Click" />
+      <Button x:Name="PlayButton" Content="Jogar" Style="{StaticResource BtnPrimary}" MinWidth="120" Margin="10,0,0,0" Click="Play_Click" />
+    </StackPanel>
+  </StackPanel>
+</Window>

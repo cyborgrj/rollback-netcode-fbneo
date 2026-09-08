@@ -1,6 +1,6 @@
 # RBF Launcher
 
-Desktop lobby for Rollback FinalBurn Neo. Lists the supported games, shows which
+Desktop lobby for Rollback FinalBurn Neo created by CyborgRJ. Lists the supported games, shows which
 ROMs you have, downloads missing ones, and boots the **patched `fbneo.exe`** on a
 chosen game.
 
@@ -94,11 +94,28 @@ any `require` dependencies and fetches each from the URL in that file (to
 No such file → the button stays disabled and the room screen says so. The repo
 ships none and `json_roms\*.json` is git-ignored.
 
+## Online (gRPC lobby)
+
+Header **Conectar** → server IP/port + player name (saved to `rbf-launcher.json`
+as `serverHost` / `serverPort`). Run the server from
+[`../net`](../net) (`dotnet run --project RbfServer`).
+
+Once connected: entering a game room joins that room on the server; the room
+screen lists other players there with a **Desafiar** button. An incoming
+challenge pops a dialog; on accept both sides get a **Partida pronta** dialog
+whose **Jogar** spawns `fbneo.exe <game> -w -rbfnet player=..,localport=..,peerip=..,peerport=..,delay=..`
+and reports match status back. Contract + server details in
+[`../net/README.md`](../net/README.md).
+
+Networking uses `Grpc.Core` (the only gRPC stack that runs on .NET Framework on
+old Windows). `RbfProtocol` (the shared proto project) is a `ProjectReference`.
+
 ## Scope now / next
 
-- **Now:** 4 games, ROM presence + download, launch emulator, settings.
-- **Next:** the gRPC agent — player login, online rooms, "challenge" between
-  machines, then a server + DB (local, later AWS).
+- **Now:** 4 games, ROM presence + download, launch emulator, settings, gRPC
+  lobby (username-only login, per-game rooms, challenge → match launch).
+- **Next:** the fbneo cmdline patch is done (`patches/fbneo/0003`); still need an
+  end-to-end run on two machines, then persistence (DB) + real auth.
 
 Featured catalogue lives in `Core/Model.cs` (`GameCatalog.All`) — short name +
 title + art file, no URLs. Add an entry + its art to feature another game.

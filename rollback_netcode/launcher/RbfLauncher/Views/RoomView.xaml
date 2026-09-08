@@ -54,9 +54,10 @@
 
         <Border Height="1" Background="{StaticResource Stroke}" Margin="0,24" />
 
-        <TextBlock Text="Salas online" FontSize="16" FontWeight="SemiBold" />
-        <TextBlock Text="Em breve: login de jogadores e desafios entre m&#225;quinas (gRPC)."
-                   Foreground="{StaticResource TextDim}" FontSize="13" Margin="0,4,0,0" TextWrapping="Wrap" />
+        <TextBlock Text="Sala online" FontSize="16" FontWeight="SemiBold" />
+        <TextBlock x:Name="OnlineHint" Foreground="{StaticResource TextDim}" FontSize="12"
+                   Margin="0,4,0,10" TextWrapping="Wrap" />
+        <ItemsControl x:Name="PlayersList" />
       </StackPanel>
     </Grid>
   </Grid>

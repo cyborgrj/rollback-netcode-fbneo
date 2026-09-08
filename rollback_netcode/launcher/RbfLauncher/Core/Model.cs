@@ -52,6 +52,12 @@ namespace RbfLauncher.Core
         [JsonPropertyName("playerName")]
         public string PlayerName { get; set; } = Environment.UserName;
 
+        [JsonPropertyName("serverHost")]
+        public string ServerHost { get; set; } = "127.0.0.1";
+
+        [JsonPropertyName("serverPort")]
+        public int ServerPort { get; set; } = 50051;
+
         private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions { WriteIndented = true };
 
         public static string ConfigPath => Path.Combine(AppContext.BaseDirectory, "rbf-launcher.json");

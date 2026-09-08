@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Rbf.Protocol;
 using RbfLauncher.Core;
+using RbfLauncher.Net;
 
 namespace RbfLauncher.Views
 {
@@ -16,10 +20,14 @@ namespace RbfLauncher.Views
         private readonly EmulatorService _emu;
         private readonly Action _back;
 
+        private LobbyClient _client;
+        private IReadOnlyList<RosterEntry> _roster = new List<RosterEntry>();
+
         private bool _downloading;
         private CancellationTokenSource _cts;
 
-        public RoomView(GameInfo game, AppConfig config, RomService roms, EmulatorService emu, Action back)
+        public RoomView(GameInfo game, AppConfig config, RomService roms, EmulatorService emu, Action back,
+                        LobbyClient client)
         {
             InitializeComponent();
             _game = game;
@@ -27,6 +35,7 @@ namespace RbfLauncher.Views
             _roms = roms;
             _emu = emu;
             _back = back;
+            _client = client;
 
             TitleText.Text = game.Title;
 
@@ -44,6 +53,100 @@ namespace RbfLauncher.Views
             }
 
             Refresh();
+            RebuildPlayers();
+        }
+
+        // ---- online room -------------------------------------------------
+        public void SetClient(LobbyClient client)
+        {
+            _client = client;
+            if (client == null) _roster = new List<RosterEntry>();
+            RebuildPlayers();
+        }
+
+        public void SetRoster(IReadOnlyList<RosterEntry> roster)
+        {
+            _roster = roster ?? new List<RosterEntry>();
+            RebuildPlayers();
+        }
+
+        private void RebuildPlayers()
+        {
+            PlayersList.Items.Clear();
+
+            if (_client == null || !_client.LoggedIn)
+            {
+                OnlineHint.Text = "Offline. Clique em \"Conectar\" no topo para ver quem está na sala.";
+                return;
+            }
+
+            var mine = _roster.FirstOrDefault(p => p.UserId == _client.UserId);
+            bool iAmFree = mine != null && mine.State == PlayerState.PlayerInRoom;
+
+            var others = _roster
+                .Where(p => p.UserId != _client.UserId && p.Game == _game.ShortName)
+                .OrderBy(p => p.Username)
+                .ToList();
+
+            OnlineHint.Text = others.Count == 0
+                ? "Você está na sala. Ninguém mais aqui ainda."
+                : others.Count + (others.Count == 1 ? " jogador na sala." : " jogadores na sala.");
+
+            foreach (var p in others)
+                PlayersList.Items.Add(BuildPlayerRow(p, iAmFree));
+        }
+
+        private UIElement BuildPlayerRow(RosterEntry p, bool iAmFree)
+        {
+            var name = new TextBlock
+            {
+                Text = p.Username,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 14
+            };
+
+            string stateText;
+            switch (p.State)
+            {
+                case PlayerState.PlayerInMatch:    stateText = "em partida"; break;
+                case PlayerState.PlayerChallenging: stateText = "em desafio"; break;
+                default:                           stateText = "livre"; break;
+            }
+            var state = new TextBlock
+            {
+                Text = stateText,
+                Foreground = (Brush)FindResource("TextDim"),
+                FontSize = 12,
+                Margin = new Thickness(10, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var btn = new Button
+            {
+                Content = "Desafiar",
+                Style = (Style)FindResource("Btn"),
+                Padding = new Thickness(12, 4, 12, 4),
+                IsEnabled = iAmFree && p.State == PlayerState.PlayerInRoom
+            };
+            btn.Click += (s, e) => _client?.SendChallenge(p.UserId);
+
+            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 4), LastChildFill = false };
+            DockPanel.SetDock(btn, Dock.Right);
+            DockPanel.SetDock(state, Dock.Right);
+            row.Children.Add(btn);
+            row.Children.Add(state);
+            row.Children.Add(name);
+
+            return new Border
+            {
+                Background = (Brush)FindResource("BgPanel"),
+                BorderBrush = (Brush)FindResource("Stroke"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(0, 0, 0, 6),
+                Child = row
+            };
         }
 
         private void Refresh()

@@ -122,9 +122,11 @@ namespace RbfLauncher.Core
 
         public bool EmulatorExists => System.IO.File.Exists(_cfg.ResolvedEmulatorPath);
 
-        /// <summary>Boot straight into a game: <c>fbneo.exe &lt;short&gt;</c>. FBNeo reads
-        /// roms from &lt;workdir&gt;/roms/arcade, so it runs from its own folder.</summary>
-        public Process Launch(GameInfo g)
+        /// <summary>Boot straight into a game: <c>fbneo.exe &lt;short&gt; [args] [extraArgs]</c>.
+        /// FBNeo reads roms from &lt;workdir&gt;/roms/arcade, so it runs from its own
+        /// folder. <paramref name="extraArgs"/> carries the <c>-rbfnet …</c> session
+        /// string for a networked match.</summary>
+        public Process Launch(GameInfo g, string extraArgs = null)
         {
             string exe = _cfg.ResolvedEmulatorPath;
             if (!System.IO.File.Exists(exe))
@@ -133,6 +135,8 @@ namespace RbfLauncher.Core
             string args = g.ShortName;
             if (!string.IsNullOrWhiteSpace(_cfg.EmulatorArgs))
                 args += " " + _cfg.EmulatorArgs.Trim();
+            if (!string.IsNullOrWhiteSpace(extraArgs))
+                args += " " + extraArgs.Trim();
 
             var psi = new ProcessStartInfo
             {

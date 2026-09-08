@@ -11,6 +11,7 @@ build — com a lógica de verdade morando em `rollback_netcode/`. Isso deixa o
 |-------|---------|-----------|
 | `0001-run-cpp-ggpo-tick.diff` | `src/burner/win32/run.cpp` | rotear o passo de emulação por frame via `FbnHostRunFrame()` quando uma sessão de rollback está ativa |
 | `0002-mingw-link-rollback.diff` | `makefile.mingw` | `-I` para achar `fbneo_host.h` + linkar `../rollback_netcode/build/librollbackfbneo.a -lws2_32` |
+| `0003-cmdline-rbfnet-session.diff` | `src/burner/win32/main.cpp`, `drv.cpp` | parse de `-rbfnet player=..,localport=..,peerip=..,peerport=..,delay=..` na linha de comando → `FbnHostStart()` após o `DrvInit`; `FbnHostStop()` no `DrvExit` |
 
 ## Aplicando
 
@@ -18,6 +19,7 @@ build — com a lógica de verdade morando em `rollback_netcode/`. Isso deixa o
 cd fbneo
 git apply ../rollback_netcode/patches/fbneo/0001-run-cpp-ggpo-tick.diff
 git apply ../rollback_netcode/patches/fbneo/0002-mingw-link-rollback.diff
+git apply ../rollback_netcode/patches/fbneo/0003-cmdline-rbfnet-session.diff
 ```
 
 (ou `git apply -R` para reverter). O script
