@@ -6,19 +6,23 @@
 #   patches/fbneo/0002-mingw-link-rollback.diff
 #
 # Run it from the SAME MSYS2 / MinGW shell you use for `make mingw` in fbneo/,
-# so the compiler, C++ runtime and word size match.
+# from THIS directory (rollback_netcode/build):
 #
 #   make                     # 32-bit  (matches `make mingw`)
 #   make BUILD_X64_EXE=1      # 64-bit  (matches `make mingw BUILD_X64_EXE=1`)
 #   make clean
 #
-# Overridable: CXX, AR, CXXFLAGS, FBNEO (path to the FBNeo checkout).
+# IMPORTANT: every path here is RELATIVE. The repo lives under a directory with
+# a space ("Rollback Netcode") and GNU make cannot have spaces in target or
+# prerequisite names - an absolute path would break the build.
+#
+# Overridable: CXX, AR, CXXFLAGS, FBNEO (relative path to the FBNeo checkout).
 
 CXX   ?= g++
 AR    ?= ar
 
-ROOT  := $(CURDIR)/..
-FBNEO ?= $(ROOT)/../fbneo
+ROOT  := ..
+FBNEO ?= ../../fbneo
 GGPO  := $(ROOT)/third_party/ggpo/src
 
 ARCHFLAG := -m32
@@ -76,7 +80,7 @@ all: $(LIB)
 
 $(LIB): $(OBJ)
 	$(AR) rcs $@ $^
-	@echo "  ->  $(CURDIR)/$@   ($(words $(OBJ)) objects, $(ARCHFLAG))"
+	@echo "  ->  $(OBJDIR)/../$@   ($(words $(OBJ)) objects, $(ARCHFLAG))"
 
 $(OBJDIR)/%.o: %.cpp | $(OBJDIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
