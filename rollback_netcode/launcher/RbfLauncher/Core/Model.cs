@@ -14,12 +14,12 @@ namespace RbfLauncher.Core
         public string ShortName { get; set; }
         public string Title { get; set; }
 
-        /// <summary>~4:3 screenshot for the library grid. File name in src\ .</summary>
-        public string Thumb { get; set; }
-
-        /// <summary>Portrait art for the room screen. Base name in src\ ; the
-        /// extension is resolved automatically (&lt;short&gt;box.png / .jpg / ...).</summary>
-        public string Box { get; set; }
+        /// <summary>Art base names, standardised on the ROM short name.
+        /// Extension is resolved by ArtLoader (png / jpg / ...).
+        ///   src\&lt;short&gt;.*      - ~4:3 screenshot for the library grid
+        ///   src\&lt;short&gt;box.*   - portrait art for the room screen</summary>
+        public string Thumb => ShortName;
+        public string Box => ShortName + "box";
     }
 
     /// <summary>The fixed starter catalogue.</summary>
@@ -27,10 +27,10 @@ namespace RbfLauncher.Core
     {
         public static readonly IReadOnlyList<GameInfo> All = new[]
         {
-            new GameInfo { ShortName = "vsav",  Title = "Vampire Savior",                        Thumb = "vampire.png", Box = "vsavbox"  },
-            new GameInfo { ShortName = "kof98", Title = "The King of Fighters '98",              Thumb = "kof98.png",   Box = "kof98box" },
-            new GameInfo { ShortName = "sfa2",  Title = "Street Fighter Alpha 2",                Thumb = "sfa2.jpg",    Box = "sfa2box"  },
-            new GameInfo { ShortName = "sf2ce", Title = "Street Fighter II': Champion Edition",  Thumb = "sf2ce.png",   Box = "sf2cebox" },
+            new GameInfo { ShortName = "vsav",  Title = "Vampire Savior" },
+            new GameInfo { ShortName = "kof98", Title = "The King of Fighters '98" },
+            new GameInfo { ShortName = "sfa2",  Title = "Street Fighter Alpha 2" },
+            new GameInfo { ShortName = "sf2ce", Title = "Street Fighter II': Champion Edition" },
         };
     }
 
