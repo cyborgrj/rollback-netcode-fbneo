@@ -34,7 +34,7 @@ namespace RbfLauncher.Views
             _config.PlayerName = string.IsNullOrWhiteSpace(PlayerBox.Text) ? _config.PlayerName : PlayerBox.Text.Trim();
             _config.EmulatorPath = string.IsNullOrWhiteSpace(EmuBox.Text) ? "fbneo.exe" : EmuBox.Text.Trim();
             _config.EmulatorArgs = ArgsBox.Text?.Trim() ?? "";
-            _config.RomsDir = string.IsNullOrWhiteSpace(RomsBox.Text) ? "roms\\arcade" : RomsBox.Text.Trim();
+            _config.RomsDir = RomsBox.Text?.Trim() ?? "";   // empty => auto: <fbneo.exe folder>\roms\arcade
             DialogResult = true;
         }
 

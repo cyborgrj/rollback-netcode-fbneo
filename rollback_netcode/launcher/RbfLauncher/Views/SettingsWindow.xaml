@@ -36,7 +36,7 @@
     <TextBox   Grid.Row="5" Grid.ColumnSpan="2" x:Name="ArgsBox" Margin="0,4,0,16" Padding="6,5" />
 
     <TextBlock Grid.Row="6" Grid.ColumnSpan="2"
-               Text="Pasta das ROMs (relativa ao launcher; padrão do FBNeo: roms\arcade)"
+               Text="Pasta das ROMs  —  deixe VAZIO para usar &lt;pasta do fbneo.exe&gt;\roms\arcade (onde o FBNeo lê)"
                Foreground="{StaticResource TextDim}" />
     <TextBox   Grid.Row="7" Grid.ColumnSpan="2" x:Name="RomsBox" Margin="0,4,0,0" Padding="6,5" />
 

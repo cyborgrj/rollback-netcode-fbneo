@@ -40,8 +40,11 @@ namespace RbfLauncher.Core
         [JsonPropertyName("emulatorPath")]
         public string EmulatorPath { get; set; } = "fbneo.exe";
 
+        /// <summary>Where the .zip ROM sets live. Leave EMPTY to track the
+        /// emulator automatically: &lt;fbneo.exe folder&gt;\roms\arcade — the exact
+        /// place FBNeo itself reads. Set an explicit path only to override.</summary>
         [JsonPropertyName("romsDir")]
-        public string RomsDir { get; set; } = Path.Combine("roms", "arcade");
+        public string RomsDir { get; set; } = "";
 
         /// <summary>Extra args appended after the game name. FBNeo boots FULLSCREEN
         /// when given only a game name; "-w" forces a window. Other useful values:
@@ -80,7 +83,22 @@ namespace RbfLauncher.Core
         }
 
         public string ResolvedEmulatorPath => ResolveAgainstBase(EmulatorPath);
-        public string ResolvedRomsDir => ResolveAgainstBase(RomsDir);
+
+        /// <summary>Explicit RomsDir if set; otherwise
+        /// &lt;emulator folder&gt;\roms\arcade — where FBNeo reads ROMs when the
+        /// launcher spawns it (its working dir is the emulator's folder).</summary>
+        public string ResolvedRomsDir
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(RomsDir))
+                    return ResolveAgainstBase(RomsDir);
+
+                string emuDir = Path.GetDirectoryName(ResolvedEmulatorPath);
+                if (string.IsNullOrEmpty(emuDir)) emuDir = AppContext.BaseDirectory;
+                return Path.Combine(emuDir, "roms", "arcade");
+            }
+        }
 
         private static string ResolveAgainstBase(string p)
         {
