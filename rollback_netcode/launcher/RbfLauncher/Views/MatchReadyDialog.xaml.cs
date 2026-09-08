@@ -46,30 +46,30 @@ namespace RbfLauncher.Views
             {
                 var proc = _emu.Launch(_game, RbfNetArgs());
                 _launched = true;
-                _client.ReportMatch(_match.MatchId, Phase.PhaseLaunching);
+                _client.ReportMatch(_match.MatchId, Phase.Launching);
 
                 try
                 {
                     proc.EnableRaisingEvents = true;
                     proc.Exited += (s, ev) => Dispatcher.BeginInvoke((Action)(() =>
-                        _client.ReportMatch(_match.MatchId, Phase.PhaseEnded)));
+                        _client.ReportMatch(_match.MatchId, Phase.Ended)));
                 }
                 catch { /* process may have exited already */ }
 
-                _client.ReportMatch(_match.MatchId, Phase.PhaseRunning);
+                _client.ReportMatch(_match.MatchId, Phase.Running);
                 DialogResult = true;
             }
             catch (Exception ex)
             {
                 StatusText.Text = "Falha ao abrir: " + ex.Message;
-                _client.ReportMatch(_match.MatchId, Phase.PhaseFailed, ex.Message);
+                _client.ReportMatch(_match.MatchId, Phase.Failed, ex.Message);
             }
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
             if (!_launched)
-                _client.ReportMatch(_match.MatchId, Phase.PhaseFailed, "cancelado pelo jogador");
+                _client.ReportMatch(_match.MatchId, Phase.Failed, "cancelado pelo jogador");
             DialogResult = false;
         }
 

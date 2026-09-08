@@ -94,7 +94,7 @@ namespace Rbf.Server
             lock (_gate)
             {
                 if (!_sessions.Remove(s.UserId)) return;
-                CancelChallengesInvolvingLocked(s.UserId, Outcome.OutcomeCancelled);
+                CancelChallengesInvolvingLocked(s.UserId, Outcome.Cancelled);
                 AbortMatchesInvolvingLocked(s.UserId, "adversário desconectou");
                 BroadcastRosterLocked();
                 Console.WriteLine($"- {s.Username} ({s.UserId})");
@@ -173,7 +173,7 @@ namespace Rbf.Server
             lock (_gate)
             {
                 if (_challenges.Remove(c.Id))
-                    ResolveChallengeLocked(c, Outcome.OutcomeExpired);
+                    ResolveChallengeLocked(c, Outcome.Expired);
             }
         }
 
@@ -189,7 +189,7 @@ namespace Rbf.Server
                 _challenges.Remove(c.Id);
                 c.Expiry.Cancel();
 
-                if (!accept) { ResolveChallengeLocked(c, Outcome.OutcomeDeclined); return; }
+                if (!accept) { ResolveChallengeLocked(c, Outcome.Declined); return; }
 
                 if (!_sessions.TryGetValue(c.FromId, out var from) || !_sessions.TryGetValue(c.ToId, out var to))
                     return;
@@ -210,7 +210,7 @@ namespace Rbf.Server
                 {
                     ChallengeResult = new ChallengeResult
                     {
-                        ChallengeId = c.Id, Outcome = Outcome.OutcomeAccepted, PeerUsername = to.Username,
+                        ChallengeId = c.Id, Outcome = Outcome.Accepted, PeerUsername = to.Username,
                     }
                 });
 
@@ -258,7 +258,7 @@ namespace Rbf.Server
             lock (_gate)
             {
                 if (!_matches.TryGetValue(matchId ?? "", out var m)) return;
-                if (phase != Phase.PhaseEnded && phase != Phase.PhaseFailed) return;
+                if (phase != Phase.Ended && phase != Phase.Failed) return;
 
                 _matches.Remove(m.Id);
                 foreach (var id in new[] { m.P1Id, m.P2Id })
@@ -266,7 +266,7 @@ namespace Rbf.Server
                     if (!_sessions.TryGetValue(id, out var p)) continue;
                     p.ActiveMatchId = null;
                     p.State = string.IsNullOrEmpty(p.Game) ? PlayerState.PlayerIdle : PlayerState.PlayerInRoom;
-                    if (phase == Phase.PhaseFailed && id != s.UserId)
+                    if (phase == Phase.Failed && id != s.UserId)
                         p.Send(new ServerMsg { MatchAborted = new MatchAborted { MatchId = m.Id, Reason = detail ?? "adversário falhou" } });
                 }
                 BroadcastRosterLocked();

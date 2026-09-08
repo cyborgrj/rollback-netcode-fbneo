@@ -160,12 +160,12 @@ namespace RbfLauncher
 
         private void OnChallengeResult(ChallengeResult cr)
         {
-            if (cr.Outcome == Outcome.OutcomeAccepted) return;   // MatchStart follows
+            if (cr.Outcome == Outcome.Accepted) return;   // MatchStart follows
             string why = cr.Outcome switch
             {
-                Outcome.OutcomeDeclined => "recusou o desafio",
-                Outcome.OutcomeExpired => "não respondeu a tempo",
-                Outcome.OutcomeCancelled => "desafio cancelado",
+                Outcome.Declined => "recusou o desafio",
+                Outcome.Expired => "não respondeu a tempo",
+                Outcome.Cancelled => "desafio cancelado",
                 _ => "desafio encerrado"
             };
             var who = string.IsNullOrEmpty(cr.PeerUsername) ? "O jogador" : cr.PeerUsername;
