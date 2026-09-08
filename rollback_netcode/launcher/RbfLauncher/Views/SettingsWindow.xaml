@@ -2,47 +2,44 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Configurações" Width="580" SizeToContent="Height"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         Background="{StaticResource Bg}">
-  <Grid Margin="24">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="Auto" />
-      <RowDefinition Height="*" />
-      <RowDefinition Height="Auto" />
-    </Grid.RowDefinitions>
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="*" />
-      <ColumnDefinition Width="Auto" />
-    </Grid.ColumnDefinitions>
+  <StackPanel Margin="24">
 
-    <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Nome do jogador" Foreground="{StaticResource TextDim}" />
-    <TextBox   Grid.Row="1" Grid.ColumnSpan="2" x:Name="PlayerBox" Margin="0,4,0,16" Padding="6,5" />
+    <TextBlock Text="Nome do jogador" Foreground="{StaticResource TextDim}" />
+    <TextBox x:Name="PlayerBox" Margin="0,4,0,16" Padding="6,5" />
 
-    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="Caminho do fbneo.exe" Foreground="{StaticResource TextDim}" />
-    <TextBox   Grid.Row="3" Grid.Column="0" x:Name="EmuBox" Margin="0,4,8,16" Padding="6,5" />
-    <Button    Grid.Row="3" Grid.Column="1" Content="Procurar…" Style="{StaticResource Btn}" Padding="12,4"
-               Margin="0,4,0,16" Click="BrowseEmu_Click" />
+    <TextBlock Text="Servidor (IP ou host)  —  usado no &quot;Conectar&quot;" Foreground="{StaticResource TextDim}" />
+    <Grid Margin="0,4,0,16">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="90" />
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="HostBox" Grid.Column="0" Margin="0,0,8,0" Padding="6,5" />
+      <TextBox x:Name="PortBox" Grid.Column="1" Padding="6,5" ToolTip="Porta (padrão 50051)" />
+    </Grid>
 
-    <TextBlock Grid.Row="4" Grid.ColumnSpan="2"
-               Text="Argumentos do emulador  (-w = janela; o FBNeo abre em tela cheia sem isso)"
+    <TextBlock Text="Caminho do fbneo.exe" Foreground="{StaticResource TextDim}" />
+    <Grid Margin="0,4,0,16">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBox x:Name="EmuBox" Grid.Column="0" Margin="0,0,8,0" Padding="6,5" />
+      <Button Grid.Column="1" Content="Procurar…" Style="{StaticResource Btn}" Padding="12,4" Click="BrowseEmu_Click" />
+    </Grid>
+
+    <TextBlock Text="Argumentos do emulador  (-w = janela; -noscan pula o audit de ROMs)"
                Foreground="{StaticResource TextDim}" />
-    <TextBox   Grid.Row="5" Grid.ColumnSpan="2" x:Name="ArgsBox" Margin="0,4,0,16" Padding="6,5" />
+    <TextBox x:Name="ArgsBox" Margin="0,4,0,16" Padding="6,5" />
 
-    <TextBlock Grid.Row="6" Grid.ColumnSpan="2"
-               Text="Pasta das ROMs  —  deixe VAZIO para usar &lt;pasta do fbneo.exe&gt;\roms\arcade (onde o FBNeo lê)"
+    <TextBlock Text="Pasta das ROMs  —  vazio = &lt;pasta do fbneo.exe&gt;\roms\arcade (onde o FBNeo lê)"
                Foreground="{StaticResource TextDim}" />
-    <TextBox   Grid.Row="7" Grid.ColumnSpan="2" x:Name="RomsBox" Margin="0,4,0,0" Padding="6,5" />
+    <TextBox x:Name="RomsBox" Margin="0,4,0,20" Padding="6,5" />
 
-    <StackPanel Grid.Row="9" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
       <Button Content="Cancelar" Style="{StaticResource Btn}" MinWidth="90" Click="Cancel_Click" />
       <Button Content="Salvar" Style="{StaticResource BtnPrimary}" MinWidth="90" Margin="10,0,0,0" Click="Save_Click" />
     </StackPanel>
-  </Grid>
+  </StackPanel>
 </Window>

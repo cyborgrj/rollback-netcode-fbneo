@@ -49,6 +49,13 @@ static int        g_syncTest   = 0;
 static int        g_lastError  = GGPO_OK;
 static long long  g_frameCount = 0;
 
+// Sync watchdog: if we never advance a live frame within this many ticks the
+// peers never synchronised (unreachable / wrong address) - bail out so the
+// caller can drop to offline instead of a frozen black screen forever.
+static long long  g_ticksSinceStart = 0;
+static int        g_everAdvanced    = 0;
+#define GGPO_BRIDGE_SYNC_WATCHDOG_TICKS 900   /* ~15s at 60fps */
+
 // Scratch for synchronize_input. Sized for the worst case; never on the heap.
 static unsigned char g_syncBuf[GGPO_BRIDGE_MAX_PLAYERS * GGPO_BRIDGE_MAX_INPUT_BYTES];
 
@@ -84,7 +91,7 @@ static int stepOnce(int bRollback)
 	if (rc != 0) return GGPO_BRIDGE_ERR_HOST;
 
 	ggpo_advance_frame(g_session);
-	if (!bRollback) g_frameCount++;
+	if (!bRollback) { g_frameCount++; g_everAdvanced = 1; }
 	return GGPO_BRIDGE_OK;
 }
 
@@ -250,6 +257,8 @@ static void resetModuleState(const GgpoBridgeConfig* cfg, const GgpoBridgeHost* 
 	g_localHandle = GGPO_INVALID_HANDLE;
 	g_lastError = GGPO_OK;
 	g_frameCount = 0;
+	g_ticksSinceStart = 0;
+	g_everAdvanced = 0;
 }
 
 // ---- lifecycle -------------------------------------------------------------
@@ -337,6 +346,12 @@ int GgpoBridgeIsRunning(void)
 int GgpoBridgeTick(void)
 {
 	if (!g_running || !g_session) return GGPO_BRIDGE_ERR_STATE;
+
+	// sync watchdog - see note at g_ticksSinceStart
+	if (!g_everAdvanced && ++g_ticksSinceStart > GGPO_BRIDGE_SYNC_WATCHDOG_TICKS) {
+		g_lastError = GGPO_ERRORCODE_NOT_SYNCHRONIZED;
+		return GGPO_BRIDGE_ERR_GGPO;   // caller: FbnHostRunFrame -> -1 -> FbnHostStop (game runs offline)
+	}
 
 	ggpo_idle(g_session, g_cfg.nIdleTimeoutMs);
 

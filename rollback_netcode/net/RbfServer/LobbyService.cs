@@ -99,20 +99,30 @@ namespace Rbf.Server
             catch (Exception ex) { Console.WriteLine($"! pump: {ex.Message}"); }
         }
 
-        /// <summary>"ipv4:1.2.3.4:56789" / "ipv6:[::1]:56789" -> bare address.</summary>
+        /// <summary>"ipv4:1.2.3.4:56789" / "ipv6:[::1]:56789" -> bare address.
+        /// Also unwraps an IPv4-mapped IPv6 (::ffff:1.2.3.4) to plain IPv4, which
+        /// is what fbneo.exe / GGPO can actually use.</summary>
         internal static string ParseIp(string peer)
         {
             if (string.IsNullOrEmpty(peer)) return "";
             int firstColon = peer.IndexOf(':');
             string rest = firstColon >= 0 ? peer.Substring(firstColon + 1) : peer;
 
+            string ip;
             if (rest.StartsWith("["))
             {
                 int close = rest.IndexOf(']');
-                return close > 0 ? rest.Substring(1, close - 1) : rest;
+                ip = close > 0 ? rest.Substring(1, close - 1) : rest;
             }
-            int lastColon = rest.LastIndexOf(':');
-            return lastColon > 0 ? rest.Substring(0, lastColon) : rest;
+            else
+            {
+                int lastColon = rest.LastIndexOf(':');
+                ip = lastColon > 0 ? rest.Substring(0, lastColon) : rest;
+            }
+
+            int m = ip.LastIndexOf("::ffff:", StringComparison.OrdinalIgnoreCase);
+            if (m >= 0 && ip.IndexOf('.', m) > 0) ip = ip.Substring(m + "::ffff:".Length);
+            return ip;
         }
     }
 }

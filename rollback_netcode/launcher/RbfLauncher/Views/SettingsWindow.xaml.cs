@@ -13,6 +13,8 @@ namespace RbfLauncher.Views
             InitializeComponent();
             _config = config;
             PlayerBox.Text = config.PlayerName;
+            HostBox.Text = config.ServerHost;
+            PortBox.Text = config.ServerPort.ToString();
             EmuBox.Text = config.EmulatorPath;
             ArgsBox.Text = config.EmulatorArgs;
             RomsBox.Text = config.RomsDir;
@@ -32,6 +34,8 @@ namespace RbfLauncher.Views
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             _config.PlayerName = string.IsNullOrWhiteSpace(PlayerBox.Text) ? _config.PlayerName : PlayerBox.Text.Trim();
+            if (!string.IsNullOrWhiteSpace(HostBox.Text)) _config.ServerHost = HostBox.Text.Trim();
+            if (int.TryParse(PortBox.Text?.Trim(), out int port) && port >= 1 && port <= 65535) _config.ServerPort = port;
             _config.EmulatorPath = string.IsNullOrWhiteSpace(EmuBox.Text) ? "fbneo.exe" : EmuBox.Text.Trim();
             _config.EmulatorArgs = ArgsBox.Text?.Trim() ?? "";
             _config.RomsDir = RomsBox.Text?.Trim() ?? "";   // empty => auto: <fbneo.exe folder>\roms\arcade

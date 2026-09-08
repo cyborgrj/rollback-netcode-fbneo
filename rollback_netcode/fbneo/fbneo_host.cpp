@@ -20,6 +20,12 @@
 // Re-declared here so this file needs only burnint.h. 1 once BurnDrvInit succeeded.
 extern int bDrvOkay;
 
+// intf/interface.h - runs one frame through the video blitter (which sets the
+// pitch and presents to screen). Re-declared to avoid pulling in burner.h.
+extern INT32 VidFrame();
+
+static int g_liveDraw = 1;   // set from FbnHostRunFrame each tick
+
 // ===========================================================================
 //  Driver-input map:  FBNeo digital inputs  <->  per-player bit index
 // ===========================================================================
@@ -134,6 +140,7 @@ static int host_step_frame(const void* syncInputs, int nPlayers,
 
 	if (bRollback) {
 		// Silent re-simulation - mirror FBNeo's RunAhead frame (run.cpp).
+		// Drivers gate rendering on pBurnDraw, so NULL == no draw, pitch unused.
 		UINT8* savedDraw  = pBurnDraw;
 		INT16* savedSound = pBurnSoundOut;
 		pBurnDraw          = NULL;
@@ -145,8 +152,17 @@ static int host_step_frame(const void* syncInputs, int nPlayers,
 		bBurnRunAheadFrame = 0;
 		pBurnDraw          = savedDraw;
 		pBurnSoundOut      = savedSound;
+	} else if (g_liveDraw) {
+		// Live drawn frame: go through the blitter, which sets nBurnPitch,
+		// calls BurnDrvFrame() itself (via VidFrameCallback) and presents to
+		// screen. Bare BurnDrvFrame() here would render with pitch 0 -> black.
+		if (VidFrame()) {          // blitter unavailable this frame -> stock fallback
+			pBurnDraw = NULL;
+			BurnDrvFrame();
+		}
 	} else {
-		// Live frame: the RunFrame() caller owns pBurnDraw / pBurnSoundOut.
+		// Live but frame-skipped (libggpo catching up): advance, don't draw.
+		pBurnDraw = NULL;
 		BurnDrvFrame();
 	}
 	return 0;
@@ -229,8 +245,10 @@ int FbnHostStart(const FbnHostConfig* cfg)
 
 	g_active = 1;
 	bprintf(PRINT_IMPORTANT,
-	        _T("[fbneo_host] session up: %d players, local P%d, %d input byte(s)/player, delay %d.\n"),
-	        g_nPlayers, g_localPlayer, g_nInputBytes, bc.nFrameDelay);
+	        _T("[fbneo_host] session up: %d players, local P%d, %d input byte(s)/player, delay %d, ")
+	        _T("bind :%d, peer %S:%d.\n"),
+	        g_nPlayers, g_localPlayer, g_nInputBytes, bc.nFrameDelay,
+	        bc.nLocalPort, bc.szRemoteIp, bc.nRemotePort);
 	return 0;
 }
 
@@ -266,9 +284,10 @@ void FbnHostStop(void)
 
 int FbnHostIsActive(void) { return g_active; }
 
-int FbnHostRunFrame(void)
+int FbnHostRunFrame(int bDraw)
 {
 	if (!g_active) return -1;
+	g_liveDraw = bDraw;
 
 	// Deferred: the driver has now executed >=1 frame, so its volatile state
 	// size is stable and safe to lock into the ring.
@@ -284,6 +303,10 @@ int FbnHostRunFrame(void)
 	int r = GgpoBridgeTick();
 	if (r == GGPO_BRIDGE_OK)      return 1;
 	if (r == GGPO_BRIDGE_SKIPPED) return 0;
+
+	bprintf(PRINT_ERROR,
+	        _T("[fbneo_host] ggpo tick fatal (bridge %d, ggpo err %d) - dropping to offline.\n"),
+	        r, GgpoBridgeLastError());
 	return -1;
 }
 

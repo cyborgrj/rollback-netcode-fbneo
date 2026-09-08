@@ -38,13 +38,13 @@ void FbnHostStop(void);
 int  FbnHostIsActive(void);
 
 // Call once per emulated frame from RunFrame(), AFTER GetInput(true) has
-// populated the driver input bytes and AFTER pBurnDraw / pBurnSoundOut have
-// been set for a live frame. Runs exactly one synchronized frame; any rollback
-// re-simulation runs silently and synchronously inside this call.
-//   1  => a frame advanced; present video (VidRedraw)
-//   0  => no advance this tick (libggpo is catching up); present nothing
+// populated the driver input bytes. Runs exactly one synchronized frame; any
+// rollback re-simulation runs silently and synchronously inside this call.
+// The live frame is drawn+presented via FBNeo's own VidFrame() when bDraw != 0.
+//   1  => a frame advanced
+//   0  => no advance this tick (libggpo is catching up)
 //  <0  => fatal; caller should FbnHostStop()
-int  FbnHostRunFrame(void);
+int  FbnHostRunFrame(int bDraw);
 
 // diagnostics (emu thread) - snapshots for the gRPC agent
 int       FbnHostInputBytesPerPlayer(void);

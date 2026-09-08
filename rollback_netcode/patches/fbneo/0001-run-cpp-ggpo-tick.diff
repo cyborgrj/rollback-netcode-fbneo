@@ -1,5 +1,5 @@
 diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
-index e6ad1a4..b6ab7fe 100644
+index e6ad1a4..47b5865 100644
 --- a/src/burner/win32/run.cpp
 +++ b/src/burner/win32/run.cpp
 @@ -1,5 +1,6 @@
@@ -9,18 +9,16 @@ index e6ad1a4..b6ab7fe 100644
  
  int bRunPause = 0;
  int bAltPause = 0;
-@@ -289,7 +290,15 @@ int RunFrame(int bDraw, int bPause)
+@@ -289,7 +290,13 @@ int RunFrame(int bDraw, int bPause)
  			RecordInput();						// Write input to file
  		}
  
 -		if (bDraw) {                            // Draw Frame
 +		if (FbnHostIsActive()) {               // ---- Rollback netcode (libggpo) session ----
-+			pBurnDraw = bDraw ? pVidImage : NULL;
-+			int nFbnFr = FbnHostRunFrame();    // one synchronized frame; silent rollback re-sim happens inside
++			if (bDraw && (bDraw & FFWD_GHOST_FRAME) == 0) nFramesRendered++;
++			int nFbnFr = FbnHostRunFrame(bDraw); // 1 synced frame (drawn via VidFrame); rollback re-sim inside
 +			if (nFbnFr < 0) {
 +				FbnHostStop();                // fatal -> fall back to local play
-+			} else if (nFbnFr > 0 && bDraw) {
-+				VidRedraw();                  // present what BurnDrvFrame() rendered into pVidImage
 +			}
 +		} else if (bDraw) {                    // Draw Frame
  			if ((bDraw & FFWD_GHOST_FRAME) == 0)

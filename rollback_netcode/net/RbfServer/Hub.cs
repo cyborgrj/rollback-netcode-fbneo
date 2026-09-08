@@ -217,7 +217,7 @@ namespace Rbf.Server
                 SendMatchStartLocked(m, from, 1, to);
                 SendMatchStartLocked(m, to, 2, from);
                 BroadcastRosterLocked();
-                Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username} vs {to.Username} :{m.Port}");
+                Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1) vs {to.Username}@{to.RemoteIp} (P2)  udp :{m.Port}");
             }
         }
 
