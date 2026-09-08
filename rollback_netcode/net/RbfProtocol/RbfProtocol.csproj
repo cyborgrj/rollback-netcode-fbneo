@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Shared gRPC contract for RBF. netstandard2.0 so BOTH the net48 launcher
+    client and the net8.0 server can reference it.
+
+    Pinned to the Grpc.Core 2.46.6 cohort on purpose: Grpc.Core (the C-core
+    library) is the only gRPC stack that works on .NET Framework on older
+    Windows (no HTTP/2 in WinHttpHandler there). Keep every Grpc.* / protobuf
+    version in this repo on this cohort.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Rbf.Protocol</RootNamespace>
+    <AssemblyName>RbfProtocol</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.21.12" />
+    <PackageReference Include="Grpc.Core.Api" Version="2.46.6" />
+    <PackageReference Include="Grpc.Tools" Version="2.46.6" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="..\rbf.proto" GrpcServices="Both" Link="rbf.proto" />
+  </ItemGroup>
+
+</Project>

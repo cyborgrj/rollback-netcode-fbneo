@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package rbf.v1;
+option csharp_namespace = "Rbf.Protocol";
+
+// One long-lived bidirectional stream per connected client.
+// The client's FIRST message must be Hello; the server replies Welcome or
+// LoginRejected and then streams Roster / challenge / match events.
+service Lobby {
+  rpc Connect(stream ClientMsg) returns (stream ServerMsg);
+}
+
+// ---------------------------------------------------------------------------
+// client -> server
+// ---------------------------------------------------------------------------
+message ClientMsg {
+  oneof kind {
+    Hello          hello           = 1;
+    JoinRoom       join_room       = 2;
+    LeaveRoom      leave_room      = 3;
+    Challenge      challenge       = 4;
+    ChallengeReply challenge_reply = 5;
+    MatchStatus    match_status    = 6;
+    Ping           ping            = 7;
+  }
+}
+
+message Hello {
+  string username   = 1;
+  string client_ver = 2;
+}
+
+message JoinRoom  { string game = 1; }   // FBNeo short name, e.g. "sfa2"
+message LeaveRoom { }
+
+message Challenge      { string target_user_id = 1; }
+message ChallengeReply { string challenge_id = 1; bool accept = 2; }
+
+message MatchStatus {
+  string match_id = 1;
+  Phase  phase    = 2;
+  string detail   = 3;
+}
+enum Phase { PHASE_LAUNCHING = 0; PHASE_RUNNING = 1; PHASE_ENDED = 2; PHASE_FAILED = 3; }
+
+message Ping { int64 t = 1; }
+
+// ---------------------------------------------------------------------------
+// server -> client
+// ---------------------------------------------------------------------------
+message ServerMsg {
+  oneof kind {
+    Welcome         welcome          = 1;
+    LoginRejected   login_rejected   = 2;
+    Roster          roster           = 3;
+    ChallengeIn     challenge_in     = 4;
+    ChallengeResult challenge_result = 5;
+    MatchStart      match_start      = 6;
+    MatchAborted    match_aborted    = 7;
+    Pong            pong             = 8;
+    ServerError     error            = 9;
+  }
+}
+
+message Welcome {
+  string user_id  = 1;   // server-assigned session id
+  string username = 2;
+}
+message LoginRejected { string reason = 1; }
+
+enum PlayerState {
+  PLAYER_IDLE        = 0;
+  PLAYER_IN_ROOM     = 1;
+  PLAYER_CHALLENGING = 2;
+  PLAYER_IN_MATCH    = 3;
+}
+message Player {
+  string      user_id  = 1;
+  string      username = 2;
+  string      game     = 3;   // room short name, "" if none
+  PlayerState state    = 4;
+}
+message Roster {
+  repeated Player players = 1;
+  int32           epoch   = 2;
+}
+
+message ChallengeIn {
+  string challenge_id = 1;
+  string from_user_id = 2;
+  string from_username = 3;
+  string game         = 4;
+}
+message ChallengeResult {
+  string  challenge_id  = 1;
+  Outcome outcome       = 2;
+  string  peer_username = 3;
+}
+enum Outcome { OUTCOME_ACCEPTED = 0; OUTCOME_DECLINED = 1; OUTCOME_EXPIRED = 2; OUTCOME_CANCELLED = 3; }
+
+// Sent to BOTH peers when a challenge is accepted. Each side gets its own view
+// (player_num, local_port, peer_ip, peer_port) ready to hand to fbneo.exe.
+message MatchStart {
+  string match_id      = 1;
+  string game          = 2;
+  int32  player_num    = 3;   // 1 or 2 - this client's side
+  string local_bind    = 4;   // "0.0.0.0"
+  int32  local_port    = 5;
+  string peer_ip       = 6;
+  int32  peer_port     = 7;
+  int32  frame_delay   = 8;
+  string peer_username = 9;
+}
+message MatchAborted { string match_id = 1; string reason = 2; }
+
+message Pong { int64 t = 1; }
+message ServerError { string message = 1; }
