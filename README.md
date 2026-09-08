@@ -18,6 +18,7 @@ rollback_netcode/
   fbneo/
     fbneo_host.{h,cpp}     implementação concreta de GgpoBridgeHost p/ o FBNeo
   build/                   Makefile de librollbackfbneo.a + setup-fbneo.sh
+  launcher/                RBF Launcher — lobby desktop (C#/WPF, .NET Framework 4.8)
   patches/fbneo/           diffs mínimos contra o FBNeo upstream
   third_party/
     ggpo/                  libggpo, vendorizado via `git subtree` (ver abaixo)
@@ -61,6 +62,7 @@ compilar exige o seu próprio checkout do FBNeo, sob a licença dele.
 - [x] patch no `run.cpp` — roteia o passo por frame via `FbnHostRunFrame()`
 - [x] build MinGW — `librollbackfbneo.a` ([build/](rollback_netcode/build/)) + patch no `makefile.mingw` (ainda não compilado ponta a ponta)
 - [ ] build MSVC / meson
-- [ ] um chamador para `FbnHostStart` (menu / CLI / agente gRPC)
+- [x] RBF Launcher — lobby, 4 jogos, status/download de ROM (via json_roms opcional), abre o `fbneo.exe`
+- [ ] um chamador para `FbnHostStart` (o launcher passa o jogo por CLI; falta a config de sessão)
 - [ ] conciliação do pacing de áudio (tick do GGPO vs segmentos do DirectSound)
-- [ ] agente de controle gRPC + fila de comandos
+- [ ] agente de controle gRPC + login de usuários + salas online + DB

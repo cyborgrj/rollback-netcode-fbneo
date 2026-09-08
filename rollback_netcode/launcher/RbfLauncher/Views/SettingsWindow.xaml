@@ -1,0 +1,40 @@
+<Window x:Class="RbfLauncher.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Configurações" Height="320" Width="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{StaticResource Bg}">
+  <Grid Margin="24">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="Auto" />
+    </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*" />
+      <ColumnDefinition Width="Auto" />
+    </Grid.ColumnDefinitions>
+
+    <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="Nome do jogador" Foreground="{StaticResource TextDim}" />
+    <TextBox   Grid.Row="1" Grid.ColumnSpan="2" x:Name="PlayerBox" Margin="0,4,0,16" Padding="6,5" />
+
+    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="Caminho do fbneo.exe (patcheado)" Foreground="{StaticResource TextDim}" />
+    <TextBox   Grid.Row="3" Grid.Column="0" x:Name="EmuBox" Margin="0,4,8,16" Padding="6,5" />
+    <Button    Grid.Row="3" Grid.Column="1" Content="Procurar…" Style="{StaticResource Btn}" Padding="12,4"
+               Margin="0,4,0,16" Click="BrowseEmu_Click" />
+
+    <TextBlock Grid.Row="4" Grid.ColumnSpan="2" Text="Pasta das ROMs (relativa ao launcher; padrão do FBNeo: roms\arcade)"
+               Foreground="{StaticResource TextDim}" />
+    <TextBox   Grid.Row="5" Grid.ColumnSpan="2" x:Name="RomsBox" Margin="0,4,0,0" Padding="6,5" />
+
+    <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right">
+      <Button Content="Cancelar" Style="{StaticResource Btn}" MinWidth="90" Click="Cancel_Click" />
+      <Button Content="Salvar" Style="{StaticResource BtnPrimary}" MinWidth="90" Margin="10,0,0,0" Click="Save_Click" />
+    </StackPanel>
+  </Grid>
+</Window>

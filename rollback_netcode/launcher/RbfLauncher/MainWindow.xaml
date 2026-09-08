@@ -1,0 +1,29 @@
+<Window x:Class="RbfLauncher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Rollback FinalBurn Neo" Height="720" Width="1040"
+        MinHeight="560" MinWidth="820"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}">
+
+  <DockPanel>
+    <!-- header -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource BgPanel}" BorderBrush="{StaticResource Stroke}"
+            BorderThickness="0,0,0,1" Padding="20,12">
+      <Grid>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock Text="ROLLBACK" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+          <TextBlock Text="FinalBurn Neo" FontSize="16" Margin="8,0,0,0" Foreground="{StaticResource TextDim}" />
+        </StackPanel>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+          <TextBlock x:Name="PlayerLabel" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
+          <Button x:Name="SettingsButton" Style="{StaticResource Btn}" Padding="10,6" Click="SettingsButton_Click"
+                  Content="Configura&#231;&#245;es" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- page host -->
+    <ContentControl x:Name="Host" />
+  </DockPanel>
+</Window>

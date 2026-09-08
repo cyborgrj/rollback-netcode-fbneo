@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RBF Launcher - desktop lobby for Rollback FinalBurn Neo.
+
+    net48 on purpose: .NET Framework 4.8 ships with every Windows 7 SP1 .. 11,
+    so end users install nothing. Building needs only the .NET SDK
+    (`winget install Microsoft.DotNet.SDK.8`) - the ReferenceAssemblies package
+    below removes the need for the .NET Framework Developer Pack / Visual Studio.
+
+        dotnet build  -c Release
+        dotnet publish -c Release            # -> bin\Release\net48\publish\
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>RbfLauncher</AssemblyName>
+    <RootNamespace>RbfLauncher</RootNamespace>
+    <Version>0.1.0</Version>
+    <Company>RBF</Company>
+    <Product>Rollback FinalBurn Neo Launcher</Product>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+  <!-- framework assemblies not referenced by default under the SDK -->
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+  <!-- Game art lives in the project-wide  rollback_netcode\src\  folder.
+       Copied next to the exe as src\ so the running app finds it. -->
+  <ItemGroup>
+    <Content Include="..\..\src\**\*" Link="src\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Optional rom-database JSON(s). The repo ships none; whatever the user drops
+       into json_roms\ is copied next to the exe and read at runtime. -->
+  <ItemGroup>
+    <Content Include="json_roms\**\*" Link="json_roms\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

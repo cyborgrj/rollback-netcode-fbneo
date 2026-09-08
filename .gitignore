@@ -13,6 +13,21 @@
 *.pdb
 *.ilk
 
+# .NET (launcher)
+[Bb]in/
+[Oo]bj/
+out/
+*.user
+rbf-launcher.json
+
+# rom-database files are the user's own, never committed
+rollback_netcode/launcher/RbfLauncher/json_roms/*.json
+
+# ROMs are never committed — copyrighted, and the project must not carry them
+*.zip
+/rollback_netcode/roms/
+**/roms/arcade/
+
 # Editor / OS
 .vscode/
 .idea/

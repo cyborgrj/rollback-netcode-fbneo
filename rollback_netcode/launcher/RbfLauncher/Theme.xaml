@@ -1,0 +1,107 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- palette -->
+  <SolidColorBrush x:Key="Bg"          Color="#12141A" />
+  <SolidColorBrush x:Key="BgPanel"     Color="#1B1F27" />
+  <SolidColorBrush x:Key="BgPanelHi"   Color="#232833" />
+  <SolidColorBrush x:Key="Stroke"      Color="#2E3440" />
+  <SolidColorBrush x:Key="Text"        Color="#E7EAF0" />
+  <SolidColorBrush x:Key="TextDim"     Color="#8A93A6" />
+  <SolidColorBrush x:Key="Accent"      Color="#4C8DFF" />
+  <SolidColorBrush x:Key="AccentText"  Color="#FFFFFF" />
+  <SolidColorBrush x:Key="Ok"          Color="#3FB950" />
+  <SolidColorBrush x:Key="Warn"        Color="#D29922" />
+
+  <!-- base text -->
+  <Style TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="FontFamily" Value="Segoe UI, Tahoma, Arial" />
+    <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+  </Style>
+
+  <!-- flat button -->
+  <Style x:Key="Btn" TargetType="Button">
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="Background" Value="{StaticResource BgPanelHi}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Stroke}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="16,9" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="b" CornerRadius="6" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Margin="{TemplateBinding Padding}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="b" Property="Background" Value="#2B313D" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="b" Property="Background" Value="#333B49" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="b" Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- primary (accent) button -->
+  <Style x:Key="BtnPrimary" TargetType="Button" BasedOn="{StaticResource Btn}">
+    <Setter Property="Background" Value="{StaticResource Accent}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentText}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="b" CornerRadius="6" Background="{TemplateBinding Background}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="b" Property="Background" Value="#3D7BEC" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="b" Property="Background" Value="#356AD0" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter TargetName="b" Property="Opacity" Value="0.45" />
+              <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- game card button -->
+  <ControlTemplate x:Key="CardButtonTemplate" TargetType="Button">
+    <Border x:Name="b" CornerRadius="8"
+            Background="{TemplateBinding Background}"
+            BorderBrush="{TemplateBinding BorderBrush}"
+            BorderThickness="{TemplateBinding BorderThickness}"
+            SnapsToDevicePixels="True">
+      <ContentPresenter />
+    </Border>
+    <ControlTemplate.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Accent}" />
+        <Setter TargetName="b" Property="Background" Value="{StaticResource BgPanelHi}" />
+      </Trigger>
+      <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="b" Property="Background" Value="#262C38" />
+      </Trigger>
+    </ControlTemplate.Triggers>
+  </ControlTemplate>
+
+</ResourceDictionary>
