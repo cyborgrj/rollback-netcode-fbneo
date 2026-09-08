@@ -14,7 +14,9 @@
 #include "../core/ggpo_bridge.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
+#include <time.h>
 
 // Burner-level flag (declared per-platform in burner_*.h, also in burn/cheat.cpp).
 // Re-declared here so this file needs only burnint.h. 1 once BurnDrvInit succeeded.
@@ -25,6 +27,24 @@ extern int bDrvOkay;
 extern INT32 VidFrame();
 
 static int g_liveDraw = 1;   // set from FbnHostRunFrame each tick
+
+// ---- rbf-netplay.log --------------------------------------------------------
+// Dedicated, low-frequency diagnostic log next to fbneo.exe. Works in release
+// builds too (unlike FBNeo's zzBurnDebug.html). Opened per line - never hot.
+static void RbfLog(const char* fmt, ...)
+{
+	FILE* f = fopen("rbf-netplay.log", "a");
+	if (!f) return;
+	time_t t = time(NULL);
+	struct tm* lt = localtime(&t);
+	if (lt) fprintf(f, "[%02d:%02d:%02d] ", lt->tm_hour, lt->tm_min, lt->tm_sec);
+	va_list ap;
+	va_start(ap, fmt);
+	vfprintf(f, fmt, ap);
+	va_end(ap);
+	fputc('\n', f);
+	fclose(f);
+}
 
 // ===========================================================================
 //  Driver-input map:  FBNeo digital inputs  <->  per-player bit index
@@ -170,18 +190,19 @@ static int host_step_frame(const void* syncInputs, int nPlayers,
 
 static void host_on_event(const GgpoBridgeEvent* ev, void* /*user*/)
 {
-	const TCHAR* n = _T("?");
+	const char* n = "?";
 	switch (ev->code) {
-	case GGPO_BRIDGE_EV_CONNECTED:              n = _T("connected");     break;
-	case GGPO_BRIDGE_EV_SYNCHRONIZING:          n = _T("synchronizing"); break;
-	case GGPO_BRIDGE_EV_SYNCHRONIZED:           n = _T("synchronized");  break;
-	case GGPO_BRIDGE_EV_RUNNING:                n = _T("running");       break;
-	case GGPO_BRIDGE_EV_DISCONNECTED:           n = _T("disconnected");  break;
-	case GGPO_BRIDGE_EV_CONNECTION_INTERRUPTED: n = _T("interrupted");   break;
-	case GGPO_BRIDGE_EV_CONNECTION_RESUMED:     n = _T("resumed");       break;
-	case GGPO_BRIDGE_EV_TIMESYNC:               n = _T("timesync");      break;
+	case GGPO_BRIDGE_EV_CONNECTED:              n = "connected";     break;
+	case GGPO_BRIDGE_EV_SYNCHRONIZING:          n = "synchronizing"; break;
+	case GGPO_BRIDGE_EV_SYNCHRONIZED:           n = "synchronized";  break;
+	case GGPO_BRIDGE_EV_RUNNING:                n = "running";       break;
+	case GGPO_BRIDGE_EV_DISCONNECTED:           n = "disconnected";  break;
+	case GGPO_BRIDGE_EV_CONNECTION_INTERRUPTED: n = "interrupted";   break;
+	case GGPO_BRIDGE_EV_CONNECTION_RESUMED:     n = "resumed";       break;
+	case GGPO_BRIDGE_EV_TIMESYNC:               n = "timesync";      break;
 	}
-	bprintf(PRINT_IMPORTANT, _T("[fbneo_host] ggpo: %s (player=%d a=%d b=%d)\n"), n, ev->player, ev->a, ev->b);
+	RbfLog("ggpo: %s (player=%d a=%d b=%d)", n, ev->player, ev->a, ev->b);
+	bprintf(PRINT_IMPORTANT, _T("[fbneo_host] ggpo: %S (player=%d a=%d b=%d)\n"), n, ev->player, ev->a, ev->b);
 	// TODO: forward to the gRPC agent event sink (via the command/event queue).
 }
 
@@ -231,19 +252,27 @@ static void toBridgeConfig(GgpoBridgeConfig* bc)
 int FbnHostStart(const FbnHostConfig* cfg)
 {
 	if (g_active) FbnHostStop();
-	if (startCommon(cfg) != 0) return -1;
+	if (startCommon(cfg) != 0) {
+		RbfLog("FbnHostStart: startCommon failed (bad cfg / driver not ready / no digital inputs)");
+		return -1;
+	}
 
 	fillHostVtbl();
 	GgpoBridgeConfig bc;
 	toBridgeConfig(&bc);
 
+	RbfLog("---- starting session: game=%s local P%d/%d bind :%d peer %s:%d delay %d ----",
+	       bc.szGameId, bc.nLocalPlayer, bc.nPlayers, bc.nLocalPort, bc.szRemoteIp, bc.nRemotePort, bc.nFrameDelay);
+
 	int r = GgpoBridgeStart(&bc, &g_hostVtbl);
 	if (r < 0) {
+		RbfLog("GgpoBridgeStart failed: %d (ggpo err %d)", r, GgpoBridgeLastError());
 		bprintf(PRINT_ERROR, _T("[fbneo_host] GgpoBridgeStart failed: %d\n"), r);
 		return r;
 	}
 
 	g_active = 1;
+	RbfLog("session up.");
 	bprintf(PRINT_IMPORTANT,
 	        _T("[fbneo_host] session up: %d players, local P%d, %d input byte(s)/player, delay %d, ")
 	        _T("bind :%d, peer %S:%d.\n"),
@@ -277,6 +306,7 @@ void FbnHostStop(void)
 	if (g_active) {
 		GgpoBridgeClose();
 		g_active = 0;
+		RbfLog("session closed.");
 		bprintf(PRINT_IMPORTANT, _T("[fbneo_host] session closed.\n"));
 	}
 	g_ringReady = 0;
@@ -294,16 +324,19 @@ int FbnHostRunFrame(int bDraw)
 	if (!g_ringReady) {
 		int rc = StateRingInit(g_cfg.nStateSlots);
 		if (rc != STATE_RING_OK) {
+			RbfLog("StateRingInit failed: %d", rc);
 			bprintf(PRINT_ERROR, _T("[fbneo_host] StateRingInit failed: %d\n"), rc);
 			return -1;
 		}
 		g_ringReady = 1;
+		RbfLog("state ring: %d slots x %d bytes.", StateRingSlotCount(), StateRingSlotSize());
 	}
 
 	int r = GgpoBridgeTick();
 	if (r == GGPO_BRIDGE_OK)      return 1;
 	if (r == GGPO_BRIDGE_SKIPPED) return 0;
 
+	RbfLog("ggpo tick FATAL (bridge %d, ggpo err %d) - dropping to offline.", r, GgpoBridgeLastError());
 	bprintf(PRINT_ERROR,
 	        _T("[fbneo_host] ggpo tick fatal (bridge %d, ggpo err %d) - dropping to offline.\n"),
 	        r, GgpoBridgeLastError());
