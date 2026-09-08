@@ -13,10 +13,12 @@
 *.pdb
 *.ilk
 
-# .NET (launcher)
+# .NET (launcher / server)
 [Bb]in/
 [Oo]bj/
 out/
+publish/
+publish-server/
 *.user
 rbf-launcher.json
 
