@@ -5,6 +5,10 @@
 //   -I <libggpo>/src/include        (provides ggponet.h)
 // and links against the libggpo static/shared lib.
 // ---------------------------------------------------------------------------
+#if defined(_WIN32)
+#include <winsock2.h>   // must precede <windows.h>; libggpo/FBNeo never call WSAStartup
+#endif
+
 #include "ggpo_bridge.h"
 #include "state_ring.h"
 
@@ -12,6 +16,24 @@
 
 #include <stdio.h>
 #include <string.h>
+
+#if defined(_WIN32)
+static int g_wsaUp = 0;
+static void RbfWsaStartup(void)
+{
+	if (!g_wsaUp) {
+		WSADATA wsad;
+		if (WSAStartup(MAKEWORD(2, 2), &wsad) == 0) g_wsaUp = 1;
+	}
+}
+static void RbfWsaCleanup(void)
+{
+	if (g_wsaUp) { WSACleanup(); g_wsaUp = 0; }
+}
+#else
+static void RbfWsaStartup(void) {}
+static void RbfWsaCleanup(void) {}
+#endif
 
 // ---- module state (emulation thread only) ------------------------------------
 static GGPOSession*      g_session = NULL;
@@ -241,6 +263,7 @@ int GgpoBridgeStart(const GgpoBridgeConfig* cfg, const GgpoBridgeHost* host)
 	resetModuleState(cfg, host);
 	g_syncTest = 0;
 	fillCallbacks();
+	RbfWsaStartup();   // libggpo's udp.cpp assumes Winsock is already up
 
 	GGPOErrorCode r = ggpo_start_session(&g_session, &g_cb, g_cfg.szGameId,
 	                                     g_cfg.nPlayers, g_cfg.nInputBytes, g_cfg.nLocalPort);
@@ -272,6 +295,7 @@ int GgpoBridgeStartSyncTest(const GgpoBridgeConfig* cfg, const GgpoBridgeHost* h
 	resetModuleState(cfg, host);
 	g_syncTest = 1;
 	fillCallbacks();
+	RbfWsaStartup();
 
 	GGPOErrorCode r = ggpo_start_synctest(&g_session, &g_cb, (char*)g_cfg.szGameId,
 	                                      g_cfg.nPlayers, g_cfg.nInputBytes, nCheckDistance);
@@ -301,6 +325,7 @@ void GgpoBridgeClose(void)
 	g_running  = 0;
 	g_syncTest = 0;
 	g_localHandle = GGPO_INVALID_HANDLE;
+	RbfWsaCleanup();
 }
 
 int GgpoBridgeIsRunning(void)

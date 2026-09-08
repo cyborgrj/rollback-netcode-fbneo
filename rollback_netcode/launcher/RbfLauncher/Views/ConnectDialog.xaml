@@ -1,8 +1,8 @@
 <Window x:Class="RbfLauncher.Views.ConnectDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Conectar ao servidor" Height="260" Width="440"
-        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Title="Conectar ao servidor" Width="460" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
         Background="{StaticResource Bg}">
   <Grid Margin="24">
     <Grid.RowDefinitions>

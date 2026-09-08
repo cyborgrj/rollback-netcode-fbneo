@@ -18,7 +18,6 @@ namespace RbfLauncher
         private LobbyClient _client;
         private IReadOnlyList<RosterEntry> _roster = new List<RosterEntry>();
         private ChallengeDialog _openChallenge;
-        private MatchReadyDialog _openMatch;
         private string _currentGame;   // room the RoomView is showing, null in the library
 
         public MainWindow()
@@ -172,19 +171,53 @@ namespace RbfLauncher
             MessageBox.Show(who + " " + why + ".", "RBF", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        // A challenge that both sides committed to (Desafiar / Aceitar) launches
+        // the emulator immediately on both machines - no extra confirmation, so
+        // the two starts stay close together.
         private void OnMatchStart(MatchStart ms)
         {
             CloseTransientDialogs();
-            var dlg = new MatchReadyDialog(ms, _emu, _client) { Owner = this };
-            _openMatch = dlg;
-            dlg.ShowDialog();
-            _openMatch = null;
+
+            var game = GameCatalog.All.FirstOrDefault(g => g.ShortName == ms.Game)
+                       ?? new GameInfo { ShortName = ms.Game, Title = ms.Game };
+
+            if (!_emu.EmulatorExists)
+            {
+                _client?.ReportMatch(ms.MatchId, Phase.Failed, "fbneo.exe não encontrado");
+                MessageBox.Show("Partida vs " + ms.PeerUsername +
+                                ": fbneo.exe não encontrado. Ajuste em Configurações.",
+                                "RBF", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string args = string.Format(
+                "-rbfnet player={0},localport={1},peerip={2},peerport={3},delay={4}",
+                ms.PlayerNum, ms.LocalPort, ms.PeerIp, ms.PeerPort, ms.FrameDelay);
+
+            try
+            {
+                _client?.ReportMatch(ms.MatchId, Phase.Launching);
+                var proc = _emu.Launch(game, args);
+                try
+                {
+                    proc.EnableRaisingEvents = true;
+                    proc.Exited += (s, e) => Dispatcher.BeginInvoke((Action)(() =>
+                        _client?.ReportMatch(ms.MatchId, Phase.Ended)));
+                }
+                catch { /* process may already have exited */ }
+                _client?.ReportMatch(ms.MatchId, Phase.Running);
+            }
+            catch (Exception ex)
+            {
+                _client?.ReportMatch(ms.MatchId, Phase.Failed, ex.Message);
+                MessageBox.Show("Falha ao abrir o emulador:\n" + ex.Message, "RBF",
+                                MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void CloseTransientDialogs()
         {
             _openChallenge?.ForceClose();
-            _openMatch?.ForceClose();
         }
 
         // ---- settings --------------------------------------------------
