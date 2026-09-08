@@ -36,7 +36,10 @@ typedef int int32;
 /*
  * Additional headers
  */
-#if defined(_WINDOWS)
+// LOCAL PATCH (rollback_netcode): pond3r/ggpo assumes Windows == MSVC (_WINDOWS).
+// MinGW-w64 defines _WIN32 but not _WINDOWS, which wrongly selected the Linux
+// platform header. Accept _WIN32 too. See third_party/ggpo/LOCAL-PATCHES.md.
+#if defined(_WINDOWS) || defined(_WIN32)
 #  include "platform_windows.h"
 #elif defined(__GNUC__)
 #  include "platform_linux.h"
