@@ -49,26 +49,27 @@ COMMON   := $(CXXFLAGS) $(ARCHFLAG) -std=gnu++17 -fno-strict-aliasing -fpermissi
 OBJDIR := obj
 LIB    := librollbackfbneo.a
 
-OUR_SRC := \
-	$(ROOT)/core/state_ring.cpp \
-	$(ROOT)/core/ggpo_bridge.cpp \
-	$(ROOT)/fbneo/fbneo_host.cpp
+OUR_SRC :=
+OUR_SRC += $(ROOT)/core/state_ring.cpp
+OUR_SRC += $(ROOT)/core/ggpo_bridge.cpp
+OUR_SRC += $(ROOT)/core/nat_punch.cpp
+OUR_SRC += $(ROOT)/fbneo/fbneo_host.cpp
 
-GGPO_SRC := \
-	$(GGPO)/lib/ggpo/bitvector.cpp \
-	$(GGPO)/lib/ggpo/game_input.cpp \
-	$(GGPO)/lib/ggpo/input_queue.cpp \
-	$(GGPO)/lib/ggpo/log.cpp \
-	$(GGPO)/lib/ggpo/main.cpp \
-	$(GGPO)/lib/ggpo/poll.cpp \
-	$(GGPO)/lib/ggpo/sync.cpp \
-	$(GGPO)/lib/ggpo/timesync.cpp \
-	$(GGPO)/lib/ggpo/platform_windows.cpp \
-	$(GGPO)/lib/ggpo/network/udp.cpp \
-	$(GGPO)/lib/ggpo/network/udp_proto.cpp \
-	$(GGPO)/lib/ggpo/backends/p2p.cpp \
-	$(GGPO)/lib/ggpo/backends/spectator.cpp \
-	$(GGPO)/lib/ggpo/backends/synctest.cpp
+GGPO_SRC :=
+GGPO_SRC += $(GGPO)/lib/ggpo/bitvector.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/game_input.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/input_queue.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/log.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/main.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/poll.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/sync.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/timesync.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/platform_windows.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/network/udp.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/network/udp_proto.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/backends/p2p.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/backends/spectator.cpp
+GGPO_SRC += $(GGPO)/lib/ggpo/backends/synctest.cpp
 
 # All basenames are unique across the two sets.
 OUR_OBJ  := $(addprefix $(OBJDIR)/,$(notdir $(OUR_SRC:.cpp=.o)))

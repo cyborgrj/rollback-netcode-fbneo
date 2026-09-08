@@ -19,7 +19,7 @@ index 8882b27..3db5a03 100644
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..ba61440 100644
+index 9039ec6..b218716 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
 @@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
@@ -44,7 +44,7 @@ index 9039ec6..ba61440 100644
  	// Suppresses ROMs scanning when full list is exported
  	if (-1 == nExport) {
  		// Build the ROM information
-@@ -1041,6 +1049,52 @@ static void tp_validate()
+@@ -1041,6 +1049,61 @@ static void tp_validate()
  	return;
  }
  
@@ -85,9 +85,18 @@ index 9039ec6..ba61440 100644
 +		else if (_tcscmp(key, _T("localport")) == 0) cfg->nLocalPort   = (unsigned short)_ttoi(val);
 +		else if (_tcscmp(key, _T("peerport"))  == 0) cfg->nRemotePort  = (unsigned short)_ttoi(val);
 +		else if (_tcscmp(key, _T("delay"))     == 0) cfg->nFrameDelay  = _ttoi(val);
++		else if (_tcscmp(key, _T("punchport")) == 0) cfg->nPunchPort   = (unsigned short)_ttoi(val);
 +		else if (_tcscmp(key, _T("peerip"))    == 0) {
 +			char* a = TCHARToANSI(val, NULL, 0);
 +			strncpy(cfg->szRemoteIp, a, sizeof(cfg->szRemoteIp) - 1);
++		}
++		else if (_tcscmp(key, _T("punchip"))   == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szPunchIp, a, sizeof(cfg->szPunchIp) - 1);
++		}
++		else if (_tcscmp(key, _T("matchid"))   == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szMatchId, a, sizeof(cfg->szMatchId) - 1);
 +		}
 +	}
 +
@@ -97,7 +106,7 @@ index 9039ec6..ba61440 100644
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1459,15 @@ int ProcessCmdLine()
+@@ -1405,6 +1468,15 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();

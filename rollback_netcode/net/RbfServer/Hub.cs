@@ -54,6 +54,9 @@ namespace Rbf.Server
         private readonly Dictionary<string, Challenge> _challenges = new();
         private readonly Dictionary<string, Match> _matches = new();
 
+        // udp/ port of the NAT rendezvous, echoed to clients in MatchStart. 0 = off.
+        public int PunchPort { get; set; }
+
         private int _epoch;
         private int _nextPort = 7000;
         private const int FrameDelay = 2;
@@ -231,7 +234,7 @@ namespace Rbf.Server
             }
         }
 
-        private static void SendMatchStartLocked(Match m, Session me, int playerNum, Session peer)
+        private void SendMatchStartLocked(Match m, Session me, int playerNum, Session peer)
         {
             me.Send(new ServerMsg
             {
@@ -246,6 +249,7 @@ namespace Rbf.Server
                     PeerPort = m.Port,
                     FrameDelay = FrameDelay,
                     PeerUsername = peer.Username,
+                    PunchPort = PunchPort,
                 }
             });
         }

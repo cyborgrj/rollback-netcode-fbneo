@@ -197,6 +197,14 @@ namespace RbfLauncher
                 "-rbfnet player={0},localport={1},peerip={2},peerport={3},delay={4}",
                 ms.PlayerNum, ms.LocalPort, ms.PeerIp, ms.PeerPort, ms.FrameDelay);
 
+            // NAT hole punching: the emulator announces itself at the lobby host on
+            // this UDP port, from the same port libggpo binds, and gets the peer's
+            // public endpoint back. Without it we keep the server-observed peer_ip,
+            // which only works on a LAN or with port forwarding.
+            if (ms.PunchPort > 0 && !string.IsNullOrWhiteSpace(_config.ServerHost))
+                args += string.Format(",punchip={0},punchport={1},matchid={2}",
+                                      _config.ServerHost, ms.PunchPort, ms.MatchId);
+
             try
             {
                 _client?.ReportMatch(ms.MatchId, Phase.Launching);

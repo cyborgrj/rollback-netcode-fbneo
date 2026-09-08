@@ -12,6 +12,7 @@
 #include "fbneo_host.h"
 #include "../core/state_ring.h"
 #include "../core/ggpo_bridge.h"
+#include "../core/nat_punch.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -45,6 +46,9 @@ static void RbfLog(const char* fmt, ...)
 	fputc('\n', f);
 	fclose(f);
 }
+
+// plain callback shape for modules that take a logger (nat_punch)
+static void RbfLogLine(const char* s) { RbfLog("%s", s ? s : ""); }
 
 // ===========================================================================
 //  Driver-input map:  FBNeo digital inputs  <->  per-player bit index
@@ -269,6 +273,26 @@ int FbnHostStart(const FbnHostConfig* cfg)
 	RbfLog("---- starting session: game=%s  side=P%d/%d  controls=P%d  bind :%d  peer %s:%d  delay %d ----",
 	       bc.szGameId, bc.nLocalPlayer, bc.nPlayers, g_inputPlayer,
 	       bc.nLocalPort, bc.szRemoteIp, bc.nRemotePort, bc.nFrameDelay);
+
+	// NAT hole punching, if the lobby gave us a rendezvous. Must run BEFORE the
+	// GGPO session so it can use the very port libggpo is about to bind.
+	if (g_cfg.szPunchIp[0] && g_cfg.nPunchPort && g_cfg.szMatchId[0]) {
+		char szPeer[64] = "";
+		unsigned short nPeer = 0;
+		int rc = NatPunchResolvePeer(g_cfg.szPunchIp, g_cfg.nPunchPort, g_cfg.szMatchId,
+		                             bc.nLocalPlayer, bc.nLocalPort,
+		                             szPeer, sizeof(szPeer), &nPeer, 15000, RbfLogLine);
+		if (rc == NAT_PUNCH_OK) {
+			RbfLog("nat punch OK: peer %s:%d (lobby had said %s:%d)",
+			       szPeer, nPeer, bc.szRemoteIp, bc.nRemotePort);
+			strncpy(bc.szRemoteIp, szPeer, sizeof(bc.szRemoteIp) - 1);
+			bc.szRemoteIp[sizeof(bc.szRemoteIp) - 1] = 0;
+			bc.nRemotePort = nPeer;
+		} else {
+			RbfLog("nat punch failed (%d) - falling back to %s:%d (LAN / port-forward)",
+			       rc, bc.szRemoteIp, bc.nRemotePort);
+		}
+	}
 
 	int r = GgpoBridgeStart(&bc, &g_hostVtbl);
 	if (r < 0) {

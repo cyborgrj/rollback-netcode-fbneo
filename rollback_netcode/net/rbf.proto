@@ -112,6 +112,11 @@ message MatchStart {
   int32  peer_port     = 7;
   int32  frame_delay   = 8;
   string peer_username = 9;
+
+  // NAT hole punching: the peers announce themselves at <lobby host>:punch_port
+  // from the very UDP port libggpo will bind, and the rendezvous hands each the
+  // other's PUBLIC endpoint. 0 disables it (LAN / port-forwarded setups).
+  int32  punch_port    = 10;
 }
 message MatchAborted { string match_id = 1; string reason = 2; }
 

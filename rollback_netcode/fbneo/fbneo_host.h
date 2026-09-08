@@ -32,6 +32,13 @@ typedef struct FbnHostConfig {
 	unsigned short nRemotePort;
 	int            nFrameDelay;      // local input delay frames; 0 => default 2
 	int            nStateSlots;      // 0 => state_ring default (16)
+
+	// NAT hole punching (optional). When all three are set, we announce at
+	// szPunchIp:nPunchPort from nLocalPort before opening the GGPO session and
+	// replace szRemoteIp/nRemotePort with the peer's PUBLIC endpoint.
+	char           szPunchIp[64];
+	unsigned short nPunchPort;
+	char           szMatchId[40];
 } FbnHostConfig;
 
 // Start a networked session / an offline determinism check. The active FBNeo
