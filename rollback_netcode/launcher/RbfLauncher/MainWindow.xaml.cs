@@ -164,8 +164,13 @@ namespace RbfLauncher
                 ? "meu IP na rede: " + _client.LanIp
                 : null;
             ConnectButton.Content = on ? "Desconectar" : "Conectar";
+
+            // Label the button by what the panel actually is right now, not by
+            // _chatOpen alone - offline it stays hidden whatever the toggle says.
+            bool chatVisible = on && _chatOpen;
+            Chat.Visibility = chatVisible ? Visibility.Visible : Visibility.Collapsed;
+            ChatToggle.Content = chatVisible ? "Ocultar Chat" : "Mostrar Chat";
             ChatToggle.IsEnabled = on;
-            Chat.Visibility = on && _chatOpen ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ChatToggle_Click(object sender, RoutedEventArgs e)

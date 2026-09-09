@@ -18,8 +18,9 @@
         </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
           <TextBlock x:Name="PlayerLabel" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
+          <!-- MinWidth so the neighbouring buttons do not shift when the label swaps -->
           <Button x:Name="ChatToggle" Style="{StaticResource Btn}" Padding="10,6" Margin="0,0,8,0"
-                  Click="ChatToggle_Click" Content="Chat" />
+                  MinWidth="108" Click="ChatToggle_Click" Content="Mostrar Chat" />
           <Button x:Name="ConnectButton" Style="{StaticResource Btn}" Padding="10,6" Margin="0,0,8,0"
                   Click="ConnectButton_Click" Content="Conectar" />
           <Button x:Name="SettingsButton" Style="{StaticResource Btn}" Padding="10,6" Click="SettingsButton_Click"
