@@ -12,6 +12,7 @@
   <SolidColorBrush x:Key="AccentText"  Color="#FFFFFF" />
   <SolidColorBrush x:Key="Ok"          Color="#3FB950" />
   <SolidColorBrush x:Key="Warn"        Color="#D29922" />
+  <SolidColorBrush x:Key="Bad"         Color="#F0554E" />
 
   <!-- base text -->
   <Style TargetType="TextBlock">

@@ -96,6 +96,18 @@ namespace RbfLauncher.Views
                 PlayersList.Items.Add(BuildPlayerRow(p, iAmFree));
         }
 
+        private void SendChallengeTo(RosterEntry p)
+        {
+            if (_client == null || !_client.LoggedIn) return;
+
+            var mine = _roster.FirstOrDefault(x => x.UserId == _client.UserId);
+            int suggested = Latency.SuggestDelay(mine != null ? mine.PingMs : 0, p.PingMs);
+
+            var dlg = DelayDialog.ForOutgoing(p.Username, p.PingMs, suggested, Window.GetWindow(this));
+            if (dlg.ShowDialog() == true)
+                _client.SendChallenge(p.UserId, dlg.FrameDelay);
+        }
+
         private UIElement BuildPlayerRow(RosterEntry p, bool iAmFree)
         {
             var name = new TextBlock
@@ -103,6 +115,20 @@ namespace RbfLauncher.Views
                 Text = p.Username,
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 14
+            };
+
+            int nBars = Latency.Bars(p.PingMs);
+            Brush barOn = nBars >= 3 ? (Brush)FindResource("Ok")
+                        : nBars == 2 ? (Brush)FindResource("Warn")
+                                     : (Brush)FindResource("Bad");
+            var bars = SignalBars.Build(nBars, barOn, (Brush)FindResource("Stroke"));
+            var ping = new TextBlock
+            {
+                Text = p.PingMs > 0 ? p.PingMs + " ms" : "--",
+                Foreground = (Brush)FindResource("TextDim"),
+                FontSize = 11,
+                Margin = new Thickness(6, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
             };
 
             string stateText;
@@ -128,14 +154,20 @@ namespace RbfLauncher.Views
                 Padding = new Thickness(12, 4, 12, 4),
                 IsEnabled = iAmFree && p.State == PlayerState.PlayerInRoom
             };
-            btn.Click += (s, e) => _client?.SendChallenge(p.UserId);
+            btn.Click += (s, e) => SendChallengeTo(p);
+
+            var left = new StackPanel { Orientation = Orientation.Horizontal };
+            left.Children.Add(bars);
+            left.Children.Add(ping);
+            left.Children.Add(new TextBlock { Width = 10 });
+            left.Children.Add(name);
 
             var row = new DockPanel { Margin = new Thickness(0, 4, 0, 4), LastChildFill = false };
             DockPanel.SetDock(btn, Dock.Right);
             DockPanel.SetDock(state, Dock.Right);
             row.Children.Add(btn);
             row.Children.Add(state);
-            row.Children.Add(name);
+            row.Children.Add(left);
 
             return new Border
             {

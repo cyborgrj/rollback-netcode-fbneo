@@ -1,0 +1,46 @@
+<Window x:Class="RbfLauncher.Views.DelayDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Desafio"
+        SizeToContent="Height" Width="470" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource Bg}" Topmost="True">
+  <StackPanel Margin="26">
+
+    <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+    <StackPanel x:Name="PingRow" Orientation="Horizontal" Margin="0,10,0,0">
+      <ContentControl x:Name="BarsHost" VerticalAlignment="Center" />
+      <TextBlock x:Name="PingText" Foreground="{StaticResource TextDim}" FontSize="12"
+                 Margin="8,0,0,0" VerticalAlignment="Center" />
+    </StackPanel>
+
+    <TextBlock Text="Frames de delay" Foreground="{StaticResource TextDim}" FontSize="12" Margin="0,20,0,0" />
+
+    <Grid Margin="0,6,0,0">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <TextBlock Grid.Column="0" Text="0" Foreground="{StaticResource TextDim}" FontSize="11" VerticalAlignment="Center" />
+      <Slider Grid.Column="1" x:Name="DelaySlider" Margin="8,0,8,0"
+              Minimum="0" Maximum="10" TickFrequency="1" IsSnapToTickEnabled="True"
+              TickPlacement="BottomRight" SmallChange="1" LargeChange="1" />
+      <TextBlock Grid.Column="2" Text="10" Foreground="{StaticResource TextDim}" FontSize="11" VerticalAlignment="Center" />
+    </Grid>
+
+    <TextBlock x:Name="DelayText" FontSize="13" Margin="0,10,0,0" />
+    <TextBlock x:Name="HintText" Foreground="{StaticResource TextDim}" FontSize="11"
+               Margin="0,4,0,0" TextWrapping="Wrap" />
+
+    <TextBlock x:Name="CountText" Foreground="{StaticResource TextDim}" FontSize="12"
+               Margin="0,12,0,0" Visibility="Collapsed" />
+
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+      <Button x:Name="NoButton" Style="{StaticResource Btn}" MinWidth="110" MinHeight="34" Click="No_Click" />
+      <Button x:Name="YesButton" Style="{StaticResource BtnPrimary}" MinWidth="130" MinHeight="34"
+              Margin="12,0,0,0" Click="Yes_Click" />
+    </StackPanel>
+  </StackPanel>
+</Window>

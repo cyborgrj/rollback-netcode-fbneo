@@ -78,13 +78,14 @@ namespace Rbf.Server
                 case ClientMsg.KindOneofCase.LeaveRoom:
                     _hub.LeaveRoom(s); break;
                 case ClientMsg.KindOneofCase.Challenge:
-                    _hub.Challenge(s, m.Challenge.TargetUserId); break;
+                    _hub.Challenge(s, m.Challenge.TargetUserId, m.Challenge.FrameDelay); break;
                 case ClientMsg.KindOneofCase.ChallengeReply:
-                    _hub.ChallengeReply(s, m.ChallengeReply.ChallengeId, m.ChallengeReply.Accept); break;
+                    _hub.ChallengeReply(s, m.ChallengeReply.ChallengeId, m.ChallengeReply.Accept,
+                                        m.ChallengeReply.FrameDelay); break;
                 case ClientMsg.KindOneofCase.MatchStatus:
                     _hub.MatchStatus(s, m.MatchStatus.MatchId, m.MatchStatus.Phase, m.MatchStatus.Detail); break;
                 case ClientMsg.KindOneofCase.Ping:
-                    _hub.Pong(s, m.Ping.T); break;
+                    _hub.Pong(s, m.Ping.T, m.Ping.RttMs); break;
             }
         }
 

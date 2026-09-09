@@ -17,7 +17,7 @@ namespace RbfLauncher
 
         private LobbyClient _client;
         private IReadOnlyList<RosterEntry> _roster = new List<RosterEntry>();
-        private ChallengeDialog _openChallenge;
+        private DelayDialog _openChallenge;
         private string _currentGame;   // room the RoomView is showing, null in the library
 
         public MainWindow()
@@ -153,11 +153,14 @@ namespace RbfLauncher
         {
             _openChallenge?.ForceClose();
             var title = GameCatalog.All.FirstOrDefault(g => g.ShortName == ci.Game)?.Title ?? ci.Game;
-            var dlg = new ChallengeDialog(ci.FromUsername, title) { Owner = this };
+            // Same slider the challenger saw, pre-set to what they asked for.
+            // The server averages both answers into the match\x27s frame delay.
+            var dlg = DelayDialog.ForIncoming(ci.FromUsername, title,
+                                              ci.SuggestedDelay, ci.FromFrameDelay, 25, this);
             _openChallenge = dlg;
             bool? ok = dlg.ShowDialog();
             _openChallenge = null;
-            _client?.ReplyChallenge(ci.ChallengeId, ok == true);
+            _client?.ReplyChallenge(ci.ChallengeId, ok == true, dlg.FrameDelay);
         }
 
         private void OnChallengeResult(ChallengeResult cr)

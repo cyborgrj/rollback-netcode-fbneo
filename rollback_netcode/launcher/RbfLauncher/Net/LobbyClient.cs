@@ -16,6 +16,30 @@ namespace RbfLauncher.Net
         public string Username;
         public string Game;
         public PlayerState State;
+        public int PingMs;
+    }
+
+    public static class Latency
+    {
+        /// <summary>Frames of input delay to suggest for a pairing. Both players
+        /// reach each other roughly via the lobby, so peer RTT ~= the sum of their
+        /// RTTs to it; half is one way, and a frame is ~16.67ms at 60fps.
+        /// Mirrors Hub.SuggestDelay on the server.</summary>
+        public static int SuggestDelay(int pingA, int pingB)
+        {
+            int frames = (int)Math.Round((pingA + pingB) / 2.0 / 16.67, MidpointRounding.AwayFromZero);
+            return frames < 1 ? 1 : (frames > 10 ? 10 : frames);
+        }
+
+        /// <summary>0..4 signal bars. 4 = under 10ms, 1 = 60ms or worse.</summary>
+        public static int Bars(int pingMs)
+        {
+            if (pingMs <= 0)  return 0;   // not measured yet
+            if (pingMs < 10)  return 4;
+            if (pingMs < 30)  return 3;
+            if (pingMs < 60)  return 2;
+            return 1;
+        }
     }
 
     /// <summary>Thin wrapper over the bidirectional Lobby stream. Events are
@@ -32,6 +56,7 @@ namespace RbfLauncher.Net
         public string UserId { get; private set; }
         public string Username { get; private set; }
         public string LanIp { get; private set; } = "";
+        public int LastRttMs { get; private set; }
         public bool LoggedIn => UserId != null;
 
         /// <summary>Best-guess local LAN IPv4: the source address the OS would use
@@ -105,7 +130,8 @@ namespace RbfLauncher.Net
                 while (!ct.IsCancellationRequested)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(3), ct).ConfigureAwait(false);
-                    Send(new ClientMsg { Ping = new Ping { T = DateTime.UtcNow.Ticks } });
+                    // carry the previous measurement so the server can publish it
+                    Send(new ClientMsg { Ping = new Ping { T = DateTime.UtcNow.Ticks, RttMs = LastRttMs } });
                 }
             }
             catch { /* cancelled */ }
@@ -143,7 +169,8 @@ namespace RbfLauncher.Net
                         UserId = p.UserId,
                         Username = p.Username,
                         Game = p.Game,
-                        State = p.State
+                        State = p.State,
+                        PingMs = p.PingMs
                     }).ToList();
                     Post(() => RosterUpdated?.Invoke(list));
                     break;
@@ -159,6 +186,13 @@ namespace RbfLauncher.Net
                 case ServerMsg.KindOneofCase.MatchAborted:
                     Post(() => MatchAborted?.Invoke(m.MatchAborted));
                     break;
+                case ServerMsg.KindOneofCase.Pong:
+                {
+                    // T is the tick count we stamped when sending; the echo gives RTT.
+                    long ms = (DateTime.UtcNow.Ticks - m.Pong.T) / TimeSpan.TicksPerMillisecond;
+                    if (ms >= 0 && ms < 60000) LastRttMs = (int)ms;
+                    break;
+                }
                 case ServerMsg.KindOneofCase.Error:
                     Post(() => ServerError?.Invoke(m.Error.Message));
                     break;
@@ -182,9 +216,10 @@ namespace RbfLauncher.Net
 
         public void JoinRoom(string game) => Send(new ClientMsg { JoinRoom = new JoinRoom { Game = game } });
         public void LeaveRoom() => Send(new ClientMsg { LeaveRoom = new LeaveRoom() });
-        public void SendChallenge(string userId) => Send(new ClientMsg { Challenge = new Challenge { TargetUserId = userId } });
-        public void ReplyChallenge(string id, bool accept) =>
-            Send(new ClientMsg { ChallengeReply = new ChallengeReply { ChallengeId = id, Accept = accept } });
+        public void SendChallenge(string userId, int frameDelay) =>
+            Send(new ClientMsg { Challenge = new Challenge { TargetUserId = userId, FrameDelay = frameDelay } });
+        public void ReplyChallenge(string id, bool accept, int frameDelay) =>
+            Send(new ClientMsg { ChallengeReply = new ChallengeReply { ChallengeId = id, Accept = accept, FrameDelay = frameDelay } });
         public void ReportMatch(string matchId, Phase phase, string detail = "") =>
             Send(new ClientMsg { MatchStatus = new MatchStatus { MatchId = matchId, Phase = phase, Detail = detail ?? "" } });
 

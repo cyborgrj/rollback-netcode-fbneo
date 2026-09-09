@@ -19,6 +19,7 @@ namespace Rbf.Server
         public string Game = "";                       // room short name, "" = no room
         public PlayerState State = PlayerState.PlayerIdle;
         public string ActiveMatchId;
+        public int    PingMs;        // round trip to this server, from the client's own Ping
 
         public readonly Channel<ServerMsg> Out =
             Channel.CreateUnbounded<ServerMsg>(new UnboundedChannelOptions { SingleReader = true });
@@ -33,6 +34,8 @@ namespace Rbf.Server
         public string FromId;
         public string ToId;
         public string Game;
+        public int    DelayFrom;   // frames the challenger asked for
+        public int    DelayTo;     // frames the challenged answered with
         public CancellationTokenSource Expiry;
     }
 
@@ -43,6 +46,7 @@ namespace Rbf.Server
         public string P1Id;
         public string P2Id;
         public int Port;
+        public int FrameDelay;
     }
 
     /// <summary>All lobby state, guarded by one lock. Small scale - a single
@@ -146,7 +150,18 @@ namespace Rbf.Server
         public void LeaveRoom(Session s) => JoinRoom(s, "");
 
         // ---- challenges -------------------------------------------------
-        public void Challenge(Session from, string targetUserId)
+        /// <summary>Frames of input delay to suggest for a pairing. Both players
+        /// reach each other roughly via this server, so peer RTT ~= the sum of
+        /// their RTTs here; half of that is one way, and a frame is ~16.67ms.</summary>
+        public static int SuggestDelay(int pingA, int pingB)
+        {
+            int frames = (int)Math.Round((pingA + pingB) / 2.0 / 16.67, MidpointRounding.AwayFromZero);
+            if (frames < 1) frames = 1;
+            if (frames > 10) frames = 10;
+            return frames;
+        }
+
+        public void Challenge(Session from, string targetUserId, int frameDelay)
         {
             lock (_gate)
             {
@@ -168,6 +183,7 @@ namespace Rbf.Server
                     FromId = from.UserId,
                     ToId = to.UserId,
                     Game = from.Game,
+                    DelayFrom = Math.Max(0, Math.Min(10, frameDelay)),
                     Expiry = new CancellationTokenSource(),
                 };
                 _challenges[c.Id] = c;
@@ -182,6 +198,8 @@ namespace Rbf.Server
                         FromUserId = from.UserId,
                         FromUsername = from.Username,
                         Game = c.Game,
+                        FromFrameDelay = c.DelayFrom,
+                        SuggestedDelay = SuggestDelay(from.PingMs, to.PingMs),
                     }
                 });
                 BroadcastRosterLocked();
@@ -201,7 +219,7 @@ namespace Rbf.Server
             }
         }
 
-        public void ChallengeReply(Session replier, string challengeId, bool accept)
+        public void ChallengeReply(Session replier, string challengeId, bool accept, int frameDelay)
         {
             lock (_gate)
             {
@@ -212,6 +230,8 @@ namespace Rbf.Server
                 }
                 _challenges.Remove(c.Id);
                 c.Expiry.Cancel();
+
+                c.DelayTo = Math.Max(0, Math.Min(10, frameDelay));
 
                 if (!accept) { ResolveChallengeLocked(c, Outcome.Declined); return; }
 
@@ -225,6 +245,11 @@ namespace Rbf.Server
                     P1Id = from.UserId,
                     P2Id = to.UserId,
                     Port = AllocPortLocked(),
+                    // meet in the middle, rounding up. Both zero means neither
+                    // side expressed a preference (old client) -> server default.
+                    FrameDelay = (c.DelayFrom == 0 && c.DelayTo == 0)
+                                 ? FrameDelay
+                                 : (c.DelayFrom + c.DelayTo + 1) / 2,
                 };
                 _matches[m.Id] = m;
                 from.State = to.State = PlayerState.PlayerInMatch;
@@ -241,7 +266,7 @@ namespace Rbf.Server
                 SendMatchStartLocked(m, from, 1, to);
                 SendMatchStartLocked(m, to, 2, from);
                 BroadcastRosterLocked();
-                Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1) vs {to.Username}@{to.RemoteIp} (P2)  udp :{m.Port}");
+                Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1, {from.PingMs}ms, wants {c.DelayFrom}) vs {to.Username}@{to.RemoteIp} (P2, {to.PingMs}ms, wants {c.DelayTo})  udp :{m.Port}  delay {m.FrameDelay}");
             }
         }
 
@@ -258,7 +283,7 @@ namespace Rbf.Server
                     LocalPort = m.Port,
                     PeerIp = peer.RemoteIp,
                     PeerPort = m.Port,
-                    FrameDelay = FrameDelay,
+                    FrameDelay = m.FrameDelay,
                     PeerUsername = peer.Username,
                     PunchPort = PunchPort,
                 }
@@ -300,10 +325,11 @@ namespace Rbf.Server
 
         // Ping doubles as a lobby resync: answering with the roster guarantees the
         // client converges within one ping period even if a broadcast was missed.
-        public void Pong(Session s, long t)
+        public void Pong(Session s, long t, int rttMs)
         {
             lock (_gate)
             {
+                if (rttMs > 0 && rttMs < 60000) s.PingMs = rttMs;
                 s.Send(new ServerMsg { Pong = new Pong { T = t } });
                 s.Send(BuildRosterMsgLocked());
             }
@@ -347,7 +373,7 @@ namespace Rbf.Server
         {
             var r = new Roster { Epoch = ++_epoch };
             foreach (var s in _sessions.Values)
-                r.Players.Add(new Player { UserId = s.UserId, Username = s.Username, Game = s.Game, State = s.State });
+                r.Players.Add(new Player { UserId = s.UserId, Username = s.Username, Game = s.Game, State = s.State, PingMs = s.PingMs });
             return new ServerMsg { Roster = r };
         }
 

@@ -35,8 +35,9 @@ message Hello {
 message JoinRoom  { string game = 1; }   // FBNeo short name, e.g. "sfa2"
 message LeaveRoom { }
 
-message Challenge      { string target_user_id = 1; }
-message ChallengeReply { string challenge_id = 1; bool accept = 2; }
+// frame_delay is what THIS side wants; the server averages the two.
+message Challenge      { string target_user_id = 1; int32 frame_delay = 2; }
+message ChallengeReply { string challenge_id = 1; bool accept = 2; int32 frame_delay = 3; }
 
 message MatchStatus {
   string match_id = 1;
@@ -45,7 +46,11 @@ message MatchStatus {
 }
 enum Phase { PHASE_LAUNCHING = 0; PHASE_RUNNING = 1; PHASE_ENDED = 2; PHASE_FAILED = 3; }
 
-message Ping { int64 t = 1; }
+message Ping {
+  int64 t      = 1;
+  int32 rtt_ms = 2;   // RTT we measured on the PREVIOUS ping, reported back so
+                      // the server can publish it in the roster
+}
 
 // ---------------------------------------------------------------------------
 // server -> client
@@ -81,6 +86,7 @@ message Player {
   string      username = 2;
   string      game     = 3;   // room short name, "" if none
   PlayerState state    = 4;
+  int32       ping_ms  = 5;   // round trip to THIS server, 0 = not measured yet
 }
 message Roster {
   repeated Player players = 1;
@@ -92,6 +98,8 @@ message ChallengeIn {
   string from_user_id = 2;
   string from_username = 3;
   string game         = 4;
+  int32  from_frame_delay = 5;   // what the challenger asked for
+  int32  suggested_delay  = 6;   // server\x27s suggestion from both pings
 }
 message ChallengeResult {
   string  challenge_id  = 1;
