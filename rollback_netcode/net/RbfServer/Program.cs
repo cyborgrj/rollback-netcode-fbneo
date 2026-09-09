@@ -23,7 +23,17 @@ namespace Rbf.Server
 
             var hub = new Hub { PunchPort = punchPort };
 
-            var server = new Grpc.Core.Server
+            // Keepalive so a client that dies without a clean FIN is reaped
+            // instead of lingering as a ghost session holding its name.
+            var grpcOptions = new[]
+            {
+                new ChannelOption("grpc.keepalive_time_ms", 10000),
+                new ChannelOption("grpc.keepalive_timeout_ms", 5000),
+                new ChannelOption("grpc.keepalive_permit_without_calls", 1),
+                new ChannelOption("grpc.http2.min_ping_interval_without_data_ms", 5000),
+            };
+
+            var server = new Grpc.Core.Server(grpcOptions)
             {
                 Services = { Lobby.BindService(new LobbyService(hub)) },
                 Ports = { new ServerPort(bind, port, ServerCredentials.Insecure) },

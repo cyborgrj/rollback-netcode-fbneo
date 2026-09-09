@@ -73,7 +73,15 @@ namespace RbfLauncher.Net
             _ui = SynchronizationContext.Current;
             _cts = new CancellationTokenSource();
 
-            _channel = new Channel(host, port, ChannelCredentials.Insecure);
+            _channel = new Channel(host, port, ChannelCredentials.Insecure, new[]
+            {
+                // Detect a dead link quickly, so the server drops our session and
+                // a later reconnect is not blocked by our own ghost.
+                new ChannelOption("grpc.keepalive_time_ms", 10000),
+                new ChannelOption("grpc.keepalive_timeout_ms", 5000),
+                new ChannelOption("grpc.keepalive_permit_without_calls", 1),
+                new ChannelOption("grpc.http2.min_time_between_pings_ms", 10000),
+            });
             await _channel.ConnectAsync(DateTime.UtcNow.Add(timeout)).ConfigureAwait(false);
 
             LanIp = GuessLanIp(host);

@@ -75,10 +75,19 @@ namespace Rbf.Server
 
             lock (_gate)
             {
-                if (_sessions.Values.Any(s => string.Equals(s.Username, username, StringComparison.OrdinalIgnoreCase)))
+                // Name takeover instead of refusal. A half-open TCP connection can
+                // outlive a crashed client by minutes, and that ghost session would
+                // otherwise hold the name hostage and lock the player out.
+                var ghost = _sessions.Values.FirstOrDefault(
+                    x => string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase));
+                if (ghost != null)
                 {
-                    reject = "Nome já em uso.";
-                    return null;
+                    Console.WriteLine($"~ {username}: replacing stale session {ghost.UserId}");
+                    _sessions.Remove(ghost.UserId);
+                    CancelChallengesInvolvingLocked(ghost.UserId, Outcome.Cancelled);
+                    AbortMatchesInvolvingLocked(ghost.UserId, "adversário reconectou");
+                    ghost.Send(Err("Sua sessão foi substituída por um novo login."));
+                    ghost.Close();
                 }
 
                 var s = new Session
