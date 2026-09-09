@@ -1,5 +1,5 @@
 diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
-index e6ad1a4..5fbe762 100644
+index e6ad1a4..8929473 100644
 --- a/src/burner/win32/run.cpp
 +++ b/src/burner/win32/run.cpp
 @@ -1,5 +1,6 @@
@@ -42,7 +42,7 @@ index e6ad1a4..5fbe762 100644
  	if (bPrevDraw && !bPause) {
  		VidPaint(0);							// paint the screen (no need to validate)
  
-@@ -289,7 +300,17 @@ int RunFrame(int bDraw, int bPause)
+@@ -289,7 +300,29 @@ int RunFrame(int bDraw, int bPause)
  			RecordInput();						// Write input to file
  		}
  
@@ -52,16 +52,28 @@ index e6ad1a4..5fbe762 100644
 +			int nFbnFr = FbnHostRunFrame(bDraw); // 1 synced frame (drawn via VidFrame); rollback re-sim inside
 +			if (nFbnFr < 0) {
 +				int bWasWatching = FbnHostIsWatching();
-+				FbnHostStop();                // fatal -> fall back to local play
-+				// A spectator has no local play to fall back to: the stream is
-+				// over, so close the window instead of freezing on a dead frame.
-+				if (bWasWatching) PostMessage(hScrnWnd, WM_CLOSE, 0, 0);
++				long long nRan = FbnHostFrameCount();
++				FbnHostStop();
++
++				// Never fall through to offline play. A netplay window that keeps
++				// running after the session died looks exactly like a match still
++				// in progress, and is how two machines end up playing different
++				// games without either player realising.
++				if (!bWasWatching) {
++					MessageBox(NULL, nRan == 0
++						? _T("Nao foi possivel sincronizar com o adversario.\n\n")
++						  _T("O motivo esta em rbf-netplay.log, ao lado do emulador.")
++						: _T("A conexao com o adversario caiu.\n\n")
++						  _T("O motivo esta em rbf-netplay.log, ao lado do emulador."),
++						_T("RBF - partida"), MB_OK | MB_ICONWARNING);
++				}
++				PostMessage(hScrnWnd, WM_CLOSE, 0, 0);
 +			}
 +		} else if (bDraw) {                    // Draw Frame
  			if ((bDraw & FFWD_GHOST_FRAME) == 0)
  				nFramesRendered++;
  
-@@ -333,7 +354,7 @@ int RunFrame(int bDraw, int bPause)
+@@ -333,7 +366,7 @@ int RunFrame(int bDraw, int bPause)
  			BurnDrvFrame();
  		}
  

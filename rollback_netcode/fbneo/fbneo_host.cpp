@@ -309,10 +309,16 @@ int FbnHostStart(const FbnHostConfig* cfg)
 	if (g_cfg.szPunchIp[0] && g_cfg.nPunchPort && g_cfg.szMatchId[0]) {
 		char szPeer[64] = "";
 		unsigned short nPeer = 0;
+		int bSameNat = 0;
 		int rc = NatPunchResolvePeer(g_cfg.szPunchIp, g_cfg.nPunchPort, g_cfg.szMatchId,
 		                             bc.nLocalPlayer, bc.nLocalPort,
-		                             szPeer, sizeof(szPeer), &nPeer, 15000, RbfLogLine);
-		if (rc == NAT_PUNCH_OK) {
+		                             szPeer, sizeof(szPeer), &nPeer, &bSameNat, 15000, RbfLogLine);
+		if (rc == NAT_PUNCH_OK && bSameNat) {
+			// Same router: the lobby already handed us the peer's LAN address,
+			// which beats asking that router to hairpin its own WAN address.
+			RbfLog("nat punch: same NAT - keeping the LAN peer %s:%d",
+			       bc.szRemoteIp, bc.nRemotePort);
+		} else if (rc == NAT_PUNCH_OK) {
 			RbfLog("nat punch OK: peer %s:%d (lobby had said %s:%d)",
 			       szPeer, nPeer, bc.szRemoteIp, bc.nRemotePort);
 			strncpy(bc.szRemoteIp, szPeer, sizeof(bc.szRemoteIp) - 1);

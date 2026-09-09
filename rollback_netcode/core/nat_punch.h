@@ -38,7 +38,12 @@ enum NatPunchResult {
 
 // Blocks for at most nTimeoutMs. On NAT_PUNCH_OK, szOutPeerIp / pOutPeerPort
 // hold the peer's PUBLIC endpoint, ready to hand to ggpo_add_player.
-// pfnLog is optional (may be NULL) and receives one-line progress messages.
+//
+// pbOutSameNat (optional) comes back 1 when the rendezvous saw BOTH of us at the
+// same public address - i.e. we are on the same LAN. Talking through the public
+// address then means asking the router to hairpin, which plenty of consumer
+// routers do in only one direction; the caller should use the LAN address it
+// already has instead. pfnLog is optional and receives progress lines.
 int NatPunchResolvePeer(const char*     szRendezvousHost,
                         unsigned short  nRendezvousPort,
                         const char*     szMatchId,
@@ -47,6 +52,7 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
                         char*           szOutPeerIp,
                         int             nOutPeerIpLen,
                         unsigned short* pOutPeerPort,
+                        int*            pbOutSameNat,
                         int             nTimeoutMs,
                         void          (*pfnLog)(const char*));
 

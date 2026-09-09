@@ -35,6 +35,7 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
                         char*           szOutPeerIp,
                         int             nOutPeerIpLen,
                         unsigned short* pOutPeerPort,
+                        int*            pbOutSameNat,
                         int             nTimeoutMs,
                         void          (*pfnLog)(const char*))
 {
@@ -89,6 +90,8 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
     char szPeerIp[64] = "";
     unsigned int nPeerPort = 0;
     int bGotPeer = 0;
+    char szSelfIp[64] = "";
+    if (pbOutSameNat) *pbOutSameNat = 0;
 
     DWORD tStart = GetTickCount();
     while (!bGotPeer && (int)(GetTickCount() - tStart) < nTimeoutMs) {
@@ -118,11 +121,23 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
             nPeerPort = port;
             bGotPeer  = 1;
         } else if (sscanf(buf, "RBF1 SELF %63s %u", ip, &port) == 2) {
+            strncpy(szSelfIp, ip, sizeof(szSelfIp) - 1);
+            szSelfIp[sizeof(szSelfIp) - 1] = '\0';
             punch_log(pfnLog, "nat punch: our public endpoint is %s:%u", ip, port);
         }
     }
 
-    if (bGotPeer) {
+    // Both of us seen at the same public address means we are behind the same
+    // router. Reaching each other through it would need a hairpin, and a router
+    // that hairpins in only one direction leaves one side deaf while the other
+    // synchronises happily - which is exactly what a one-sided handshake looks
+    // like. The LAN address the lobby already gave us is better in every way.
+    int bSameNat = (bGotPeer && szSelfIp[0] && strcmp(szSelfIp, szPeerIp) == 0);
+    if (pbOutSameNat) *pbOutSameNat = bSameNat;
+
+    if (bSameNat) {
+        punch_log(pfnLog, "nat punch: peer is behind the same NAT as us (%s) - staying on the LAN", szSelfIp);
+    } else if (bGotPeer) {
         punch_log(pfnLog, "nat punch: peer public endpoint %s:%u - opening NAT", szPeerIp, nPeerPort);
 
         struct sockaddr_in peer;
