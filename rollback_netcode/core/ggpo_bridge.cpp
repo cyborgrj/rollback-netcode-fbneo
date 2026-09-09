@@ -353,21 +353,28 @@ int GgpoBridgeTick(void)
 		return GGPO_BRIDGE_ERR_GGPO;   // caller: FbnHostRunFrame -> -1 -> FbnHostStop (game runs offline)
 	}
 
-	ggpo_idle(g_session, g_cfg.nIdleTimeoutMs);
-
-	// 1. local input for this frame
+	// 1. Read our own controls FIRST.
+	//
+	// This must happen before ggpo_idle(): a rollback runs inside idle, and each
+	// re-simulated frame overwrites the driver's input bytes with that frame's
+	// synchronized values. Polling afterwards would read the PEER's input back
+	// out of the shared bytes and send it as our own - one player ends up
+	// driving both characters, and the two machines diverge.
 	unsigned char local[GGPO_BRIDGE_MAX_INPUT_BYTES];
 	memset(local, 0, sizeof(local));
 	g_host.poll_local_input(local, g_cfg.nInputBytes, g_host.user);
 
-	// 2. hand it to libggpo (may reject while the peers are still catching up)
+	// 2. let libggpo work the network (this is where rollbacks happen)
+	ggpo_idle(g_session, g_cfg.nIdleTimeoutMs);
+
+	// 3. hand it to libggpo (may reject while the peers are still catching up)
 	GGPOErrorCode r = ggpo_add_local_input(g_session, g_localHandle, local, g_cfg.nInputBytes);
 	if (!GGPO_SUCCEEDED(r)) {
 		g_lastError = r;
 		return GGPO_BRIDGE_SKIPPED;   // e.g. GGPO_ERRORCODE_PREDICTION_THRESHOLD
 	}
 
-	// 3. one live step (rollbacks, if any, run synchronously via cb_advance_frame)
+	// 4. one live step (rollbacks, if any, run synchronously via cb_advance_frame)
 	int rc = stepOnce(/*bRollback=*/0);
 	if (rc == GGPO_BRIDGE_ERR_GGPO) return GGPO_BRIDGE_SKIPPED; // sync not ready yet
 	return rc;

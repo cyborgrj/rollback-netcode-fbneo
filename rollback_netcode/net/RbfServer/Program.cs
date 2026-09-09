@@ -11,17 +11,20 @@ namespace Rbf.Server
         {
             int port = 50051;
             int punchPort = 0;          // 0 => port + 1
+            int frameDelay = 2;
             string bind = "0.0.0.0";
 
             for (int i = 0; i + 1 < args.Length; i++)
             {
                 if (args[i] == "--port") int.TryParse(args[i + 1], out port);
                 else if (args[i] == "--punch-port") int.TryParse(args[i + 1], out punchPort);
+                else if (args[i] == "--frame-delay") int.TryParse(args[i + 1], out frameDelay);
                 else if (args[i] == "--bind") bind = args[i + 1];
             }
             if (punchPort <= 0) punchPort = port + 1;
 
-            var hub = new Hub { PunchPort = punchPort };
+            if (frameDelay < 0 || frameDelay > 10) frameDelay = 2;
+            var hub = new Hub { PunchPort = punchPort, FrameDelay = frameDelay };
 
             // Keepalive so a client that dies without a clean FIN is reaped
             // instead of lingering as a ghost session holding its name.

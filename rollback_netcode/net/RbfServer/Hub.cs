@@ -59,7 +59,9 @@ namespace Rbf.Server
 
         private int _epoch;
         private int _nextPort = 7000;
-        private const int FrameDelay = 2;
+        // Input delay in frames, applied to each player's local input. Higher =
+        // fewer rollbacks (cleaner audio) but more input lag. Tunable per server.
+        public int FrameDelay { get; set; } = 2;
         private static readonly TimeSpan ChallengeTtl = TimeSpan.FromSeconds(30);
 
         // ---- login / disconnect --------------------------------------------
