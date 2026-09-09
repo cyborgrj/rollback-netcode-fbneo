@@ -19,7 +19,7 @@ index 8882b27..3db5a03 100644
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..a68d72b 100644
+index 9039ec6..16fc0d3 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
 @@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
@@ -159,7 +159,7 @@ index 9039ec6..a68d72b 100644
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1521,21 @@ int ProcessCmdLine()
+@@ -1405,6 +1521,30 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();
@@ -171,8 +171,17 @@ index 9039ec6..a68d72b 100644
 +						FbnWatchConfig rbfWatch;
 +						FbnHostConfig  rbfCfg;
 +						if (RbfParseWatchCfg(&rbfWatch)) {
-+							if (FbnHostStartWatch(&rbfWatch) != 0)
++							if (FbnHostStartWatch(&rbfWatch) != 0) {
 +								bprintf(PRINT_ERROR, _T("[rbf] FbnHostStartWatch failed; nothing to watch.\n"));
++								// Falling through would run the game offline, which
++								// looks exactly like a match where nobody is playing -
++								// worse than saying nothing at all.
++								MessageBox(NULL,
++									_T("Nao foi possivel entrar na transmissao desta partida.\n\n")
++									_T("O motivo esta em rbf-netplay.log, ao lado do emulador."),
++									_T("RBF - assistir"), MB_OK | MB_ICONWARNING);
++								PostMessage(hScrnWnd, WM_CLOSE, 0, 0);
++							}
 +						} else if (RbfParseNetCfg(&rbfCfg)) {
 +							if (FbnHostStart(&rbfCfg) != 0)
 +								bprintf(PRINT_ERROR, _T("[rbf] FbnHostStart failed; running offline.\n"));

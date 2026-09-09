@@ -45,7 +45,7 @@ static void sanitize(char* dst, int cap, const char* src)
 	dst[i] = 0;
 }
 
-static SOCKET dialOut(const char* szHost, unsigned short nPort, int* pErr)
+static SOCKET dialOut(const char* szHost, unsigned short nPort, int* pErr, void (*pfnLog)(const char*))
 {
 	char szPort[16];
 	sprintf(szPort, "%u", (unsigned)nPort);
@@ -55,6 +55,9 @@ static SOCKET dialOut(const char* szHost, unsigned short nPort, int* pErr)
 	hints.ai_family   = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	if (getaddrinfo(szHost, szPort, &hints, &res) != 0 || !res) {
+		// The Winsock code matters here: 10093 means nobody called WSAStartup,
+		// which looks identical to a DNS failure if you only see our own code.
+		logf_(pfnLog, "relay: cannot resolve %s:%u (winsock %d)", szHost, (unsigned)nPort, WSAGetLastError());
 		*pErr = RELAY_ERR_RESOLVE;
 		return INVALID_SOCKET;
 	}
@@ -62,6 +65,7 @@ static SOCKET dialOut(const char* szHost, unsigned short nPort, int* pErr)
 	SOCKET s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 	if (s == INVALID_SOCKET) {
 		freeaddrinfo(res);
+		logf_(pfnLog, "relay: socket() failed (winsock %d)", WSAGetLastError());
 		*pErr = RELAY_ERR_SOCKET;
 		return INVALID_SOCKET;
 	}
@@ -70,6 +74,7 @@ static SOCKET dialOut(const char* szHost, unsigned short nPort, int* pErr)
 	freeaddrinfo(res);
 	if (rc != 0) {
 		closesocket(s);
+		logf_(pfnLog, "relay: connect to %s:%u failed (winsock %d)", szHost, (unsigned)nPort, WSAGetLastError());
 		*pErr = RELAY_ERR_CONNECT;
 		return INVALID_SOCKET;
 	}
@@ -123,11 +128,25 @@ static int recvLine(SOCKET s, char* out, int cap)
 	return RELAY_OK;
 }
 
+// Winsock is refcounted per process, so every module that opens a socket does
+// its own startup/cleanup pair - neither FBNeo nor libggpo ever calls it.
+// ggpo_bridge and nat_punch each do theirs; this file needs its own because the
+// spectator path opens a socket without going near a GGPO session, which is
+// exactly how it was missed the first time (getaddrinfo just fails with 10093).
+static int wsaUp(void (*pfnLog)(const char*))
+{
+	WSADATA wsad;
+	int rc = WSAStartup(MAKEWORD(2, 2), &wsad);
+	if (rc != 0) logf_(pfnLog, "relay: WSAStartup failed (%d)", rc);
+	return rc == 0;
+}
+
 // ===========================================================================
 //  Publisher
 // ===========================================================================
 static struct {
 	int              up;          // socket alive and header accepted
+	int              wsa;         // we hold a WSAStartup reference
 	volatile LONG    stop;
 	volatile LONG    broken;      // ring overflowed or socket died
 	HANDLE           thread;
@@ -164,7 +183,7 @@ static int pubRingWrite(const void* p, int n)
 static unsigned __stdcall pubThread(void*)
 {
 	int err = RELAY_OK;
-	SOCKET s = dialOut(P.szHost, P.nPort, &err);
+	SOCKET s = dialOut(P.szHost, P.nPort, &err, P.pfnLog);
 	if (s == INVALID_SOCKET) {
 		logf_(P.pfnLog, "relay: publish connect failed (%d) - match will not be watchable", err);
 		InterlockedExchange(&P.broken, 1);
@@ -230,11 +249,15 @@ int RelayPublishStart(const char* szHost, unsigned short nPort,
 	RelayPublishStop();
 	memset(&P, 0, sizeof(P));
 
+	if (!wsaUp(pfnLog)) return RELAY_ERR_SOCKET;
+	P.wsa = 1;
+
 	P.pRing  = (unsigned char*)malloc(RELAY_PUB_RING);
 	P.pState = nStateLen > 0 ? (unsigned char*)malloc(nStateLen) : NULL;
 	if (!P.pRing || (nStateLen > 0 && !P.pState)) {
 		free(P.pRing);
 		free(P.pState);
+		WSACleanup();
 		memset(&P, 0, sizeof(P));
 		return RELAY_ERR_MEMORY;
 	}
@@ -255,6 +278,7 @@ int RelayPublishStart(const char* szHost, unsigned short nPort,
 		DeleteCriticalSection(&P.cs);
 		free(P.pRing);
 		free(P.pState);
+		WSACleanup();
 		memset(&P, 0, sizeof(P));
 		return RELAY_ERR_SOCKET;
 	}
@@ -298,6 +322,7 @@ void RelayPublishStop(void)
 	DeleteCriticalSection(&P.cs);
 	free(P.pRing);
 	free(P.pState);
+	if (P.wsa) WSACleanup();
 	memset(&P, 0, sizeof(P));
 }
 
@@ -305,6 +330,7 @@ void RelayPublishStop(void)
 //  Subscriber
 // ===========================================================================
 static struct {
+	int              wsa;         // we hold a WSAStartup reference
 	volatile LONG    stop;
 	volatile LONG    ended;       // host stopped publishing / socket closed
 	HANDLE           thread;
@@ -381,9 +407,12 @@ int RelayWatchStart(const char* szHost, unsigned short nPort,
 	S.sock = INVALID_SOCKET;
 	S.pfnLog = pfnLog;
 
+	if (!wsaUp(pfnLog)) return RELAY_ERR_SOCKET;
+	S.wsa = 1;
+
 	int err = RELAY_OK;
-	SOCKET s = dialOut(szHost, nPort, &err);
-	if (s == INVALID_SOCKET) return err;
+	SOCKET s = dialOut(szHost, nPort, &err, pfnLog);
+	if (s == INVALID_SOCKET) { WSACleanup(); S.wsa = 0; return err; }
 
 	if (nTimeoutMs > 0) {
 		DWORD to = (DWORD)nTimeoutMs;
@@ -393,10 +422,10 @@ int RelayWatchStart(const char* szHost, unsigned short nPort,
 	char req[128];
 	int n = _snprintf(req, sizeof(req) - 1, "%s SUB %s\n", RELAY_MAGIC, szMatchId);
 	if (n < 0) n = (int)strlen(req);
-	if (sendAll(s, req, n) != RELAY_OK) { closesocket(s); return RELAY_ERR_CLOSED; }
+	if (sendAll(s, req, n) != RELAY_OK) { closesocket(s); WSACleanup(); S.wsa = 0; return RELAY_ERR_CLOSED; }
 
 	char line[RELAY_HDR_MAX];
-	if (recvLine(s, line, sizeof(line)) != RELAY_OK) { closesocket(s); return RELAY_ERR_CLOSED; }
+	if (recvLine(s, line, sizeof(line)) != RELAY_OK) { closesocket(s); WSACleanup(); S.wsa = 0; return RELAY_ERR_CLOSED; }
 
 	char magic[8] = "", verb[8] = "", game[64] = "";
 	char p1[RELAY_MAX_NAME] = "", p2[RELAY_MAX_NAME] = "";
@@ -410,6 +439,7 @@ int RelayWatchStart(const char* szHost, unsigned short nPort,
 	    stateLen < 0 || stateLen > 64 * 1024 * 1024) {
 		logf_(pfnLog, "relay: watch refused: %s", line);
 		closesocket(s);
+		WSACleanup(); S.wsa = 0;
 		return RELAY_ERR_PROTOCOL;
 	}
 
@@ -423,11 +453,12 @@ int RelayWatchStart(const char* szHost, unsigned short nPort,
 
 	if (stateLen > 0) {
 		S.pState = (unsigned char*)malloc(stateLen);
-		if (!S.pState) { closesocket(s); return RELAY_ERR_MEMORY; }
+		if (!S.pState) { closesocket(s); WSACleanup(); S.wsa = 0; return RELAY_ERR_MEMORY; }
 		if (recvAll(s, S.pState, stateLen) != RELAY_OK) {
 			free(S.pState);
 			S.pState = NULL;
 			closesocket(s);
+			WSACleanup(); S.wsa = 0;
 			return RELAY_ERR_CLOSED;
 		}
 	}
@@ -446,6 +477,7 @@ int RelayWatchStart(const char* szHost, unsigned short nPort,
 		S.csReady = 0;
 		closesocket(s);
 		free(S.pState);
+		WSACleanup();
 		memset(&S, 0, sizeof(S));
 		return RELAY_ERR_SOCKET;
 	}
@@ -512,5 +544,6 @@ void RelayWatchStop(void)
 	DeleteCriticalSection(&S.cs);
 	free(S.pState);
 	free(S.pFrames);
+	if (S.wsa) WSACleanup();
 	memset(&S, 0, sizeof(S));
 }
