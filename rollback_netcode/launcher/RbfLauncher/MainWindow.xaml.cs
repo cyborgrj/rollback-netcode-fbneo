@@ -17,6 +17,8 @@ namespace RbfLauncher
 
         private LobbyClient _client;
         private IReadOnlyList<RosterEntry> _roster = new List<RosterEntry>();
+        private IReadOnlyList<MatchEntry> _matches = new List<MatchEntry>();
+        private bool _chatOpen = true;   // sidebar shown whenever connected
         private DelayDialog _openChallenge;
         private string _currentGame;   // room the RoomView is showing, null in the library
 
@@ -37,6 +39,7 @@ namespace RbfLauncher
         {
             _currentGame = null;
             if (_client != null && _client.LoggedIn) _client.LeaveRoom();
+            Chat.SetRoom(null);
             Host.Content = new LibraryView(_roms, ShowRoom);
         }
 
@@ -45,10 +48,12 @@ namespace RbfLauncher
             _currentGame = game.ShortName;
             var view = new RoomView(game, _config, _roms, _emu, ShowLibrary, _client);
             Host.Content = view;
+            Chat.SetRoom(_client != null && _client.LoggedIn ? game.ShortName : null);
             if (_client != null && _client.LoggedIn)
             {
                 _client.JoinRoom(game.ShortName);
                 view.SetRoster(_roster);
+                view.SetMatches(_matches);
             }
         }
 
@@ -98,6 +103,8 @@ namespace RbfLauncher
         {
             c.LoginOk += _ =>
             {
+                Chat.SetClient(c);
+                Chat.SetRoom(_currentGame);
                 UpdateHeader();
                 if (_currentGame != null) _client?.JoinRoom(_currentGame);
             };
@@ -111,6 +118,13 @@ namespace RbfLauncher
                 _roster = list;
                 CurrentRoom?.SetRoster(_roster);
             };
+            c.MatchesUpdated += list =>
+            {
+                _matches = list;
+                CurrentRoom?.SetMatches(_matches);
+            };
+            c.ChatReceived += m => Chat.OnChat(m);
+            c.ChatLogReceived += l => Chat.OnChatLog(l);
             c.ChallengeReceived += OnChallengeIn;
             c.ChallengeResolved += OnChallengeResult;
             c.MatchStarting += OnMatchStart;
@@ -131,7 +145,11 @@ namespace RbfLauncher
             _client?.Dispose();
             _client = null;
             _roster = new List<RosterEntry>();
+            _matches = new List<MatchEntry>();
+            Chat.SetClient(null);
+            Chat.SetRoom(null);
             CurrentRoom?.SetRoster(_roster);
+            CurrentRoom?.SetMatches(_matches);
             CurrentRoom?.SetClient(null);
             UpdateHeader();
             if (!string.IsNullOrEmpty(reason) && reason != "desconectado")
@@ -146,6 +164,14 @@ namespace RbfLauncher
                 ? "meu IP na rede: " + _client.LanIp
                 : null;
             ConnectButton.Content = on ? "Desconectar" : "Conectar";
+            ChatToggle.IsEnabled = on;
+            Chat.Visibility = on && _chatOpen ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void ChatToggle_Click(object sender, RoutedEventArgs e)
+        {
+            _chatOpen = !_chatOpen;
+            UpdateHeader();
         }
 
         // ---- challenge / match flow ------------------------------------

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Rbf.Protocol;
 using RbfLauncher.Core;
 using RbfLauncher.Net;
@@ -22,6 +23,8 @@ namespace RbfLauncher.Views
 
         private LobbyClient _client;
         private IReadOnlyList<RosterEntry> _roster = new List<RosterEntry>();
+        private IReadOnlyList<MatchEntry> _matches = new List<MatchEntry>();
+        private readonly DispatcherTimer _clock;
 
         private bool _downloading;
         private CancellationTokenSource _cts;
@@ -54,13 +57,25 @@ namespace RbfLauncher.Views
 
             Refresh();
             RebuildPlayers();
+
+            // The only thing that changes without a server push is how long each
+            // match has been running, so redraw that list once a second.
+            _clock = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _clock.Tick += (s, e) => RebuildMatches();
+            Loaded += (s, e) => _clock.Start();
+            Unloaded += (s, e) => _clock.Stop();
         }
 
         // ---- online room -------------------------------------------------
         public void SetClient(LobbyClient client)
         {
             _client = client;
-            if (client == null) _roster = new List<RosterEntry>();
+            if (client == null)
+            {
+                _roster = new List<RosterEntry>();
+                _matches = new List<MatchEntry>();
+                RebuildMatches();
+            }
             RebuildPlayers();
         }
 
@@ -68,6 +83,61 @@ namespace RbfLauncher.Views
         {
             _roster = roster ?? new List<RosterEntry>();
             RebuildPlayers();
+        }
+
+        public void SetMatches(IReadOnlyList<MatchEntry> matches)
+        {
+            _matches = matches ?? new List<MatchEntry>();
+            RebuildMatches();
+        }
+
+        private void RebuildMatches()
+        {
+            MatchesList.Items.Clear();
+
+            var here = _matches.Where(m => m.Game == _game.ShortName)
+                               .OrderBy(m => m.StartedUtc)
+                               .ToList();
+
+            MatchesHeader.Visibility = here.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+            foreach (var m in here) MatchesList.Items.Add(BuildMatchRow(m));
+        }
+
+        private UIElement BuildMatchRow(MatchEntry m)
+        {
+            var vs = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
+            vs.Inlines.Add(new System.Windows.Documents.Run(m.P1Username) { FontWeight = FontWeights.SemiBold });
+            vs.Inlines.Add(new System.Windows.Documents.Run("   vs   ")
+                { Foreground = (Brush)FindResource("TextDim"), FontSize = 12 });
+            vs.Inlines.Add(new System.Windows.Documents.Run(m.P2Username) { FontWeight = FontWeights.SemiBold });
+
+            var t = m.Elapsed;
+            var info = new TextBlock
+            {
+                Text = string.Format("{0:D2}:{1:D2}   ·   {2}f", (int)t.TotalMinutes, t.Seconds, m.FrameDelay),
+                Foreground = (Brush)FindResource("TextDim"),
+                FontSize = 12,
+                Margin = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var row = new DockPanel { LastChildFill = false };
+            DockPanel.SetDock(info, Dock.Right);
+            row.Children.Add(info);
+            row.Children.Add(vs);
+
+            // The "Assistir" button appears here once the host relays inputs
+            // (m.Watchable). Until then the list is informational.
+            return new Border
+            {
+                Background = (Brush)FindResource("BgPanel"),
+                BorderBrush = (Brush)FindResource("Stroke"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(12, 8, 12, 8),
+                Margin = new Thickness(0, 0, 0, 6),
+                Child = row
+            };
         }
 
         private void RebuildPlayers()

@@ -58,6 +58,10 @@
         <TextBlock x:Name="OnlineHint" Foreground="{StaticResource TextDim}" FontSize="12"
                    Margin="0,4,0,10" TextWrapping="Wrap" />
         <ItemsControl x:Name="PlayersList" />
+
+        <TextBlock x:Name="MatchesHeader" Text="Partidas em andamento" FontSize="16" FontWeight="SemiBold"
+                   Margin="0,22,0,0" Visibility="Collapsed" />
+        <ItemsControl x:Name="MatchesList" Margin="0,8,0,0" />
       </StackPanel>
     </Grid>
   </Grid>

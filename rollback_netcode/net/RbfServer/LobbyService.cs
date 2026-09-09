@@ -86,6 +86,8 @@ namespace Rbf.Server
                     _hub.MatchStatus(s, m.MatchStatus.MatchId, m.MatchStatus.Phase, m.MatchStatus.Detail); break;
                 case ClientMsg.KindOneofCase.Ping:
                     _hub.Pong(s, m.Ping.T, m.Ping.RttMs); break;
+                case ClientMsg.KindOneofCase.Chat:
+                    _hub.Chat(s, m.Chat.Scope, m.Chat.Text); break;
             }
         }
 

@@ -20,6 +20,7 @@ namespace Rbf.Server
         public PlayerState State = PlayerState.PlayerIdle;
         public string ActiveMatchId;
         public int    PingMs;        // round trip to this server, from the client's own Ping
+        public DateTime LastChatUtc;   // rate limit, see Hub.Chat
 
         public readonly Channel<ServerMsg> Out =
             Channel.CreateUnbounded<ServerMsg>(new UnboundedChannelOptions { SingleReader = true });
@@ -47,6 +48,30 @@ namespace Rbf.Server
         public string P2Id;
         public int Port;
         public int FrameDelay;
+        public DateTime StartedUtc;
+        public int PeerPingMs;      // estimated RTT between the two players
+    }
+
+    /// <summary>Last N chat lines for one scope. Bounded on purpose: the lobby
+    /// keeps no history on disk, so a long-running server cannot grow here.</summary>
+    internal sealed class ChatRing
+    {
+        private readonly Queue<ChatMsg> _q = new Queue<ChatMsg>();
+        private readonly int _cap;
+        public ChatRing(int cap) => _cap = cap;
+
+        public void Add(ChatMsg m)
+        {
+            _q.Enqueue(m);
+            while (_q.Count > _cap) _q.Dequeue();
+        }
+
+        public ChatLog Snapshot(ChatScope scope, string room)
+        {
+            var log = new ChatLog { Scope = scope, Room = room ?? "" };
+            log.Messages.AddRange(_q);
+            return log;
+        }
     }
 
     /// <summary>All lobby state, guarded by one lock. Small scale - a single
@@ -57,11 +82,17 @@ namespace Rbf.Server
         private readonly Dictionary<string, Session> _sessions = new();
         private readonly Dictionary<string, Challenge> _challenges = new();
         private readonly Dictionary<string, Match> _matches = new();
+        private readonly ChatRing _globalChat = new ChatRing(ChatBacklog);
+        private readonly Dictionary<string, ChatRing> _roomChat = new();
 
         // udp/ port of the NAT rendezvous, echoed to clients in MatchStart. 0 = off.
         public int PunchPort { get; set; }
 
         private int _epoch;
+        private int _matchEpoch;
+        private const int ChatBacklog = 100;
+        private const int ChatMaxLen  = 300;
+        private static readonly TimeSpan ChatMinGap = TimeSpan.FromMilliseconds(400);
         private int _nextPort = 7000;
         // Input delay in frames, applied to each player's local input. Higher =
         // fewer rollbacks (cleaner audio) but more input lag. Tunable per server.
@@ -104,7 +135,8 @@ namespace Rbf.Server
                 };
                 _sessions[s.UserId] = s;
                 s.Send(new ServerMsg { Welcome = new Welcome { UserId = s.UserId, Username = s.Username } });
-                BroadcastRosterLocked();
+                s.Send(new ServerMsg { ChatLog = _globalChat.Snapshot(ChatScope.ChatGlobal, "") });
+                BroadcastLobbyLocked();
                 Console.WriteLine($"+ {username} ({s.UserId})  peer-ip={s.RemoteIp}  (conn {connIp}, reported {lanIp})");
                 return s;
             }
@@ -118,7 +150,9 @@ namespace Rbf.Server
                 if (!_sessions.Remove(s.UserId)) return;
                 CancelChallengesInvolvingLocked(s.UserId, Outcome.Cancelled);
                 AbortMatchesInvolvingLocked(s.UserId, "adversário desconectou");
-                BroadcastRosterLocked();
+                if (!string.IsNullOrEmpty(s.Game))
+                    PostChatLocked(ChatScope.ChatRoom, s.Game, "", "", s.Username + " saiu da sala.");
+                BroadcastLobbyLocked();
                 Console.WriteLine($"- {s.Username} ({s.UserId})");
             }
             s.Close();
@@ -141,9 +175,21 @@ namespace Rbf.Server
                     s.ActiveMatchId = null;
                 }
 
+                string previous = s.Game;
                 s.Game = game;
                 s.State = string.IsNullOrEmpty(game) ? PlayerState.PlayerIdle : PlayerState.PlayerInRoom;
-                BroadcastRosterLocked();
+
+                // Notices go out AFTER s.Game moved, so the fan-out below picks
+                // the right set of listeners for each room.
+                if (!string.IsNullOrEmpty(previous) && previous != game)
+                    PostChatLocked(ChatScope.ChatRoom, previous, "", "", s.Username + " saiu da sala.");
+                if (!string.IsNullOrEmpty(game) && previous != game)
+                {
+                    s.Send(new ServerMsg { ChatLog = RoomChatLocked(game).Snapshot(ChatScope.ChatRoom, game) });
+                    PostChatLocked(ChatScope.ChatRoom, game, "", "", s.Username + " entrou na sala.");
+                }
+
+                BroadcastLobbyLocked();
             }
         }
 
@@ -202,7 +248,7 @@ namespace Rbf.Server
                         SuggestedDelay = SuggestDelay(from.PingMs, to.PingMs),
                     }
                 });
-                BroadcastRosterLocked();
+                BroadcastLobbyLocked();
                 _ = ExpireChallengeAfter(c);
             }
         }
@@ -250,6 +296,8 @@ namespace Rbf.Server
                     FrameDelay = (c.DelayFrom == 0 && c.DelayTo == 0)
                                  ? FrameDelay
                                  : (c.DelayFrom + c.DelayTo + 1) / 2,
+                    StartedUtc = DateTime.UtcNow,
+                    PeerPingMs = from.PingMs + to.PingMs,
                 };
                 _matches[m.Id] = m;
                 from.State = to.State = PlayerState.PlayerInMatch;
@@ -265,7 +313,7 @@ namespace Rbf.Server
 
                 SendMatchStartLocked(m, from, 1, to);
                 SendMatchStartLocked(m, to, 2, from);
-                BroadcastRosterLocked();
+                BroadcastLobbyLocked();
                 Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1, {from.PingMs}ms, wants {c.DelayFrom}) vs {to.Username}@{to.RemoteIp} (P2, {to.PingMs}ms, wants {c.DelayTo})  udp :{m.Port}  delay {m.FrameDelay}");
             }
         }
@@ -299,7 +347,7 @@ namespace Rbf.Server
             }
             if (_sessions.TryGetValue(c.ToId, out var to))
                 to.State = string.IsNullOrEmpty(to.Game) ? PlayerState.PlayerIdle : PlayerState.PlayerInRoom;
-            BroadcastRosterLocked();
+            BroadcastLobbyLocked();
         }
 
         // ---- match status --------------------------------------------
@@ -319,7 +367,7 @@ namespace Rbf.Server
                     if (phase == Phase.Failed && id != s.UserId)
                         p.Send(new ServerMsg { MatchAborted = new MatchAborted { MatchId = m.Id, Reason = detail ?? "adversário falhou" } });
                 }
-                BroadcastRosterLocked();
+                BroadcastLobbyLocked();
             }
         }
 
@@ -332,7 +380,90 @@ namespace Rbf.Server
                 if (rttMs > 0 && rttMs < 60000) s.PingMs = rttMs;
                 s.Send(new ServerMsg { Pong = new Pong { T = t } });
                 s.Send(BuildRosterMsgLocked());
+                s.Send(BuildMatchListMsgLocked());
             }
+        }
+
+        // ---- chat ---------------------------------------------------
+        public void Chat(Session s, ChatScope scope, string text)
+        {
+            // Collapse anything that would break the one-line-per-message
+            // rendering on the client.
+            text = (text ?? "").Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ').Trim();
+            if (text.Length == 0) return;
+            if (text.Length > ChatMaxLen) text = text.Substring(0, ChatMaxLen);
+
+            lock (_gate)
+            {
+                // Cheap flood guard. Dropping silently beats an error popup for
+                // someone who just held Enter down.
+                var now = DateTime.UtcNow;
+                if (now - s.LastChatUtc < ChatMinGap) return;
+                s.LastChatUtc = now;
+
+                string room = scope == ChatScope.ChatRoom ? s.Game : "";
+                if (scope == ChatScope.ChatRoom && string.IsNullOrEmpty(room))
+                {
+                    s.Send(Err("Entre numa sala para falar nela."));
+                    return;
+                }
+
+                PostChatLocked(scope, room, s.UserId, s.Username, text);
+            }
+        }
+
+        /// <summary>Publish one line. user_id '' is a server notice.</summary>
+        private void PostChatLocked(ChatScope scope, string room, string userId, string username, string text)
+        {
+            var m = new ChatMsg
+            {
+                Scope = scope,
+                Room = room ?? "",
+                UserId = userId ?? "",
+                Username = username ?? "",
+                Text = text,
+                T = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            };
+
+            if (scope == ChatScope.ChatGlobal) _globalChat.Add(m);
+            else RoomChatLocked(room).Add(m);
+
+            var msg = new ServerMsg { Chat = m };
+            foreach (var t in _sessions.Values)
+                if (scope == ChatScope.ChatGlobal || t.Game == room)
+                    t.Send(msg);
+        }
+
+        private ChatRing RoomChatLocked(string room)
+        {
+            if (!_roomChat.TryGetValue(room, out var ring))
+                _roomChat[room] = ring = new ChatRing(ChatBacklog);
+            return ring;
+        }
+
+        // ---- who is playing whom ------------------------------------
+        private ServerMsg BuildMatchListMsgLocked()
+        {
+            var list = new MatchList { Epoch = ++_matchEpoch };
+            foreach (var m in _matches.Values)
+            {
+                _sessions.TryGetValue(m.P1Id, out var p1);
+                _sessions.TryGetValue(m.P2Id, out var p2);
+                list.Matches.Add(new LiveMatch
+                {
+                    MatchId = m.Id,
+                    Game = m.Game,
+                    P1UserId = m.P1Id,
+                    P1Username = p1?.Username ?? "?",
+                    P2UserId = m.P2Id,
+                    P2Username = p2?.Username ?? "?",
+                    StartedT = new DateTimeOffset(m.StartedUtc).ToUnixTimeMilliseconds(),
+                    FrameDelay = m.FrameDelay,
+                    PingMs = m.PeerPingMs,
+                    Watchable = false,   // set once the input relay lands
+                });
+            }
+            return new ServerMsg { Matches = list };
         }
 
         // ---- helpers ------------------------------------------------
@@ -377,10 +508,14 @@ namespace Rbf.Server
             return new ServerMsg { Roster = r };
         }
 
-        private void BroadcastRosterLocked()
+        /// <summary>Push the two views of lobby state that every screen shows:
+        /// who is connected, and which matches are running. They change together
+        /// often enough that splitting them would only risk one going stale.</summary>
+        private void BroadcastLobbyLocked()
         {
-            var msg = BuildRosterMsgLocked();
-            foreach (var s in _sessions.Values) s.Send(msg);
+            var roster = BuildRosterMsgLocked();
+            var matches = BuildMatchListMsgLocked();
+            foreach (var s in _sessions.Values) { s.Send(roster); s.Send(matches); }
         }
 
         private static ServerMsg Err(string m) => new ServerMsg { Error = new ServerError { Message = m } };

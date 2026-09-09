@@ -22,6 +22,7 @@ message ClientMsg {
     ChallengeReply challenge_reply = 5;
     MatchStatus    match_status    = 6;
     Ping           ping            = 7;
+    ChatSend       chat            = 8;
   }
 }
 
@@ -46,6 +47,17 @@ message MatchStatus {
 }
 enum Phase { PHASE_LAUNCHING = 0; PHASE_RUNNING = 1; PHASE_ENDED = 2; PHASE_FAILED = 3; }
 
+// Lobby chat. The server stamps the author and the time - a client cannot
+// speak as somebody else.
+message ChatSend {
+  ChatScope scope = 1;
+  string    text  = 2;
+}
+enum ChatScope {
+  CHAT_GLOBAL = 0;   // everyone connected
+  CHAT_ROOM   = 1;   // only the game room the sender is in
+}
+
 message Ping {
   int64 t      = 1;
   int32 rtt_ms = 2;   // RTT we measured on the PREVIOUS ping, reported back so
@@ -66,6 +78,9 @@ message ServerMsg {
     MatchAborted    match_aborted    = 7;
     Pong            pong             = 8;
     ServerError     error            = 9;
+    ChatMsg         chat             = 10;
+    ChatLog         chat_log         = 11;
+    MatchList       matches          = 12;
   }
 }
 
@@ -130,3 +145,45 @@ message MatchAborted { string match_id = 1; string reason = 2; }
 
 message Pong { int64 t = 1; }
 message ServerError { string message = 1; }
+
+// ---------------------------------------------------------------------------
+// chat
+// ---------------------------------------------------------------------------
+// user_id "" marks a server notice ("fulano entrou na sala") - the launcher
+// renders those in a dimmer style and without a name.
+message ChatMsg {
+  ChatScope scope    = 1;
+  string    room     = 2;   // game short name when scope = CHAT_ROOM
+  string    user_id  = 3;
+  string    username = 4;
+  string    text     = 5;
+  int64     t        = 6;   // unix milliseconds, server clock
+}
+
+// Backlog handed out on login (global) and on joining a room. Lets a player who
+// just arrived read what was being said instead of an empty box.
+message ChatLog {
+  ChatScope        scope    = 1;
+  string           room     = 2;
+  repeated ChatMsg messages = 3;
+}
+
+// ---------------------------------------------------------------------------
+// who is playing whom
+// ---------------------------------------------------------------------------
+message LiveMatch {
+  string match_id     = 1;
+  string game         = 2;
+  string p1_user_id   = 3;
+  string p1_username  = 4;
+  string p2_user_id   = 5;
+  string p2_username  = 6;
+  int64  started_t    = 7;   // unix milliseconds, server clock
+  int32  frame_delay  = 8;
+  int32  ping_ms      = 9;   // estimated round trip between the two players
+  bool   watchable    = 10;  // the host is relaying inputs, so it can be watched
+}
+message MatchList {
+  repeated LiveMatch matches = 1;
+  int32              epoch   = 2;
+}

@@ -19,6 +19,27 @@ namespace RbfLauncher.Net
         public int PingMs;
     }
 
+    public sealed class MatchEntry
+    {
+        public string MatchId;
+        public string Game;
+        public string P1UserId, P1Username;
+        public string P2UserId, P2Username;
+        public DateTime StartedUtc;
+        public int FrameDelay;
+        public int PingMs;
+        public bool Watchable;
+
+        public TimeSpan Elapsed
+        {
+            get
+            {
+                var d = DateTime.UtcNow - StartedUtc;
+                return d < TimeSpan.Zero ? TimeSpan.Zero : d;
+            }
+        }
+    }
+
     public static class Latency
     {
         /// <summary>Frames of input delay to suggest for a pairing. Both players
@@ -92,6 +113,9 @@ namespace RbfLauncher.Net
         public event Action<MatchAborted> MatchAborted;
         public event Action<string> ServerError;                         // message
         public event Action<string> Disconnected;                        // reason
+        public event Action<ChatMsg> ChatReceived;
+        public event Action<ChatLog> ChatLogReceived;
+        public event Action<IReadOnlyList<MatchEntry>> MatchesUpdated;
 
         public async Task ConnectAsync(string host, int port, string username, TimeSpan timeout)
         {
@@ -193,6 +217,36 @@ namespace RbfLauncher.Net
                     if (ms >= 0 && ms < 60000) LastRttMs = (int)ms;
                     break;
                 }
+                case ServerMsg.KindOneofCase.Chat:
+                {
+                    var c = m.Chat;
+                    Post(() => ChatReceived?.Invoke(c));
+                    break;
+                }
+                case ServerMsg.KindOneofCase.ChatLog:
+                {
+                    var l = m.ChatLog;
+                    Post(() => ChatLogReceived?.Invoke(l));
+                    break;
+                }
+                case ServerMsg.KindOneofCase.Matches:
+                {
+                    var ms = m.Matches.Matches.Select(x => new MatchEntry
+                    {
+                        MatchId = x.MatchId,
+                        Game = x.Game,
+                        P1UserId = x.P1UserId,
+                        P1Username = x.P1Username,
+                        P2UserId = x.P2UserId,
+                        P2Username = x.P2Username,
+                        StartedUtc = DateTimeOffset.FromUnixTimeMilliseconds(x.StartedT).UtcDateTime,
+                        FrameDelay = x.FrameDelay,
+                        PingMs = x.PingMs,
+                        Watchable = x.Watchable,
+                    }).ToList();
+                    Post(() => MatchesUpdated?.Invoke(ms));
+                    break;
+                }
                 case ServerMsg.KindOneofCase.Error:
                     Post(() => ServerError?.Invoke(m.Error.Message));
                     break;
@@ -220,6 +274,8 @@ namespace RbfLauncher.Net
             Send(new ClientMsg { Challenge = new Challenge { TargetUserId = userId, FrameDelay = frameDelay } });
         public void ReplyChallenge(string id, bool accept, int frameDelay) =>
             Send(new ClientMsg { ChallengeReply = new ChallengeReply { ChallengeId = id, Accept = accept, FrameDelay = frameDelay } });
+        public void SendChat(ChatScope scope, string text) =>
+            Send(new ClientMsg { Chat = new ChatSend { Scope = scope, Text = text ?? "" } });
         public void ReportMatch(string matchId, Phase phase, string detail = "") =>
             Send(new ClientMsg { MatchStatus = new MatchStatus { MatchId = matchId, Phase = phase, Detail = detail ?? "" } });
 
