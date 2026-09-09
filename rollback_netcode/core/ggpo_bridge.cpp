@@ -59,6 +59,20 @@ static int        g_everAdvanced    = 0;
 // Scratch for synchronize_input. Sized for the worst case; never on the heap.
 static unsigned char g_syncBuf[GGPO_BRIDGE_MAX_PLAYERS * GGPO_BRIDGE_MAX_INPUT_BYTES];
 
+// ---- confirmed-input tap (spectator relay) --------------------------------
+// libggpo never rolls back further than GGPO_MAX_PREDICTION_FRAMES, so once the
+// simulation is that far past a frame its inputs can no longer change. We keep
+// a short ring of what each recent frame actually ran with - rollback steps
+// overwrite their frames with the corrected values - and hand frames off in
+// order once they fall outside the window.
+#define GGPO_BRIDGE_CONFIRM_LAG   (GGPO_MAX_PREDICTION_FRAMES + 2)
+#define GGPO_BRIDGE_CONFIRM_RING  32   /* power of two, comfortably > the lag */
+
+static unsigned char g_confInputs[GGPO_BRIDGE_CONFIRM_RING][GGPO_BRIDGE_MAX_PLAYERS * GGPO_BRIDGE_MAX_INPUT_BYTES];
+static int  g_confFrame[GGPO_BRIDGE_CONFIRM_RING];
+static int  g_ggpoFrame     = 0;    // libggpo's _framecount, mirrored from cb_save_game_state
+static int  g_publishedUpTo = -1;
+
 // ---- helpers ---------------------------------------------------------------
 static int syncBufBytes(void)
 {
@@ -76,6 +90,29 @@ static void emitEvent(GgpoBridgeEventCode code, int player, int a, int b)
 	g_host.on_event(&ev, g_host.user);
 }
 
+static void recordInputs(int frame)
+{
+	if (frame < 0) return;
+	const int i = frame & (GGPO_BRIDGE_CONFIRM_RING - 1);
+	g_confFrame[i] = frame;
+	memcpy(g_confInputs[i], g_syncBuf, syncBufBytes());
+}
+
+// Hand over every frame that has fallen outside libggpo's rollback window and
+// has not been handed over yet. Strictly in order: a consumer replaying the
+// stream cannot tolerate a gap, so a missing frame stops the tap instead.
+static void publishConfirmed(int liveFrame)
+{
+	if (!g_host.on_confirmed_inputs) return;
+	const int upTo = liveFrame - GGPO_BRIDGE_CONFIRM_LAG;
+	for (int f = g_publishedUpTo + 1; f <= upTo; f++) {
+		const int i = f & (GGPO_BRIDGE_CONFIRM_RING - 1);
+		if (g_confFrame[i] != f) break;   /* evicted - never publish a gap */
+		g_host.on_confirmed_inputs(f, g_confInputs[i], syncBufBytes(), g_host.user);
+		g_publishedUpTo = f;
+	}
+}
+
 // Read synchronized inputs for the frame libggpo is currently on and run one
 // core step. Shared by the live path and the rollback callback.
 static int stepOnce(int bRollback)
@@ -87,11 +124,29 @@ static int stepOnce(int bRollback)
 		return GGPO_BRIDGE_ERR_GGPO;
 	}
 
+	// Which frame these inputs belong to. Live: libggpo is ON that frame right
+	// now, and cb_save_game_state told us its number. Rollback: our mirror is
+	// stale on the first re-simulated step (LoadFrame rewinds _framecount with
+	// no save callback), so there we read it back AFTER the advance instead.
+	const int liveFrame = g_ggpoFrame;
+	if (!bRollback) recordInputs(liveFrame);
+
 	int rc = g_host.step_frame(g_syncBuf, g_cfg.nPlayers, disconnectFlags, bRollback, g_host.user);
 	if (rc != 0) return GGPO_BRIDGE_ERR_HOST;
 
+	// Careful: for a LIVE step this call can run a whole rollback inside itself
+	// (advance_frame -> DoPoll -> AdjustSimulation), which re-runs recent frames
+	// with corrected inputs and overwrites their ring entries. That is exactly
+	// what we want, and it is why the live frame is recorded before the call.
 	ggpo_advance_frame(g_session);
-	if (!bRollback) { g_frameCount++; g_everAdvanced = 1; }
+
+	if (bRollback) {
+		recordInputs(g_ggpoFrame - 1);
+	} else {
+		g_frameCount++;
+		g_everAdvanced = 1;
+		publishConfirmed(liveFrame);
+	}
 	return GGPO_BRIDGE_OK;
 }
 
@@ -109,6 +164,8 @@ static bool __cdecl cb_save_game_state(unsigned char** buffer, int* len, int* ch
 		fprintf(stderr, "[ggpo_bridge] WARNING: state_ring not initialised before session; late init.\n");
 		if (StateRingInit(g_cfg.nStateSlots) != STATE_RING_OK) return false;
 	}
+
+	g_ggpoFrame = frame;   // libggpo saves at the START of `frame`, so this is where it is
 
 	unsigned int chk = 0;
 	int rc = StateRingSave(frame, (void**)buffer, len, &chk);
@@ -259,6 +316,10 @@ static void resetModuleState(const GgpoBridgeConfig* cfg, const GgpoBridgeHost* 
 	g_frameCount = 0;
 	g_ticksSinceStart = 0;
 	g_everAdvanced = 0;
+
+	g_ggpoFrame     = 0;
+	g_publishedUpTo = -1;
+	for (int i = 0; i < GGPO_BRIDGE_CONFIRM_RING; i++) g_confFrame[i] = -1;
 }
 
 // ---- lifecycle -------------------------------------------------------------

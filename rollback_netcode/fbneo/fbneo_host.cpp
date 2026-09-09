@@ -13,6 +13,7 @@
 #include "../core/state_ring.h"
 #include "../core/ggpo_bridge.h"
 #include "../core/nat_punch.h"
+#include "../core/relay.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -69,6 +70,17 @@ static int           g_active      = 0;
 static int           g_ringReady   = 0;
 static int           g_analogWarned = 0;
 static FbnHostConfig g_cfg;
+
+// ---- spectating ----------------------------------------------------------
+static int           g_watch        = 0;   // this process is a viewer, not a player
+static int           g_relayPending = 0;   // publish as soon as the ring is up
+static long long     g_watchFrames  = 0;
+// Stay a fifth of a second behind the broadcast; below that a hiccup on the
+// host would stall the picture, above it we are needlessly late.
+#define FBN_WATCH_CUSHION  12
+// Silent frames per tick while catching up. 60 clears a five-minute backlog in
+// under ten seconds and still leaves the window responsive between ticks.
+#define FBN_WATCH_BURST    60
 static GgpoBridgeHost g_hostVtbl;
 
 // "P1 Fire 2" -> 1, "P3 Up" -> 3, "Reset"/"Service" -> 0
@@ -214,6 +226,13 @@ static void host_on_event(const GgpoBridgeEvent* ev, void* /*user*/)
 	// TODO: forward to the gRPC agent event sink (via the command/event queue).
 }
 
+// Side 1 only: feed the spectator relay. Called once per frame that libggpo
+// can no longer revise, already in order, so this just queues bytes.
+static void host_confirmed_inputs(int frame, const void* inputs, int nBytes, void* /*user*/)
+{
+	RelayPublishInputs(frame, inputs, nBytes);
+}
+
 static void fillHostVtbl(void)
 {
 	memset(&g_hostVtbl, 0, sizeof(g_hostVtbl));
@@ -221,6 +240,11 @@ static void fillHostVtbl(void)
 	g_hostVtbl.step_frame       = host_step_frame;
 	g_hostVtbl.on_event         = host_on_event;
 	g_hostVtbl.log_state        = NULL;
+	// Only the match host broadcasts - one publisher per match, and side 1 is
+	// the one both peers agree on without any extra negotiation.
+	g_hostVtbl.on_confirmed_inputs =
+		(g_localPlayer == 1 && g_cfg.szRelayIp[0] && g_cfg.nRelayPort && g_cfg.szMatchId[0])
+		? host_confirmed_inputs : NULL;
 	g_hostVtbl.user             = NULL;
 }
 
@@ -239,6 +263,12 @@ static int startCommon(const FbnHostConfig* cfg)
 	g_localPlayer = cfg->nLocalPlayer;
 	g_inputPlayer = (cfg->nInputPlayer >= 1 && cfg->nInputPlayer <= cfg->nPlayers) ? cfg->nInputPlayer : 1;
 	g_ringReady   = 0;
+	g_watch       = 0;
+	g_watchFrames = 0;
+
+	// Only side 1 broadcasts, and only if the lobby gave us a relay to dial.
+	g_relayPending = (g_localPlayer == 1 && g_cfg.szRelayIp[0] &&
+	                  g_cfg.nRelayPort && g_cfg.szMatchId[0]) ? 1 : 0;
 
 	return buildInputMap();
 }
@@ -331,15 +361,175 @@ int FbnHostStartSyncTest(const FbnHostConfig* cfg, int nCheckDistance)
 	return 0;
 }
 
+// ===========================================================================
+//  Spectating
+// ===========================================================================
+int FbnHostStartWatch(const FbnWatchConfig* cfg)
+{
+	if (g_active) FbnHostStop();
+	if (!cfg || !cfg->szRelayIp[0] || !cfg->nRelayPort || !cfg->szMatchId[0]) return -1;
+	if (!bDrvOkay) return -1;
+
+	RelayStreamInfo info;
+	memset(&info, 0, sizeof(info));
+
+	int rc = RelayWatchStart(cfg->szRelayIp, cfg->nRelayPort, cfg->szMatchId, 20000, RbfLogLine);
+	if (rc != RELAY_OK) {
+		RbfLog("watch: could not join match %s (%d)", cfg->szMatchId, rc);
+		bprintf(PRINT_ERROR, _T("[fbneo_host] watch: relay refused (%d).\n"), rc);
+		return -1;
+	}
+	RelayWatchInfo(&info);
+
+	g_nPlayers    = info.nPlayers;
+	g_localPlayer = 1;
+	g_inputPlayer = 1;
+	g_ringReady   = 0;
+	g_watchFrames = 0;
+
+	if (buildInputMap() != 0) {
+		RelayWatchStop();
+		return -1;
+	}
+	if (g_nInputBytes != info.nInputBytes) {
+		// Different FBNeo build or driver revision on the two ends: the bitmask
+		// layouts would not line up and the replay would be garbage.
+		RbfLog("watch: input size mismatch (stream %d, local %d) - refusing",
+		       info.nInputBytes, g_nInputBytes);
+		bprintf(PRINT_ERROR, _T("[fbneo_host] watch: input size mismatch - update your build.\n"));
+		RelayWatchStop();
+		return -1;
+	}
+
+	g_watch  = 1;
+	g_active = 1;
+	RbfLog("watching %s: %s vs %s (%s)", cfg->szMatchId, info.szP1, info.szP2, info.szGame);
+	bprintf(PRINT_IMPORTANT, _T("[fbneo_host] watching %S vs %S.\n"), info.szP1, info.szP2);
+	return 0;
+}
+
+int FbnHostIsWatching(void) { return g_watch; }
+
+// One replayed frame. bDraw == 0 is the silent catch-up path: no video and no
+// audio, which is what makes fast-forward fast.
+static int watchStepOne(int bDraw)
+{
+	unsigned char in[GGPO_BRIDGE_MAX_PLAYERS * GGPO_BRIDGE_MAX_INPUT_BYTES];
+	const int n = g_nPlayers * g_nInputBytes;
+
+	int r = RelayWatchNext(in, n);
+	if (r == 0) return 0;     // the host has not sent this frame yet
+	if (r < 0)  return -1;    // stream finished and drained
+
+	applyInputs(in, g_nPlayers);
+
+	if (bDraw) {
+		if (VidFrame()) { pBurnDraw = NULL; BurnDrvFrame(); }
+	} else {
+		UINT8* savedDraw  = pBurnDraw;
+		INT16* savedSound = pBurnSoundOut;
+		pBurnDraw          = NULL;
+		pBurnSoundOut      = NULL;
+		bBurnRunAheadFrame = 1;
+		BurnDrvFrame();
+		bBurnRunAheadFrame = 0;
+		pBurnDraw          = savedDraw;
+		pBurnSoundOut      = savedSound;
+	}
+	g_watchFrames++;
+	return 1;
+}
+
+static int watchRunFrame(int bDraw)
+{
+	if (!g_ringReady) {
+		int rc = StateRingInit(0);
+		if (rc != STATE_RING_OK) {
+			RbfLog("watch: StateRingInit failed: %d", rc);
+			return -1;
+		}
+
+		int nState = 0;
+		const void* pState = RelayWatchState(&nState);
+		if (!pState || nState <= 0) {
+			RbfLog("watch: the broadcast carried no opening state");
+			return -1;
+		}
+
+		// Loading the host's state is what guarantees we start from exactly the
+		// machine they did - NVRAM, EEPROM, boot moment and all - instead of
+		// hoping two fresh boots happen to agree.
+		rc = StateRingLoad(0, pState, nState);
+		if (rc != STATE_RING_OK) {
+			RbfLog("watch: could not load the opening state: %d (stream %d bytes, local slot %d)",
+			       rc, nState, StateRingSlotSize());
+			bprintf(PRINT_ERROR,
+			        _T("[fbneo_host] watch: save state mismatch - both sides need the same build.\n"));
+			return -1;
+		}
+		g_ringReady = 1;
+		RbfLog("watch: opening state loaded (%d bytes), replaying.", nState);
+	}
+
+	// Behind the broadcast? Burn through the backlog silently first.
+	int guard = FBN_WATCH_BURST;
+	while (RelayWatchPending() > FBN_WATCH_CUSHION && guard-- > 0)
+		if (watchStepOne(0) <= 0) break;
+
+	int r = watchStepOne(bDraw);
+	if (r < 0) {
+		RbfLog("watch: broadcast ended after %lld frames.", g_watchFrames);
+		return -1;
+	}
+	return r;
+}
+
+// Start broadcasting this match. Runs once, on the first frame after the state
+// ring is up: at that instant the emulator is in exactly the state libggpo is
+// about to save as frame 0, which is what a viewer needs to start from.
+static void startPublishing(void)
+{
+	g_relayPending = 0;
+
+	void* pState = NULL;
+	int   nState = 0;
+	if (StateRingSave(0, &pState, &nState, NULL) != STATE_RING_OK || !pState) {
+		RbfLog("relay: could not capture the opening state - match will not be watchable");
+		return;
+	}
+
+	RelayStreamInfo info;
+	memset(&info, 0, sizeof(info));
+	strncpy(info.szGame, g_cfg.szGameId, sizeof(info.szGame) - 1);
+	strncpy(info.szP1, g_cfg.szP1Name[0] ? g_cfg.szP1Name : "P1", sizeof(info.szP1) - 1);
+	strncpy(info.szP2, g_cfg.szP2Name[0] ? g_cfg.szP2Name : "P2", sizeof(info.szP2) - 1);
+	info.nPlayers    = g_nPlayers;
+	info.nInputBytes = g_nInputBytes;
+	info.nStateLen   = nState;
+
+	int rc = RelayPublishStart(g_cfg.szRelayIp, g_cfg.nRelayPort, g_cfg.szMatchId,
+	                           &info, pState, nState, RbfLogLine);
+	if (rc != RELAY_OK)
+		RbfLog("relay: publish start failed (%d) - match will not be watchable", rc);
+}
+
 void FbnHostStop(void)
 {
 	if (g_active) {
-		GgpoBridgeClose();
+		if (g_watch) {
+			RelayWatchStop();
+			RbfLog("watch closed after %lld frames.", g_watchFrames);
+		} else {
+			GgpoBridgeClose();
+			RelayPublishStop();
+			RbfLog("session closed.");
+		}
 		g_active = 0;
-		RbfLog("session closed.");
 		bprintf(PRINT_IMPORTANT, _T("[fbneo_host] session closed.\n"));
 	}
-	g_ringReady = 0;
+	g_watch        = 0;
+	g_relayPending = 0;
+	g_ringReady    = 0;
 }
 
 int FbnHostIsActive(void) { return g_active; }
@@ -348,6 +538,8 @@ int FbnHostRunFrame(int bDraw)
 {
 	if (!g_active) return -1;
 	g_liveDraw = bDraw;
+
+	if (g_watch) return watchRunFrame(bDraw);
 
 	// Deferred: the driver has now executed >=1 frame, so its volatile state
 	// size is stable and safe to lock into the ring.
@@ -360,6 +552,10 @@ int FbnHostRunFrame(int bDraw)
 		}
 		g_ringReady = 1;
 		RbfLog("state ring: %d slots x %d bytes.", StateRingSlotCount(), StateRingSlotSize());
+
+		// The emulator is now in exactly the state libggpo will save as frame 0,
+		// so this is the one moment a viewer can be handed a starting point.
+		if (g_relayPending) startPublishing();
 	}
 
 	int r = GgpoBridgeTick();

@@ -19,7 +19,7 @@ index 8882b27..3db5a03 100644
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..b218716 100644
+index 9039ec6..a68d72b 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
 @@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
@@ -30,21 +30,22 @@ index 9039ec6..b218716 100644
  
  HINSTANCE hAppInst = NULL;			// Application Instance
  HANDLE hMainThread;
-@@ -863,6 +864,13 @@ static int AppInit()
+@@ -863,6 +864,14 @@ static int AppInit()
  	//  2 Silent + specified path
  	INT32 nExport = ParseExportPath(szCmdLine, NULL, NULL);
  
 +	// rollback_netcode: a direct / netplay launch must not stall on the startup
 +	// ROM audit (variable length -> desyncs the two peers' start). -rbfnet or an
 +	// explicit -noscan suppresses it for this run.
-+	if (_tcsstr(szCmdLine, _T("-rbfnet ")) || _tcsstr(szCmdLine, _T("-noscan"))) {
++	if (_tcsstr(szCmdLine, _T("-rbfnet ")) || _tcsstr(szCmdLine, _T("-rbfwatch ")) ||
++	    _tcsstr(szCmdLine, _T("-noscan"))) {
 +		bSkipStartupCheck = true;
 +	}
 +
  	// Suppresses ROMs scanning when full list is exported
  	if (-1 == nExport) {
  		// Build the ROM information
-@@ -1041,6 +1049,61 @@ static void tp_validate()
+@@ -1041,6 +1050,113 @@ static void tp_validate()
  	return;
  }
  
@@ -98,23 +99,81 @@ index 9039ec6..b218716 100644
 +			char* a = TCHARToANSI(val, NULL, 0);
 +			strncpy(cfg->szMatchId, a, sizeof(cfg->szMatchId) - 1);
 +		}
++		else if (_tcscmp(key, _T("relayport")) == 0) cfg->nRelayPort   = (unsigned short)_ttoi(val);
++		else if (_tcscmp(key, _T("relayip"))   == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szRelayIp, a, sizeof(cfg->szRelayIp) - 1);
++		}
++		else if (_tcscmp(key, _T("p1"))        == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szP1Name, a, sizeof(cfg->szP1Name) - 1);
++		}
++		else if (_tcscmp(key, _T("p2"))        == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szP2Name, a, sizeof(cfg->szP2Name) - 1);
++		}
 +	}
 +
 +	return (cfg->nLocalPort != 0 && cfg->nRemotePort != 0 && cfg->szRemoteIp[0] != '\0');
 +}
 +
++// rollback_netcode: parse  -rbfwatch matchid=<id>,relayip=1.2.3.4,relayport=50053
++// A spectator opens no session of its own: it replays the host's confirmed input
++// stream on top of the save state the relay hands out, so it never diverges and
++// can join a fight that is already under way.
++static bool RbfParseWatchCfg(FbnWatchConfig* cfg)
++{
++	TCHAR* p = _tcsstr(szCmdLine, _T("-rbfwatch "));
++	if (p == NULL) return false;
++	p += _tcslen(_T("-rbfwatch "));
++
++	TCHAR list[512];
++	_tcsncpy(list, p, 511);
++	list[511] = _T('\0');
++	TCHAR* sp = _tcschr(list, _T(' '));		// the comma-list ends at the next space
++	if (sp) *sp = _T('\0');
++
++	memset(cfg, 0, sizeof(*cfg));
++
++	for (TCHAR* tok = _tcstok(list, _T(",")); tok != NULL; tok = _tcstok(NULL, _T(","))) {
++		TCHAR* eq = _tcschr(tok, _T('='));
++		if (eq == NULL) continue;
++		*eq = _T('\0');
++		TCHAR* key = tok;
++		TCHAR* val = eq + 1;
++
++		if      (_tcscmp(key, _T("relayport")) == 0) cfg->nRelayPort = (unsigned short)_ttoi(val);
++		else if (_tcscmp(key, _T("relayip"))   == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szRelayIp, a, sizeof(cfg->szRelayIp) - 1);
++		}
++		else if (_tcscmp(key, _T("matchid"))   == 0) {
++			char* a = TCHARToANSI(val, NULL, 0);
++			strncpy(cfg->szMatchId, a, sizeof(cfg->szMatchId) - 1);
++		}
++	}
++
++	return (cfg->szRelayIp[0] != '\0' && cfg->nRelayPort != 0 && cfg->szMatchId[0] != '\0');
++}
++
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1468,15 @@ int ProcessCmdLine()
+@@ -1405,6 +1521,21 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();
 +
-+					// rollback_netcode: if -rbfnet was given, open the GGPO session now
++					// rollback_netcode: -rbfwatch joins somebody else's match as a
++					// viewer, -rbfnet opens a GGPO session of our own. Watching is
++					// checked first: the two are never both meaningful.
 +					if (bDrvOkay) {
-+						FbnHostConfig rbfCfg;
-+						if (RbfParseNetCfg(&rbfCfg)) {
++						FbnWatchConfig rbfWatch;
++						FbnHostConfig  rbfCfg;
++						if (RbfParseWatchCfg(&rbfWatch)) {
++							if (FbnHostStartWatch(&rbfWatch) != 0)
++								bprintf(PRINT_ERROR, _T("[rbf] FbnHostStartWatch failed; nothing to watch.\n"));
++						} else if (RbfParseNetCfg(&rbfCfg)) {
 +							if (FbnHostStart(&rbfCfg) != 0)
 +								bprintf(PRINT_ERROR, _T("[rbf] FbnHostStart failed; running offline.\n"));
 +						}

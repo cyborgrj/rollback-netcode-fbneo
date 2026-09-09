@@ -85,8 +85,9 @@ message ServerMsg {
 }
 
 message Welcome {
-  string user_id  = 1;   // server-assigned session id
-  string username = 2;
+  string user_id    = 1;   // server-assigned session id
+  string username   = 2;
+  int32  relay_port = 3;   // tcp port of the spectator relay on THIS host, 0 = off
 }
 message LoginRejected { string reason = 1; }
 
@@ -182,6 +183,7 @@ message LiveMatch {
   int32  frame_delay  = 8;
   int32  ping_ms      = 9;   // estimated round trip between the two players
   bool   watchable    = 10;  // the host is relaying inputs, so it can be watched
+  int32  viewers      = 11;
 }
 message MatchList {
   repeated LiveMatch matches = 1;

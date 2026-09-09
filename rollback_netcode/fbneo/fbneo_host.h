@@ -39,14 +39,32 @@ typedef struct FbnHostConfig {
 	char           szPunchIp[64];
 	unsigned short nPunchPort;
 	char           szMatchId[40];
+
+	// Spectator relay (optional). Side 1 publishes the match here so others can
+	// watch it; side 2 ignores these. The names are only shown to viewers.
+	char           szRelayIp[64];
+	unsigned short nRelayPort;
+	char           szP1Name[32];
+	char           szP2Name[32];
 } FbnHostConfig;
+
+// Watching somebody else's match: no GGPO session, no input of our own. The
+// emulator replays the host's confirmed input stream on top of the save state
+// the relay opens with, fast-forwarding silently whenever it falls behind.
+typedef struct FbnWatchConfig {
+	char           szRelayIp[64];
+	unsigned short nRelayPort;
+	char           szMatchId[40];
+} FbnWatchConfig;
 
 // Start a networked session / an offline determinism check. The active FBNeo
 // driver must already be initialised (BurnDrvInit done). Returns 0 on success.
 int  FbnHostStart(const FbnHostConfig* cfg);
 int  FbnHostStartSyncTest(const FbnHostConfig* cfg, int nCheckDistance);
+int  FbnHostStartWatch(const FbnWatchConfig* cfg);
 void FbnHostStop(void);
-int  FbnHostIsActive(void);
+int  FbnHostIsActive(void);    // a match OR a spectated stream is running
+int  FbnHostIsWatching(void);
 
 // Call once per emulated frame from RunFrame(), AFTER GetInput(true) has
 // populated the driver input bytes. Runs exactly one synchronized frame; any

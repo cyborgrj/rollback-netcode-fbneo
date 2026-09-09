@@ -11,6 +11,7 @@ namespace Rbf.Server
         {
             int port = 50051;
             int punchPort = 0;          // 0 => port + 1
+            int relayPort = 0;          // 0 => port + 2
             int frameDelay = 2;
             string bind = "0.0.0.0";
 
@@ -18,13 +19,15 @@ namespace Rbf.Server
             {
                 if (args[i] == "--port") int.TryParse(args[i + 1], out port);
                 else if (args[i] == "--punch-port") int.TryParse(args[i + 1], out punchPort);
+                else if (args[i] == "--relay-port") int.TryParse(args[i + 1], out relayPort);
                 else if (args[i] == "--frame-delay") int.TryParse(args[i + 1], out frameDelay);
                 else if (args[i] == "--bind") bind = args[i + 1];
             }
             if (punchPort <= 0) punchPort = port + 1;
+            if (relayPort <= 0) relayPort = port + 2;
 
             if (frameDelay < 0 || frameDelay > 10) frameDelay = 2;
-            var hub = new Hub { PunchPort = punchPort, FrameDelay = frameDelay };
+            var hub = new Hub { PunchPort = punchPort, RelayPort = relayPort, FrameDelay = frameDelay };
 
             // Keepalive so a client that dies without a clean FIN is reaped
             // instead of lingering as a ghost session holding its name.
@@ -58,8 +61,22 @@ namespace Rbf.Server
                 hub.PunchPort = 0;
             }
 
+            RelayServer relay = null;
+            try
+            {
+                relay = new RelayServer(bind, relayPort);
+                relay.Start(cts.Token);
+                hub.WatchViewers = relay.ViewersOf;
+            }
+            catch (Exception ex)
+            {
+                // Matches still work; they just cannot be watched.
+                Console.WriteLine($"! could not open the spectator relay on tcp/{relayPort}: {ex.Message}");
+                hub.RelayPort = 0;
+            }
+
             Console.WriteLine($"RBF lobby on {bind}:{port}/tcp  (insecure h2c)");
-            Console.WriteLine($"Open on the firewall:  tcp/{port}  and  udp/{punchPort}");
+            Console.WriteLine($"Open on the firewall:  tcp/{port}, tcp/{relayPort}  and  udp/{punchPort}");
             Console.WriteLine("Ctrl+C to stop.");
 
             var done = new ManualResetEventSlim(false);

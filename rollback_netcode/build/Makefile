@@ -1,4 +1,4 @@
-# Builds  librollbackfbneo.a  =  core (state_ring, ggpo_bridge)
+# Builds  librollbackfbneo.a  =  core (state_ring, ggpo_bridge, nat_punch, relay)
 #                             +  fbneo_host
 #                             +  vendored libggpo
 #
@@ -53,6 +53,7 @@ OUR_SRC :=
 OUR_SRC += $(ROOT)/core/state_ring.cpp
 OUR_SRC += $(ROOT)/core/ggpo_bridge.cpp
 OUR_SRC += $(ROOT)/core/nat_punch.cpp
+OUR_SRC += $(ROOT)/core/relay.cpp
 OUR_SRC += $(ROOT)/fbneo/fbneo_host.cpp
 
 GGPO_SRC :=

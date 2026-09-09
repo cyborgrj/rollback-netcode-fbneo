@@ -29,6 +29,7 @@ namespace RbfLauncher.Net
         public int FrameDelay;
         public int PingMs;
         public bool Watchable;
+        public int  Viewers;
 
         public TimeSpan Elapsed
         {
@@ -78,6 +79,8 @@ namespace RbfLauncher.Net
         public string Username { get; private set; }
         public string LanIp { get; private set; } = "";
         public int LastRttMs { get; private set; }
+        /// <summary>tcp port of the spectator relay on the lobby host, 0 = off.</summary>
+        public int RelayPort { get; private set; }
         public bool LoggedIn => UserId != null;
 
         /// <summary>Best-guess local LAN IPv4: the source address the OS would use
@@ -182,6 +185,7 @@ namespace RbfLauncher.Net
                 case ServerMsg.KindOneofCase.Welcome:
                     UserId = m.Welcome.UserId;
                     Username = m.Welcome.Username;
+                    RelayPort = m.Welcome.RelayPort;
                     Post(() => LoginOk?.Invoke(Username));
                     break;
                 case ServerMsg.KindOneofCase.LoginRejected:
@@ -243,6 +247,7 @@ namespace RbfLauncher.Net
                         FrameDelay = x.FrameDelay,
                         PingMs = x.PingMs,
                         Watchable = x.Watchable,
+                        Viewers = x.Viewers,
                     }).ToList();
                     Post(() => MatchesUpdated?.Invoke(ms));
                     break;

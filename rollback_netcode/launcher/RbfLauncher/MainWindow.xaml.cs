@@ -234,6 +234,20 @@ namespace RbfLauncher
                 args += string.Format(",punchip={0},punchport={1},matchid={2}",
                                       _config.ServerHost, ms.PunchPort, ms.MatchId);
 
+            // Side 1 broadcasts the match to the relay so it can be watched. Both
+            // sides get the arguments; the emulator ignores them unless it is P1.
+            if (_client != null && _client.RelayPort > 0 && !string.IsNullOrWhiteSpace(_config.ServerHost))
+            {
+                string me = _client.Username ?? "";
+                string p1 = ms.PlayerNum == 1 ? me : ms.PeerUsername;
+                string p2 = ms.PlayerNum == 1 ? ms.PeerUsername : me;
+                args += string.Format(",relayip={0},relayport={1},p1={2},p2={3}",
+                                      _config.ServerHost, _client.RelayPort,
+                                      Sanitize(p1), Sanitize(p2));
+                if (args.IndexOf(",matchid=", StringComparison.Ordinal) < 0)
+                    args += ",matchid=" + ms.MatchId;   // hole punching usually added it already
+            }
+
             try
             {
                 _client?.ReportMatch(ms.MatchId, Phase.Launching);
@@ -253,6 +267,16 @@ namespace RbfLauncher
                 MessageBox.Show("Falha ao abrir o emulador:\n" + ex.Message, "RBF",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+        }
+
+        // The emulator parses -rbfnet as a comma list of key=value, so a name with
+        // a comma, space or equals sign would split the argument in two.
+        private static string Sanitize(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "?";
+            var sb = new System.Text.StringBuilder(s.Length);
+            foreach (char c in s) sb.Append(c <= ' ' || c == ',' || c == '=' || c == '"' ? '_' : c);
+            return sb.ToString();
         }
 
         private void CloseTransientDialogs()

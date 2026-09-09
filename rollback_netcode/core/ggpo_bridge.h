@@ -74,6 +74,14 @@ typedef struct GgpoBridgeHost {
 	// Optional. Desync dump target; NULL => bridge skips logging.
 	void (*log_state)(const char* filename, const unsigned char* buf, int len, void* user);
 
+	// Optional. One call per frame whose inputs libggpo can no longer revise,
+	// in strict order from frame 0, with no gaps. This is exactly the stream a
+	// spectator can replay: predicted frames are never reported, and a frame is
+	// only handed over once the simulation has moved further ahead than libggpo
+	// is ever allowed to roll back.
+	//   inputs : nPlayers * nInputBytes bytes, player-major (same as step_frame)
+	void (*on_confirmed_inputs)(int frame, const void* inputs, int nBytes, void* user);
+
 	void* user;
 } GgpoBridgeHost;
 

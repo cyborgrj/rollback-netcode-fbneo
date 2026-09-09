@@ -112,9 +112,12 @@ namespace RbfLauncher.Views
             vs.Inlines.Add(new System.Windows.Documents.Run(m.P2Username) { FontWeight = FontWeights.SemiBold });
 
             var t = m.Elapsed;
+            string extra = m.Watchable && m.Viewers > 0
+                           ? string.Format("   ·   {0} assistindo", m.Viewers) : "";
             var info = new TextBlock
             {
-                Text = string.Format("{0:D2}:{1:D2}   ·   {2}f", (int)t.TotalMinutes, t.Seconds, m.FrameDelay),
+                Text = string.Format("{0:D2}:{1:D2}   ·   {2}f{3}",
+                                     (int)t.TotalMinutes, t.Seconds, m.FrameDelay, extra),
                 Foreground = (Brush)FindResource("TextDim"),
                 FontSize = 12,
                 Margin = new Thickness(10, 0, 0, 0),
@@ -122,12 +125,26 @@ namespace RbfLauncher.Views
             };
 
             var row = new DockPanel { LastChildFill = false };
+
+            // Only matches whose host is actually broadcasting can be watched; the
+            // rest of the list stays informational.
+            if (m.Watchable)
+            {
+                var watch = new Button
+                {
+                    Content = "Assistir",
+                    Style = (Style)FindResource("Btn"),
+                    Padding = new Thickness(12, 4, 12, 4),
+                    Margin = new Thickness(10, 0, 0, 0)
+                };
+                watch.Click += (s, e) => Watch(m);
+                DockPanel.SetDock(watch, Dock.Right);
+                row.Children.Add(watch);
+            }
+
             DockPanel.SetDock(info, Dock.Right);
             row.Children.Add(info);
             row.Children.Add(vs);
-
-            // The "Assistir" button appears here once the host relays inputs
-            // (m.Watchable). Until then the list is informational.
             return new Border
             {
                 Background = (Brush)FindResource("BgPanel"),
@@ -249,6 +266,39 @@ namespace RbfLauncher.Views
                 Margin = new Thickness(0, 0, 0, 6),
                 Child = row
             };
+        }
+
+        // Watching opens a second emulator in spectator mode. It replays the
+        // host's input stream from the relay, so it needs the same ROM but no
+        // connection to either player.
+        private void Watch(MatchEntry m)
+        {
+            if (_client == null || !_client.LoggedIn) return;
+
+            if (_client.RelayPort <= 0)
+            {
+                MessageBox.Show("Este servidor não está com o relay de espectador ligado.", "RBF",
+                                MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (!_roms.RomExists(_game))
+            {
+                MessageBox.Show("Você precisa da ROM de " + _game.Title + " para assistir.", "RBF",
+                                MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            string args = string.Format("-rbfwatch matchid={0},relayip={1},relayport={2}",
+                                        m.MatchId, _config.ServerHost, _client.RelayPort);
+            try
+            {
+                _emu.Launch(_game, args);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Não foi possível abrir o emulador",
+                                MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void Refresh()

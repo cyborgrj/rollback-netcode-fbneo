@@ -1,5 +1,5 @@
 diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
-index e6ad1a4..7667b28 100644
+index e6ad1a4..5fbe762 100644
 --- a/src/burner/win32/run.cpp
 +++ b/src/burner/win32/run.cpp
 @@ -1,5 +1,6 @@
@@ -42,7 +42,7 @@ index e6ad1a4..7667b28 100644
  	if (bPrevDraw && !bPause) {
  		VidPaint(0);							// paint the screen (no need to validate)
  
-@@ -289,7 +300,13 @@ int RunFrame(int bDraw, int bPause)
+@@ -289,7 +300,17 @@ int RunFrame(int bDraw, int bPause)
  			RecordInput();						// Write input to file
  		}
  
@@ -51,13 +51,17 @@ index e6ad1a4..7667b28 100644
 +			if (bDraw && (bDraw & FFWD_GHOST_FRAME) == 0) nFramesRendered++;
 +			int nFbnFr = FbnHostRunFrame(bDraw); // 1 synced frame (drawn via VidFrame); rollback re-sim inside
 +			if (nFbnFr < 0) {
++				int bWasWatching = FbnHostIsWatching();
 +				FbnHostStop();                // fatal -> fall back to local play
++				// A spectator has no local play to fall back to: the stream is
++				// over, so close the window instead of freezing on a dead frame.
++				if (bWasWatching) PostMessage(hScrnWnd, WM_CLOSE, 0, 0);
 +			}
 +		} else if (bDraw) {                    // Draw Frame
  			if ((bDraw & FFWD_GHOST_FRAME) == 0)
  				nFramesRendered++;
  
-@@ -333,7 +350,7 @@ int RunFrame(int bDraw, int bPause)
+@@ -333,7 +354,7 @@ int RunFrame(int bDraw, int bPause)
  			BurnDrvFrame();
  		}
  

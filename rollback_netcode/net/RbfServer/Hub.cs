@@ -88,6 +88,13 @@ namespace Rbf.Server
         // udp/ port of the NAT rendezvous, echoed to clients in MatchStart. 0 = off.
         public int PunchPort { get; set; }
 
+        // tcp/ port of the spectator relay, handed to clients in Welcome. 0 = off.
+        public int RelayPort { get; set; }
+
+        // How many people are watching a match, or -1 when it is not being
+        // published. Supplied by the relay; null means nothing is watchable.
+        public Func<string, int> WatchViewers { get; set; }
+
         private int _epoch;
         private int _matchEpoch;
         private const int ChatBacklog = 100;
@@ -134,7 +141,13 @@ namespace Rbf.Server
                     RemoteIp = peerIp,
                 };
                 _sessions[s.UserId] = s;
-                s.Send(new ServerMsg { Welcome = new Welcome { UserId = s.UserId, Username = s.Username } });
+                s.Send(new ServerMsg
+                {
+                    Welcome = new Welcome
+                    {
+                        UserId = s.UserId, Username = s.Username, RelayPort = RelayPort
+                    }
+                });
                 s.Send(new ServerMsg { ChatLog = _globalChat.Snapshot(ChatScope.ChatGlobal, "") });
                 BroadcastLobbyLocked();
                 Console.WriteLine($"+ {username} ({s.UserId})  peer-ip={s.RemoteIp}  (conn {connIp}, reported {lanIp})");
@@ -449,6 +462,7 @@ namespace Rbf.Server
             {
                 _sessions.TryGetValue(m.P1Id, out var p1);
                 _sessions.TryGetValue(m.P2Id, out var p2);
+                int viewers = WatchViewers != null ? WatchViewers(m.Id) : -1;
                 list.Matches.Add(new LiveMatch
                 {
                     MatchId = m.Id,
@@ -460,7 +474,8 @@ namespace Rbf.Server
                     StartedT = new DateTimeOffset(m.StartedUtc).ToUnixTimeMilliseconds(),
                     FrameDelay = m.FrameDelay,
                     PingMs = m.PeerPingMs,
-                    Watchable = false,   // set once the input relay lands
+                    Watchable = viewers >= 0,
+                    Viewers = viewers > 0 ? viewers : 0,
                 });
             }
             return new ServerMsg { Matches = list };
