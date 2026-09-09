@@ -126,9 +126,29 @@ namespace RbfLauncher.Views
 
             var row = new DockPanel { LastChildFill = false };
 
-            // Only matches whose host is actually broadcasting can be watched; the
-            // rest of the list stays informational.
-            if (m.Watchable)
+            // Three cases, and saying which one it is beats an unexplained missing
+            // button: you are playing this match, nobody is broadcasting it, or it
+            // can be watched.
+            bool mine = _client != null &&
+                        (m.P1UserId == _client.UserId || m.P2UserId == _client.UserId);
+
+            if (mine || !m.Watchable)
+            {
+                var why = new TextBlock
+                {
+                    Text = mine ? "você está jogando" : "sem transmissão",
+                    Foreground = (Brush)FindResource("TextDim"),
+                    FontSize = 11,
+                    Margin = new Thickness(10, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                if (!mine)
+                    why.ToolTip = "O emulador do jogador 1 não está transmitindo esta partida. " +
+                                  "Verifique se ele está com o build novo e se a porta do relay está aberta no servidor.";
+                DockPanel.SetDock(why, Dock.Right);
+                row.Children.Add(why);
+            }
+            else
             {
                 var watch = new Button
                 {
