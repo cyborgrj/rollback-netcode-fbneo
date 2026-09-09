@@ -481,6 +481,15 @@ namespace Rbf.Server
             return new ServerMsg { Matches = list };
         }
 
+        /// <summary>Display name for a session id, for log lines. Never throws -
+        /// a stale id from a client just reads back as "?".</summary>
+        public string NameOf(string userId)
+        {
+            if (string.IsNullOrEmpty(userId)) return "?";
+            lock (_gate)
+                return _sessions.TryGetValue(userId, out var s) ? s.Username : "?";
+        }
+
         // ---- helpers ------------------------------------------------
         private int AllocPortLocked()
         {

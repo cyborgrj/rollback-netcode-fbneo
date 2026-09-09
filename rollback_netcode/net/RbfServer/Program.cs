@@ -23,6 +23,9 @@ namespace Rbf.Server
                 else if (args[i] == "--frame-delay") int.TryParse(args[i + 1], out frameDelay);
                 else if (args[i] == "--bind") bind = args[i + 1];
             }
+            // --quiet keeps the per-request lines out of the journal; the lifecycle
+            // lines (login, match, relay) are always printed.
+            LobbyService.LogRequests = Array.IndexOf(args, "--quiet") < 0;
             if (punchPort <= 0) punchPort = port + 1;
             if (relayPort <= 0) relayPort = port + 2;
 
