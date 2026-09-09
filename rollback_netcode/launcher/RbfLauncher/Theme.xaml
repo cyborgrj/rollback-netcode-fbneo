@@ -14,6 +14,32 @@
   <SolidColorBrush x:Key="Warn"        Color="#D29922" />
   <SolidColorBrush x:Key="Bad"         Color="#F0554E" />
 
+  <!-- Chat name colours. Green is reserved for you (the "Ok" brush above), so
+       these sweep the rest of the wheel and deliberately avoid greens. ChatPanel
+       picks one from a hash of the username, so the same person is the same
+       colour on everyone's screen. Add or remove entries freely: the code counts
+       how many exist rather than hard-coding twenty. -->
+  <SolidColorBrush x:Key="ChatName1"  Color="#5B9CFF" />  <!-- azul     -->
+  <SolidColorBrush x:Key="ChatName2"  Color="#4DD0E1" />  <!-- ciano    -->
+  <SolidColorBrush x:Key="ChatName3"  Color="#B0A7FF" />  <!-- lilás    -->
+  <SolidColorBrush x:Key="ChatName4"  Color="#C792EA" />  <!-- roxo     -->
+  <SolidColorBrush x:Key="ChatName5"  Color="#E066D9" />  <!-- magenta  -->
+  <SolidColorBrush x:Key="ChatName6"  Color="#FF6E9C" />  <!-- rosa     -->
+  <SolidColorBrush x:Key="ChatName7"  Color="#F0716B" />  <!-- vermelho -->
+  <SolidColorBrush x:Key="ChatName8"  Color="#FF9E4A" />  <!-- laranja  -->
+  <SolidColorBrush x:Key="ChatName9"  Color="#E8D44D" />  <!-- amarelo  -->
+  <SolidColorBrush x:Key="ChatName10" Color="#D4A373" />  <!-- caramelo    -->
+  <SolidColorBrush x:Key="ChatName11" Color="#7DA0FF" />  <!-- azul claro  -->
+  <SolidColorBrush x:Key="ChatName12" Color="#8FD6FF" />  <!-- azul gelo   -->
+  <SolidColorBrush x:Key="ChatName13" Color="#5FE3C0" />  <!-- turquesa    -->
+  <SolidColorBrush x:Key="ChatName14" Color="#9C8CFF" />  <!-- violeta     -->
+  <SolidColorBrush x:Key="ChatName15" Color="#D9A9FF" />  <!-- lavanda     -->
+  <SolidColorBrush x:Key="ChatName16" Color="#FF9ECF" />  <!-- rosa claro  -->
+  <SolidColorBrush x:Key="ChatName17" Color="#FF8A80" />  <!-- coral       -->
+  <SolidColorBrush x:Key="ChatName18" Color="#FFB870" />  <!-- pêssego     -->
+  <SolidColorBrush x:Key="ChatName19" Color="#F5C542" />  <!-- âmbar       -->
+  <SolidColorBrush x:Key="ChatName20" Color="#C9B896" />  <!-- areia       -->
+
   <!-- base text -->
   <Style TargetType="TextBlock">
     <Setter Property="Foreground" Value="{StaticResource Text}" />

@@ -99,6 +99,49 @@ namespace RbfLauncher.Views
             LogScroll.ScrollToEnd();
         }
 
+        // ---- name colours --------------------------------------------------
+        // Hash the NAME, never the session id: the server hands out a fresh GUID
+        // on every login, so ids would repaint everybody on each reconnect and
+        // would not agree between machines. The name is stable and identical
+        // everywhere, so one person is one colour, for everyone, forever.
+        private static uint Fnv1a(string s)
+        {
+            uint h = 2166136261;
+            foreach (char c in s.ToLowerInvariant())
+            {
+                h ^= c;
+                h *= 16777619;
+            }
+            return h;
+        }
+
+        private readonly Dictionary<string, Brush> _nameBrush =
+            new Dictionary<string, Brush>(StringComparer.OrdinalIgnoreCase);
+        private int _paletteSize = -1;   // counted from the theme on first use
+
+        /// <summary>One of the ChatName* brushes in Theme.xaml, chosen by name.
+        /// UI thread only, which is why the cache needs no lock.</summary>
+        private Brush ColorFor(string username)
+        {
+            if (string.IsNullOrEmpty(username)) return (Brush)FindResource("Accent");
+            if (_nameBrush.TryGetValue(username, out var cached)) return cached;
+
+            if (_paletteSize < 0)
+            {
+                // Count what the theme actually defines, so adding a colour there is
+                // the whole change.
+                _paletteSize = 0;
+                while (TryFindResource("ChatName" + (_paletteSize + 1)) != null) _paletteSize++;
+            }
+
+            Brush b = _paletteSize == 0
+                ? (Brush)FindResource("Accent")
+                : (Brush)FindResource("ChatName" + (Fnv1a(username) % (uint)_paletteSize + 1));
+
+            _nameBrush[username] = b;
+            return b;
+        }
+
         private void Append(ChatMsg m, bool scrollToEnd)
         {
             bool atBottom = LogScroll.VerticalOffset >= LogScroll.ScrollableHeight - 24;
@@ -128,10 +171,13 @@ namespace RbfLauncher.Views
             }
             else
             {
-                bool mine = _client != null && m.UserId == _client.UserId;
+                // Compared by name, not by id, for the same reason the colour is:
+                // your own backlog stays green after a reconnect changes your id.
+                bool mine = _client != null &&
+                            string.Equals(m.Username, _client.Username, StringComparison.OrdinalIgnoreCase);
                 line.Inlines.Add(new Run(m.Username + ": ")
                 {
-                    Foreground = (Brush)FindResource(mine ? "Ok" : "Accent"),
+                    Foreground = mine ? (Brush)FindResource("Ok") : ColorFor(m.Username),
                     FontWeight = FontWeights.SemiBold,
                 });
                 line.Inlines.Add(new Run(m.Text) { Foreground = (Brush)FindResource("Text") });
