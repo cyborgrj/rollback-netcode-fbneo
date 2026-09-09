@@ -37,6 +37,12 @@ namespace RbfLauncher.Core
     /// <summary>Persisted next to the exe as rbf-launcher.json.</summary>
     public sealed class AppConfig
     {
+        /// <summary>Lobby a fresh install points at, so a new build is playable
+        /// without visiting Configurações first. Lightsail hands out a new public
+        /// address on every stop/start, so this needs editing whenever that
+        /// happens - attach a static IP (or a hostname) to stop chasing it.</summary>
+        public const string DefaultServerHost = "18.228.40.244";
+
         [JsonPropertyName("emulatorPath")]
         public string EmulatorPath { get; set; } = "fbneo.exe";
 
@@ -47,16 +53,18 @@ namespace RbfLauncher.Core
         public string RomsDir { get; set; } = "";
 
         /// <summary>Extra args appended after the game name. FBNeo boots FULLSCREEN
-        /// when given only a game name; "-w" forces a window. Other useful values:
-        /// "-r 800 x 600 x 32" (fullscreen at that mode).</summary>
+        /// when given only a game name; "-w" forces a window. "-noscan" skips the
+        /// startup ROM audit, which we never want (EmulatorService adds it anyway,
+        /// but having it here means Configurações shows what is really being run).
+        /// Other useful values: "-r 800 x 600 x 32" (fullscreen at that mode).</summary>
         [JsonPropertyName("emulatorArgs")]
-        public string EmulatorArgs { get; set; } = "-w";
+        public string EmulatorArgs { get; set; } = "-w -noscan";
 
         [JsonPropertyName("playerName")]
         public string PlayerName { get; set; } = Environment.UserName;
 
         [JsonPropertyName("serverHost")]
-        public string ServerHost { get; set; } = "127.0.0.1";
+        public string ServerHost { get; set; } = DefaultServerHost;
 
         [JsonPropertyName("serverPort")]
         public int ServerPort { get; set; } = 50051;
