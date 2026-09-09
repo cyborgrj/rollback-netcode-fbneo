@@ -1,5 +1,5 @@
 diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
-index e6ad1a4..47b5865 100644
+index e6ad1a4..7667b28 100644
 --- a/src/burner/win32/run.cpp
 +++ b/src/burner/win32/run.cpp
 @@ -1,5 +1,6 @@
@@ -9,7 +9,40 @@ index e6ad1a4..47b5865 100644
  
  int bRunPause = 0;
  int bAltPause = 0;
-@@ -289,7 +290,13 @@ int RunFrame(int bDraw, int bPause)
+@@ -76,7 +77,7 @@ static void CheckSystemMacros() // These are the Pause / FFWD macros added to th
+ 	}
+ 	prevPause = macroSystemPause;
+ 
+-	if (!kNetGame) {
++	if (!kNetGame && !FbnHostIsActive()) {   // no ffwd/slowmo/rewind/frame-step in a match
+ 		// FFWD
+ 		int bPrevAppDoFast = bAppDoFast;
+ 		if (macroSystemFFWD) {
+@@ -124,6 +125,9 @@ static void CheckSystemMacros() // These are the Pause / FFWD macros added to th
+ 		}
+ 
+ 	}
++
++	if (FbnHostIsActive()) return;   // no save/load-state hotkeys in a match
++
+ 	// Load State
+ 	if (macroSystemLoadState && macroSystemLoadState != prevLState) {
+ 		PostMessage(hScrnWnd, WM_KEYDOWN, VK_F9, 0);
+@@ -232,6 +236,13 @@ int RunFrame(int bDraw, int bPause)
+ 	static int bPrevPause = 0;
+ 	static int bPrevDraw = 0;
+ 
++	if (FbnHostIsActive()) {           // a match runs at 1x, never paused
++		bRunPause  = 0;
++		bAppDoFast = 0;
++		nSlowMo    = 0;
++		bPause     = 0;
++	}
++
+ 	if (bPrevDraw && !bPause) {
+ 		VidPaint(0);							// paint the screen (no need to validate)
+ 
+@@ -289,7 +300,13 @@ int RunFrame(int bDraw, int bPause)
  			RecordInput();						// Write input to file
  		}
  
@@ -23,4 +56,13 @@ index e6ad1a4..47b5865 100644
 +		} else if (bDraw) {                    // Draw Frame
  			if ((bDraw & FFWD_GHOST_FRAME) == 0)
  				nFramesRendered++;
+ 
+@@ -333,7 +350,7 @@ int RunFrame(int bDraw, int bPause)
+ 			BurnDrvFrame();
+ 		}
+ 
+-		if (kNetGame == 0) {                    // Rewind Implementation
++		if (kNetGame == 0 && !FbnHostIsActive()) {   // Rewind Implementation
+ 			StateRewindDoFrame(macroSystemRewind || bAppDoRewind, macroSystemRewindCancel, bRunPause);
+ 		}
  

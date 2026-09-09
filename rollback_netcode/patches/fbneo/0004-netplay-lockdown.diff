@@ -1,0 +1,66 @@
+diff --git a/src/burner/win32/scrn.cpp b/src/burner/win32/scrn.cpp
+index 9be30b0..8fcbe78 100644
+--- a/src/burner/win32/scrn.cpp
++++ b/src/burner/win32/scrn.cpp
+@@ -1,5 +1,6 @@
+ // Screen Window
+ #include "burner.h"
++#include "fbneo_host.h"		// rollback_netcode: libggpo session host
+ #include "pcecdlist.h"
+ #include <process.h>
+ #include <shlobj.h>
+@@ -142,6 +143,10 @@ static bool UseDialogs()
+ 
+ void SetPauseMode(bool bPause)
+ {
++	// rollback_netcode: a netplay session must never stall. The peer keeps
++	// simulating, so any pause here desyncs us or stalls their sync.
++	if (bPause && FbnHostIsActive()) return;
++
+ 	bRunPause = bPause;
+ 	bAltPause = bPause;
+ 
+@@ -808,7 +813,7 @@ static int OnCreate(HWND, LPCREATESTRUCT)	// HWND hwnd, LPCREATESTRUCT lpCreateS
+ static void OnActivateApp(HWND hwnd, BOOL fActivate, DWORD /* dwThreadId */)
+ {
+ 	bHasFocus = fActivate;
+-	if (!kNetGame && bAutoPause && !bAltPause && hInpdDlg == NULL && hInpCheatDlg == NULL && hInpDIPSWDlg == NULL) {
++	if (!kNetGame && !FbnHostIsActive() && bAutoPause && !bAltPause && hInpdDlg == NULL && hInpCheatDlg == NULL && hInpDIPSWDlg == NULL) {
+ 		bRunPause = fActivate? 0 : 1;
+ 	}
+ 	if (fActivate == false && hwnd == hScrnWnd) {
+@@ -1562,6 +1567,25 @@ static void OnCommand(HWND /*hDlg*/, int id, HWND /*hwndCtl*/, UINT codeNotify)
+ 		return;
+ 	}
+ 
++	// rollback_netcode: during a match only the harmless video items get
++	// through. Everything else opens a modal dialog or pauses the emulation,
++	// and either one desyncs us from the peer.
++	if (FbnHostIsActive()) {
++		switch (id) {
++		case MENU_FULL:
++		case MENU_ASPECT: case MENU_ASPECTNORMAL: case MENU_ASPECTLCD:
++		case MENU_SINGLESIZEWINDOW: case MENU_DOUBLESIZEWINDOW:
++		case MENU_TRIPLESIZEWINDOW: case MENU_QUADSIZEWINDOW:
++		case MENU_MAXIMUMSIZEWINDOW:
++		case MENU_SINGLESIZESCREEN: case MENU_DOUBLESIZESCREEN:
++		case MENU_TRIPLESIZESCREEN: case MENU_QUADSIZESCREEN:
++		case MENU_QUIT: case MENU_EXIT:
++			break;          // allowed
++		default:
++			return;         // swallowed
++		}
++	}
++
+ 	switch (id) {
+ 		case MENU_LOAD: {
+ 			int nGame;
+@@ -4055,7 +4079,7 @@ static void OnEnterMenuLoop(HWND, BOOL)
+ 		InputSetCooperativeLevel(false, bAlwaysProcessKeyboardInput);
+ 		AudBlankSound();
+ 	} else {
+-		if (!kNetGame && bAutoPause) {
++		if (!kNetGame && !FbnHostIsActive() && bAutoPause) {
+ 			bRunPause = 1;
+ 		}
+ 	}
