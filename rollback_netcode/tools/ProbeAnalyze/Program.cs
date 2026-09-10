@@ -75,6 +75,7 @@ internal static class Program
 
         var files = args.Where(a => !a.StartsWith("--")).ToList();
         var flags = args.Where(a => a.StartsWith("--")).ToList();
+        Loose = flags.Contains("--loose");
 
         try
         {
@@ -95,6 +96,72 @@ internal static class Program
             if (iTrace >= 0 && iTrace + 1 < args.Length)
             {
                 Trace(files[0], ParseAddr(args[iTrace + 1]));
+                return 0;
+            }
+
+            // Machine-readable: one address per line, so two runs can be
+            // intersected from the shell. "the winner's counter ended at 2 in
+            // both matches" is a far tighter net than any shape filter.
+            int iEnds = args.ToList().IndexOf("--ends");
+            if (iEnds >= 0 && iEnds + 1 < args.Length)
+            {
+                var rec = Load(files[0]);
+                int want = int.Parse(args[iEnds + 1]);
+                for (int i = 0; i < rec.Tracks.Length; i++)
+                {
+                    var t = rec.Tracks[i];
+                    if (t.First != 0 || t.Last != want) continue;
+                    if (want != 0 && !LooksLikeCounter(t)) continue;
+                    if (want == 0 && t.Changes != 0) continue;
+                    Console.WriteLine($"0x{rec.AddrOf(i):X6}");
+                }
+                return 0;
+            }
+
+            // Where did the rounds end? Nothing in the file says so directly,
+            // but a round transition rewrites half the world - the KO, the
+            // win pose, the next round being set up - while the middle of a
+            // round only moves the two fighters. The spikes are the answer.
+            if (flags.Contains("--activity"))
+            {
+                Activity(files[0]);
+                return 0;
+            }
+
+            // The tightest net there is: an address whose entire life story is
+            // "changed at these moments, and never otherwise". Feed it the
+            // round ends that --activity found and the score falls out.
+            int iSteps = args.ToList().IndexOf("--steps");
+            if (iSteps >= 0 && iSteps + 1 < args.Length)
+            {
+                var want = args[iSteps + 1].Split(',')
+                                           .Select(x => uint.Parse(x.Trim().TrimStart('f')))
+                                           .ToList();
+                long tol = (iSteps + 2 < args.Length && long.TryParse(args[iSteps + 2], out long tv)) ? tv : 60;
+                Steps(Load(files[0]), files[0], want, tol);
+                return 0;
+            }
+
+            // Health is a better handle on the score than any win counter: it
+            // says who lost the round AND when, it is the same shape in every
+            // fighting game, and it needs no agreement about how wins are
+            // stored. It also changes far too often to keep a transition list
+            // for, so this is its own streaming pass.
+            if (flags.Contains("--health"))
+            {
+                Health(files[0]);
+                return 0;
+            }
+
+            // "Never changed in the whole recording" is the wrong question for
+            // anything inside the player struct: the game clears that struct
+            // before the fight and again after it. What matters is that the
+            // byte held still for the length of the fight.
+            int iConst = args.ToList().IndexOf("--constin");
+            if (iConst >= 0 && iConst + 1 < args.Length)
+            {
+                var parts = args[iConst + 1].Split('-');
+                ConstIn(files[0], uint.Parse(parts[0]), uint.Parse(parts[1]));
                 return 0;
             }
 
@@ -318,10 +385,16 @@ internal static class Program
         Console.WriteLine("with different characters plus --chars to pin the character ids.");
     }
 
+    // Loose mode also accepts a reset to zero mid-recording. Real work RAM is
+    // full of one-bit flags that toggle all match long, and letting them reset
+    // lets every one of them through - two hundred candidates instead of a
+    // dozen. A score does not go back down, so strict is the default.
+    private static bool Loose;
+
     private static bool LooksLikeCounter(Track t)
     {
         if (t.Noisy || t.Trans == null) return false;
-        if (t.Changes < 1 || t.Changes > 12) return false;
+        if (t.Changes < 1 || t.Changes > (Loose ? 12 : 6)) return false;
         if (t.First != 0) return false;      // a score starts at zero
         if (t.Max > 6) return false;          // best-of-five is as far as these games go
 
@@ -329,10 +402,9 @@ internal static class Program
         foreach (int e in t.Trans)
         {
             byte v = (byte)(e & 0xFF);
-            // Up by one, or back to zero for the next match. Anything else is
-            // some other kind of byte that happens to stay small.
-            if (v != prev + 1 && v != 0) return false;
-            prev = v;
+            if (v == prev + 1) { prev = v; continue; }
+            if (Loose && v == 0) { prev = v; continue; }
+            return false;
         }
         return true;
     }
@@ -379,6 +451,163 @@ internal static class Program
 
         Console.WriteLine($"0x{addr:X6} in {Path.GetFileName(path)} ({h.Game}) - {lines.Count} distinct steps:");
         foreach (var l in lines) Console.WriteLine(l);
+    }
+
+    // One line per byte that never moved between the two frames: "0xADDR VALUE".
+    // Meant to be joined against the same listing from another recording.
+    private static void ConstIn(string path, uint from, uint to)
+    {
+        byte[] first = null;
+        bool[] moved = null;
+
+        var h = Walk(path, (sample, frame, ram) =>
+        {
+            if (frame < from || frame > to) return;
+            if (first == null) { first = (byte[])ram.Clone(); moved = new bool[ram.Length]; return; }
+            for (int i = 0; i < ram.Length; i++)
+                if (ram[i] != first[i]) moved[i] = true;
+        });
+
+        if (first == null) { Console.Error.WriteLine("no samples in that window."); return; }
+        for (int i = 0; i < first.Length; i++)
+            if (!moved[i]) Console.WriteLine($"0x{h.CpuBase + (uint)i:X6} {first[i]}");
+    }
+
+    private static void Health(string path)
+    {
+        byte[] max = null, last = null;
+        int[] ups = null, bigUps = null, downs = null, zeroed = null;
+        var refills = new List<uint>[0];
+        List<uint>[] refillAt = null;
+        List<uint>[] zeroAt = null;
+
+        var h = Walk(path, (sample, frame, ram) =>
+        {
+            if (max == null)
+            {
+                max = (byte[])ram.Clone();
+                last = (byte[])ram.Clone();
+                ups = new int[ram.Length]; bigUps = new int[ram.Length];
+                downs = new int[ram.Length]; zeroed = new int[ram.Length];
+                refillAt = new List<uint>[ram.Length];
+                zeroAt   = new List<uint>[ram.Length];
+                return;
+            }
+
+            for (int i = 0; i < ram.Length; i++)
+            {
+                byte v = ram[i], p = last[i];
+                if (v == p) continue;
+                if (v > max[i]) max[i] = v;
+
+                if (v > p)
+                {
+                    ups[i]++;
+                    // A refill is the round starting over. A hit never adds
+                    // health, so anything smaller than a big jump disqualifies
+                    // the byte outright.
+                    if (v - p >= 24) { bigUps[i]++; (refillAt[i] ??= new List<uint>()).Add(frame); }
+                }
+                else
+                {
+                    downs[i]++;
+                    if (v == 0) { zeroed[i]++; (zeroAt[i] ??= new List<uint>()).Add(frame); }
+                }
+                last[i] = v;
+            }
+        });
+
+        Console.WriteLine($"{Path.GetFileName(path)} ({h.Game}) - bytes that behave like a life bar:");
+        Console.WriteLine("refills in one jump, only ever falls otherwise, and reaches zero at least once.");
+        Console.WriteLine();
+
+        int found = 0;
+        for (int i = 0; i < max.Length; i++)
+        {
+            if (max[i] < 48) continue;              // a life bar is not a three-bit field
+            if (zeroed[i] < 1) continue;            // somebody has to have lost a round
+            if (bigUps[i] < 1) continue;            // and the round has to have started over
+            if (ups[i] != bigUps[i]) continue;      // no healing, ever
+            if (downs[i] < 8) continue;             // it takes more than a couple of hits
+            if (ups[i] > 6) continue;
+
+            uint addr = h.CpuBase + (uint)i;
+            string zeros   = zeroAt[i]   == null ? "-" : string.Join(",", zeroAt[i].Select(f => "f" + f));
+            string refills2 = refillAt[i] == null ? "-" : string.Join(",", refillAt[i].Select(f => "f" + f));
+            Console.WriteLine($"  0x{addr:X6}  max {max[i],3}  {downs[i],3} quedas   zerou em {zeros}   encheu em {refills2}");
+            found++;
+        }
+
+        if (found == 0) Console.WriteLine("  nada com essa forma.");
+        else Console.WriteLine($"\n({found} bytes)");
+    }
+
+    private static void Steps(Recording r, string path, List<uint> want, long tol)
+    {
+        Console.WriteLine($"{Path.GetFileName(path)} ({r.H.Game}) - bytes whose ONLY changes were at " +
+                          string.Join(", ", want.Select(f => "f" + f)) + $" (+-{tol} frames):");
+        Console.WriteLine();
+
+        int found = 0;
+        for (int i = 0; i < r.Tracks.Length; i++)
+        {
+            var t = r.Tracks[i];
+            if (t.Noisy || t.Trans == null) continue;
+
+            // Whatever the byte did before the first round is not our business:
+            // the attract mode plays a demo fight, with its own rounds and its
+            // own wins, and the game resets the counter when the real match
+            // starts. Only the tail has to match.
+            byte before = t.First;
+            int idx = 0;
+            var tr = t.Trans.Select(e => (f: (long)r.Frames[e >> 8], v: (byte)(e & 0xFF))).ToList();
+            while (idx < tr.Count && tr[idx].f < want[0] - tol) { before = tr[idx].v; idx++; }
+
+            var tail = tr.Skip(idx).ToList();
+            if (tail.Count != want.Count) continue;
+
+            bool ok = true;
+            for (int k = 0; k < want.Count; k++)
+                if (Math.Abs(tail[k].f - want[k]) > tol) { ok = false; break; }
+            if (!ok) continue;
+
+            var sb = new StringBuilder($"  0x{r.AddrOf(i):X6}   {before}");
+            foreach (var s in tail) sb.Append($" -> {s.v}");
+            if (idx > 0) sb.Append($"   ({idx} antes do 1o round)");
+            Console.WriteLine(sb.ToString());
+            found++;
+        }
+
+        if (found == 0) Console.WriteLine("  none - try a wider tolerance, or a different set of moments.");
+        else Console.WriteLine($"\n({found} bytes)");
+    }
+
+    private static void Activity(string path)
+    {
+        byte[] prev = null;
+        var rows = new List<(uint frame, int changed)>();
+
+        var h = Walk(path, (sample, frame, ram) =>
+        {
+            if (prev == null) { prev = (byte[])ram.Clone(); return; }
+            int n = 0;
+            for (int i = 0; i < ram.Length; i++) if (ram[i] != prev[i]) n++;
+            rows.Add((frame, n));
+            Array.Copy(ram, prev, ram.Length);
+        });
+
+        double avg = rows.Count > 0 ? rows.Average(r => r.changed) : 0;
+        Console.WriteLine($"{Path.GetFileName(path)} ({h.Game}) - bytes changed since the previous sample");
+        Console.WriteLine($"average {avg:F0}. Bars are relative to the busiest sample.");
+        Console.WriteLine();
+
+        int max = rows.Count > 0 ? rows.Max(r => r.changed) : 1;
+        foreach (var (frame, changed) in rows)
+        {
+            int bar = max > 0 ? changed * 48 / max : 0;
+            string mark = changed > avg * 2.5 ? " <<<" : "";
+            Console.WriteLine($"  f{frame,-6} {frame / 60,4}s {changed,6}  {new string('#', bar)}{mark}");
+        }
     }
 
     private static void Dump(string path, uint addr, int width)
