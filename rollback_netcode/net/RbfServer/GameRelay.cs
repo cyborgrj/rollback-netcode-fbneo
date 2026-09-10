@@ -46,6 +46,10 @@ namespace Rbf.Server
         private readonly Dictionary<IPEndPoint, (string Match, int Side)> _byEndpoint =
             new Dictionary<IPEndPoint, (string, int)>();
 
+        // Sources we have already complained about, so a stream of game packets
+        // from an unregistered endpoint cannot flood the journal.
+        private readonly HashSet<IPEndPoint> _orphans = new HashSet<IPEndPoint>();
+
         private readonly UdpClient _udp;
 
         public int Port { get; }
@@ -123,10 +127,22 @@ namespace Rbf.Server
                 }
             }
 
-            // An unknown source is either a stale match or somebody poking the
-            // port; either way there is nowhere to send it.
             if (other != null)
+            {
                 try { _udp.Send(r.Buffer, r.Buffer.Length, other); } catch { }
+                return;
+            }
+
+            // Nowhere to send it. Usually somebody poking the port, but it is
+            // also what a NAT looks like when it hands the game traffic a
+            // different mapping than it gave the registration - in which case
+            // relaying silently does nothing at all, and this line is the only
+            // way to tell that apart from a firewall.
+            lock (_gate)
+            {
+                if (_orphans.Count < 256 && _orphans.Add(r.RemoteEndPoint))
+                    Console.WriteLine($"! game relay: {r.Buffer.Length} bytes from unregistered {r.RemoteEndPoint}");
+            }
         }
 
         private static bool IsRegistration(byte[] buf, out string matchId, out int side)
