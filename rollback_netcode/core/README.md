@@ -123,3 +123,23 @@ O libggpo está vendorizado em `rollback_netcode/third_party/ggpo/` (git subtree
 
 Tudo aqui roda na **thread de emulação**. O agente gRPC enfileira comandos que a
 thread de emulação drena entre os ticks; ele não pode chamar isto direto.
+
+---
+
+# Travessia de NAT — três camadas
+
+Nenhuma delas resolve tudo sozinha; é por isso que existem três.
+
+| módulo | o que faz | o que **não** resolve |
+|---|---|---|
+| [`port_map`](port_map.h) | pede ao roteador de casa um mapeamento UDP explícito, por UPnP IGD | NAT da operadora (CGNAT) — não se faz UPnP no equipamento dela |
+| [`nat_punch`](nat_punch.h) | abre os dois NATs pelo rendezvous e devolve o veredito do servidor | NAT simétrico, que troca o mapeamento a cada destino |
+| relay UDP (no servidor) | repassa o tráfego do jogo quando as duas acima falham | nada — mas soma os dois pings até o servidor |
+
+Um mapeamento explícito **não** é por destino, então o `port_map` recupera
+justamente o caso que o punch perde num roteador doméstico. Sobra o CGNAT, que
+vai para o relay.
+
+Quem escolhe é o **servidor**, não o emulador: cada lado só enxerga o próprio
+NAT, e um veredito dividido (um relayando enquanto o outro mira um endereço
+público) não se encontra em lugar nenhum. Ver `PunchServer.DecideMode`.

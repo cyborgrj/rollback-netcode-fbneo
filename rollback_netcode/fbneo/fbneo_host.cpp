@@ -14,6 +14,7 @@
 #include "../core/ggpo_bridge.h"
 #include "../core/nat_punch.h"
 #include "../core/relay.h"
+#include "../core/port_map.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -304,6 +305,14 @@ int FbnHostStart(const FbnHostConfig* cfg)
 	       bc.szGameId, bc.nLocalPlayer, bc.nPlayers, g_inputPlayer,
 	       bc.nLocalPort, bc.szRemoteIp, bc.nRemotePort, bc.nFrameDelay);
 
+	// Ask the router for an explicit mapping first. This is what turns a home
+	// router with a per-destination NAT back into a direct connection: an
+	// explicit mapping is not per-destination, so the endpoint the rendezvous
+	// observes is reachable from anywhere. Useless against a carrier NAT - you
+	// cannot UPnP your operator - and those pairs still go to the relay.
+	if (PortMapOpenUdp(bc.nLocalPort, RbfLogLine) != PORT_MAP_OK)
+		RbfLog("upnp: no mapping - relying on hole punching alone");
+
 	// NAT hole punching, if the lobby gave us a rendezvous. Must run BEFORE the
 	// GGPO session so it can use the very port libggpo is about to bind.
 	if (g_cfg.szPunchIp[0] && g_cfg.nPunchPort && g_cfg.szMatchId[0]) {
@@ -535,6 +544,7 @@ void FbnHostStop(void)
 		} else {
 			GgpoBridgeClose();
 			RelayPublishStop();
+			PortMapClose();
 			RbfLog("session closed.");
 		}
 		g_active = 0;
