@@ -40,6 +40,10 @@ typedef struct FbnHostConfig {
 	unsigned short nPunchPort;
 	char           szMatchId[40];
 
+	// udp port of the game relay on the SAME host as the rendezvous. Used when
+	// the rendezvous rules that this pair cannot be punched. 0 = no relay.
+	unsigned short nGameRelayPort;
+
 	// Spectator relay (optional). Side 1 publishes the match here so others can
 	// watch it; side 2 ignores these. The names are only shown to viewers.
 	char           szRelayIp[64];

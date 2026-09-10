@@ -236,8 +236,14 @@ namespace RbfLauncher
             // public endpoint back. Without it we keep the server-observed peer_ip,
             // which only works on a LAN or with port forwarding.
             if (ms.PunchPort > 0 && !string.IsNullOrWhiteSpace(_config.ServerHost))
+            {
                 args += string.Format(",punchip={0},punchport={1},matchid={2}",
                                       _config.ServerHost, ms.PunchPort, ms.MatchId);
+                // Where the match goes if the rendezvous rules the pair cannot be
+                // punched. The emulator only uses it on that verdict.
+                if (ms.GameRelayPort > 0)
+                    args += string.Format(",gamerelay={0}", ms.GameRelayPort);
+            }
 
             // Side 1 broadcasts the match to the relay so it can be watched. Both
             // sides get the arguments; the emulator ignores them unless it is P1.

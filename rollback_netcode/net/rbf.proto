@@ -141,6 +141,10 @@ message MatchStart {
   // from the very UDP port libggpo will bind, and the rendezvous hands each the
   // other's PUBLIC endpoint. 0 disables it (LAN / port-forwarded setups).
   int32  punch_port    = 10;
+
+  // Where the game traffic goes when the rendezvous decides the pair cannot be
+  // punched (a carrier NAT that remaps per destination). udp, same host. 0 = off.
+  int32  game_relay_port = 11;
 }
 message MatchAborted { string match_id = 1; string reason = 2; }
 

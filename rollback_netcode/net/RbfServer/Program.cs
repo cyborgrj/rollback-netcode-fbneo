@@ -11,7 +11,8 @@ namespace Rbf.Server
         {
             int port = 50051;
             int punchPort = 0;          // 0 => port + 1
-            int relayPort = 0;          // 0 => port + 2
+            int relayPort = 0;          // 0 => port + 2  (tcp, spectators)
+            int gamePort  = 0;          // 0 => port + 3  (udp, relayed matches)
             int frameDelay = 2;
             string bind = "0.0.0.0";
 
@@ -20,6 +21,7 @@ namespace Rbf.Server
                 if (args[i] == "--port") int.TryParse(args[i + 1], out port);
                 else if (args[i] == "--punch-port") int.TryParse(args[i + 1], out punchPort);
                 else if (args[i] == "--relay-port") int.TryParse(args[i + 1], out relayPort);
+                else if (args[i] == "--game-relay-port") int.TryParse(args[i + 1], out gamePort);
                 else if (args[i] == "--frame-delay") int.TryParse(args[i + 1], out frameDelay);
                 else if (args[i] == "--bind") bind = args[i + 1];
             }
@@ -28,9 +30,14 @@ namespace Rbf.Server
             LobbyService.LogRequests = Array.IndexOf(args, "--quiet") < 0;
             if (punchPort <= 0) punchPort = port + 1;
             if (relayPort <= 0) relayPort = port + 2;
+            if (gamePort  <= 0) gamePort  = port + 3;
 
             if (frameDelay < 0 || frameDelay > 10) frameDelay = 2;
-            var hub = new Hub { PunchPort = punchPort, RelayPort = relayPort, FrameDelay = frameDelay };
+            var hub = new Hub
+            {
+                PunchPort = punchPort, RelayPort = relayPort,
+                GameRelayPort = gamePort, FrameDelay = frameDelay,
+            };
 
             // Keepalive so a client that dies without a clean FIN is reaped
             // instead of lingering as a ghost session holding its name.
@@ -50,10 +57,26 @@ namespace Rbf.Server
             server.Start();
 
             var cts = new CancellationTokenSource();
+
+            // The game relay doubles as the rendezvous' second vantage point, so it
+            // has to exist before the rendezvous starts answering.
+            GameRelay game = null;
+            try
+            {
+                game = new GameRelay(bind, gamePort);
+                game.Start(cts.Token);
+            }
+            catch (Exception ex)
+            {
+                // Punchable pairs still play; symmetric ones simply cannot.
+                Console.WriteLine($"! could not open the game relay on udp/{gamePort}: {ex.Message}");
+                hub.GameRelayPort = 0;
+            }
+
             PunchServer punch = null;
             try
             {
-                punch = new PunchServer(bind, punchPort);
+                punch = new PunchServer(bind, punchPort) { Relay = game };
                 punch.Start(cts.Token);
             }
             catch (Exception ex)
@@ -79,7 +102,7 @@ namespace Rbf.Server
             }
 
             Console.WriteLine($"RBF lobby on {bind}:{port}/tcp  (insecure h2c)");
-            Console.WriteLine($"Open on the firewall:  tcp/{port}, tcp/{relayPort}  and  udp/{punchPort}");
+            Console.WriteLine($"Open on the firewall:  tcp/{port}, tcp/{relayPort}  and  udp/{punchPort}, udp/{gamePort}");
             Console.WriteLine("Ctrl+C to stop.");
 
             var done = new ManualResetEventSlim(false);

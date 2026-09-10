@@ -307,26 +307,33 @@ int FbnHostStart(const FbnHostConfig* cfg)
 	// NAT hole punching, if the lobby gave us a rendezvous. Must run BEFORE the
 	// GGPO session so it can use the very port libggpo is about to bind.
 	if (g_cfg.szPunchIp[0] && g_cfg.nPunchPort && g_cfg.szMatchId[0]) {
-		char szPeer[64] = "";
-		unsigned short nPeer = 0;
-		int bSameNat = 0;
-		int rc = NatPunchResolvePeer(g_cfg.szPunchIp, g_cfg.nPunchPort, g_cfg.szMatchId,
-		                             bc.nLocalPlayer, bc.nLocalPort,
-		                             szPeer, sizeof(szPeer), &nPeer, &bSameNat, 15000, RbfLogLine);
-		if (rc == NAT_PUNCH_OK && bSameNat) {
+		NatPunchPlan plan;
+		int rc = NatPunchResolvePeer(g_cfg.szPunchIp, g_cfg.nPunchPort, g_cfg.nGameRelayPort,
+		                             g_cfg.szMatchId, bc.nLocalPlayer, bc.nLocalPort,
+		                             &plan, 15000, RbfLogLine);
+		if (rc != NAT_PUNCH_OK) {
+			RbfLog("nat punch failed (%d) - falling back to %s:%d (LAN / port-forward)",
+			       rc, bc.szRemoteIp, bc.nRemotePort);
+		} else if (plan.mode == NAT_PUNCH_MODE_LAN) {
 			// Same router: the lobby already handed us the peer's LAN address,
 			// which beats asking that router to hairpin its own WAN address.
 			RbfLog("nat punch: same NAT - keeping the LAN peer %s:%d",
 			       bc.szRemoteIp, bc.nRemotePort);
-		} else if (rc == NAT_PUNCH_OK) {
-			RbfLog("nat punch OK: peer %s:%d (lobby had said %s:%d)",
-			       szPeer, nPeer, bc.szRemoteIp, bc.nRemotePort);
-			strncpy(bc.szRemoteIp, szPeer, sizeof(bc.szRemoteIp) - 1);
+		} else if (plan.mode == NAT_PUNCH_MODE_RELAY && g_cfg.nGameRelayPort) {
+			// Point libggpo at the relay and let it believe that IS the peer.
+			// Every packet it receives then comes from that one address, so its
+			// own peer-address check passes and no libggpo change is needed.
+			RbfLog("relaying the match through %s:%d (symmetric NAT)",
+			       g_cfg.szPunchIp, g_cfg.nGameRelayPort);
+			strncpy(bc.szRemoteIp, g_cfg.szPunchIp, sizeof(bc.szRemoteIp) - 1);
 			bc.szRemoteIp[sizeof(bc.szRemoteIp) - 1] = 0;
-			bc.nRemotePort = nPeer;
+			bc.nRemotePort = g_cfg.nGameRelayPort;
 		} else {
-			RbfLog("nat punch failed (%d) - falling back to %s:%d (LAN / port-forward)",
-			       rc, bc.szRemoteIp, bc.nRemotePort);
+			RbfLog("nat punch OK: peer %s:%d (lobby had said %s:%d)",
+			       plan.szPeerIp, plan.nPeerPort, bc.szRemoteIp, bc.nRemotePort);
+			strncpy(bc.szRemoteIp, plan.szPeerIp, sizeof(bc.szRemoteIp) - 1);
+			bc.szRemoteIp[sizeof(bc.szRemoteIp) - 1] = 0;
+			bc.nRemotePort = plan.nPeerPort;
 		}
 	}
 

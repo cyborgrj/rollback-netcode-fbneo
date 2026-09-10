@@ -27,21 +27,22 @@ static void punch_log(void (*pfnLog)(const char*), const char* fmt, ...)
     pfnLog(buf);
 }
 
-int NatPunchResolvePeer(const char*     szRendezvousHost,
-                        unsigned short  nRendezvousPort,
-                        const char*     szMatchId,
-                        int             nSide,
-                        unsigned short  nLocalPort,
-                        char*           szOutPeerIp,
-                        int             nOutPeerIpLen,
-                        unsigned short* pOutPeerPort,
-                        int*            pbOutSameNat,
-                        int             nTimeoutMs,
-                        void          (*pfnLog)(const char*))
+int NatPunchResolvePeer(const char*      szRendezvousHost,
+                        unsigned short   nRendezvousPort,
+                        unsigned short   nGameRelayPort,
+                        const char*      szMatchId,
+                        int              nSide,
+                        unsigned short   nLocalPort,
+                        NatPunchPlan*  out,
+                        int              nTimeoutMs,
+                        void           (*pfnLog)(const char*))
 {
     if (!szRendezvousHost || !*szRendezvousHost || !szMatchId || !*szMatchId ||
-        !szOutPeerIp || nOutPeerIpLen < 16 || !pOutPeerPort || nRendezvousPort == 0)
+        !out || nRendezvousPort == 0)
         return NAT_PUNCH_ERR_ARG;
+
+    memset(out, 0, sizeof(*out));
+    out->mode = NAT_PUNCH_MODE_DIRECT;
 
     // libggpo/FBNeo have not started Winsock yet at this point.
     WSADATA wsad;
@@ -83,19 +84,31 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
         return NAT_PUNCH_ERR_BIND;
     }
 
+    // The relay is on the same host as the rendezvous, so it is the same address
+    // with a different port - no second lookup needed.
+    struct sockaddr_in relay = srv;
+    relay.sin_port = htons(nGameRelayPort);
+
     char szReg[160];
     int nReg = _snprintf(szReg, sizeof(szReg) - 1, "RBF1 REG %s %d\n", szMatchId, nSide);
     if (nReg < 0) nReg = 0;
+
+    char szGreg[160];
+    int nGreg = _snprintf(szGreg, sizeof(szGreg) - 1, "RBF1 GREG %s %d\n", szMatchId, nSide);
+    if (nGreg < 0) nGreg = 0;
 
     char szPeerIp[64] = "";
     unsigned int nPeerPort = 0;
     int bGotPeer = 0;
     char szSelfIp[64] = "";
-    if (pbOutSameNat) *pbOutSameNat = 0;
 
     DWORD tStart = GetTickCount();
     while (!bGotPeer && (int)(GetTickCount() - tStart) < nTimeoutMs) {
         sendto(s, szReg, nReg, 0, (struct sockaddr*)&srv, sizeof(srv));
+        // Registering at the relay from this same socket is what lets the
+        // rendezvous compare the two source endpoints and spot a NAT that
+        // remaps per destination.
+        if (nGameRelayPort) sendto(s, szGreg, nGreg, 0, (struct sockaddr*)&relay, sizeof(relay));
 
         fd_set rf;
         FD_ZERO(&rf);
@@ -114,12 +127,19 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
         buf[n] = '\0';
 
         char ip[64];
+        char szMode[16] = "";
         unsigned int port = 0;
-        if (sscanf(buf, "RBF1 PEER %63s %u", ip, &port) == 2 && port != 0) {
+        if (sscanf(buf, "RBF1 PEER %63s %u %15s", ip, &port, szMode) >= 2 && port != 0) {
             strncpy(szPeerIp, ip, sizeof(szPeerIp) - 1);
             szPeerIp[sizeof(szPeerIp) - 1] = '\0';
             nPeerPort = port;
             bGotPeer  = 1;
+            // An older server sends no mode; DIRECT is what it always meant.
+            if      (strcmp(szMode, "relay") == 0) out->mode = NAT_PUNCH_MODE_RELAY;
+            else if (strcmp(szMode, "lan")   == 0) out->mode = NAT_PUNCH_MODE_LAN;
+            else                                   out->mode = NAT_PUNCH_MODE_DIRECT;
+        } else if (sscanf(buf, "RBF1 GSELF %63s %u", ip, &port) == 2) {
+            /* the relay saw us too - nothing to do, the rendezvous compares them */
         } else if (sscanf(buf, "RBF1 SELF %63s %u", ip, &port) == 2) {
             strncpy(szSelfIp, ip, sizeof(szSelfIp) - 1);
             szSelfIp[sizeof(szSelfIp) - 1] = '\0';
@@ -127,16 +147,18 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
         }
     }
 
-    // Both of us seen at the same public address means we are behind the same
-    // router. Reaching each other through it would need a hairpin, and a router
-    // that hairpins in only one direction leaves one side deaf while the other
-    // synchronises happily - which is exactly what a one-sided handshake looks
-    // like. The LAN address the lobby already gave us is better in every way.
-    int bSameNat = (bGotPeer && szSelfIp[0] && strcmp(szSelfIp, szPeerIp) == 0);
-    if (pbOutSameNat) *pbOutSameNat = bSameNat;
+    // A server too old to send a verdict still tells us both public addresses,
+    // and equal addresses mean one router in front of both of us.
+    if (bGotPeer && out->mode == NAT_PUNCH_MODE_DIRECT &&
+        szSelfIp[0] && strcmp(szSelfIp, szPeerIp) == 0)
+        out->mode = NAT_PUNCH_MODE_LAN;
 
-    if (bSameNat) {
+    if (bGotPeer && out->mode == NAT_PUNCH_MODE_LAN) {
         punch_log(pfnLog, "nat punch: peer is behind the same NAT as us (%s) - staying on the LAN", szSelfIp);
+    } else if (bGotPeer && out->mode == NAT_PUNCH_MODE_RELAY) {
+        // No point punching: our NAT hands out a different mapping per
+        // destination, so the endpoint the peer was given is good for nobody.
+        punch_log(pfnLog, "nat punch: NAT simetrico - a partida vai pelo relay udp/%u", (unsigned)nGameRelayPort);
     } else if (bGotPeer) {
         punch_log(pfnLog, "nat punch: peer public endpoint %s:%u - opening NAT", szPeerIp, nPeerPort);
 
@@ -151,9 +173,9 @@ int NatPunchResolvePeer(const char*     szRendezvousHost,
             }
         }
 
-        strncpy(szOutPeerIp, szPeerIp, nOutPeerIpLen - 1);
-        szOutPeerIp[nOutPeerIpLen - 1] = '\0';
-        *pOutPeerPort = (unsigned short)nPeerPort;
+        strncpy(out->szPeerIp, szPeerIp, sizeof(out->szPeerIp) - 1);
+        out->szPeerIp[sizeof(out->szPeerIp) - 1] = '\0';
+        out->nPeerPort = (unsigned short)nPeerPort;
     } else {
         punch_log(pfnLog, "nat punch: peer never registered within %d ms", nTimeoutMs);
     }

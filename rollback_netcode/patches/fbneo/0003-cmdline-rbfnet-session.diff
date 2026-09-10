@@ -19,7 +19,7 @@ index 8882b27..3db5a03 100644
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..16fc0d3 100644
+index 9039ec6..dbfcbb9 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
 @@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
@@ -45,7 +45,7 @@ index 9039ec6..16fc0d3 100644
  	// Suppresses ROMs scanning when full list is exported
  	if (-1 == nExport) {
  		// Build the ROM information
-@@ -1041,6 +1050,113 @@ static void tp_validate()
+@@ -1041,6 +1050,114 @@ static void tp_validate()
  	return;
  }
  
@@ -87,6 +87,7 @@ index 9039ec6..16fc0d3 100644
 +		else if (_tcscmp(key, _T("peerport"))  == 0) cfg->nRemotePort  = (unsigned short)_ttoi(val);
 +		else if (_tcscmp(key, _T("delay"))     == 0) cfg->nFrameDelay  = _ttoi(val);
 +		else if (_tcscmp(key, _T("punchport")) == 0) cfg->nPunchPort   = (unsigned short)_ttoi(val);
++		else if (_tcscmp(key, _T("gamerelay")) == 0) cfg->nGameRelayPort = (unsigned short)_ttoi(val);
 +		else if (_tcscmp(key, _T("peerip"))    == 0) {
 +			char* a = TCHARToANSI(val, NULL, 0);
 +			strncpy(cfg->szRemoteIp, a, sizeof(cfg->szRemoteIp) - 1);
@@ -159,7 +160,7 @@ index 9039ec6..16fc0d3 100644
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1521,30 @@ int ProcessCmdLine()
+@@ -1405,6 +1522,30 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();

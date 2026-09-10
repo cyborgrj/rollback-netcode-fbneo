@@ -91,6 +91,9 @@ namespace Rbf.Server
         // tcp/ port of the spectator relay, handed to clients in Welcome. 0 = off.
         public int RelayPort { get; set; }
 
+        // udp/ port that relays game traffic for pairs the rendezvous cannot punch.
+        public int GameRelayPort { get; set; }
+
         // How many people are watching a match, or -1 when it is not being
         // published. Supplied by the relay; null means nothing is watchable.
         public Func<string, int> WatchViewers { get; set; }
@@ -347,6 +350,7 @@ namespace Rbf.Server
                     FrameDelay = m.FrameDelay,
                     PeerUsername = peer.Username,
                     PunchPort = PunchPort,
+                    GameRelayPort = GameRelayPort,
                 }
             });
         }

@@ -26,15 +26,27 @@ namespace Rbf.Server
             public IPEndPoint Side1;
             public IPEndPoint Side2;
             public DateTime Seen = DateTime.UtcNow;
+            public DateTime First = DateTime.UtcNow;
         }
 
         private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(3);
+
+        // How long to wait for both peers to show up at the game relay before
+        // ruling without it. They re-announce every 250ms, so this is a handful
+        // of retries - long enough to hear from a slow phone, short enough that a
+        // blocked relay port only costs a second and a half.
+        private static readonly TimeSpan RelayGrace = TimeSpan.FromMilliseconds(1500);
 
         private readonly object _gate = new object();
         private readonly Dictionary<string, Reg> _regs = new Dictionary<string, Reg>(StringComparer.OrdinalIgnoreCase);
         private readonly UdpClient _udp;
 
         public int Port { get; }
+
+        /// <summary>The game relay, used here purely as a second vantage point: a
+        /// NAT that remaps per destination shows a different source endpoint
+        /// there than it does here, and that pair has to be relayed.</summary>
+        public GameRelay Relay { get; set; }
 
         public PunchServer(string bind, int port)
         {
@@ -104,11 +116,71 @@ namespace Rbf.Server
 
             if (theirs != null)
             {
+                // One verdict for BOTH sides. Letting each emulator judge its own
+                // NAT would be worse than useless: the symmetric peer would move
+                // to the relay while the other kept aiming at its public endpoint,
+                // and nothing would meet in the middle.
+                string mode = DecideMode(matchId, mine, theirs);
+                // Null means the relay has not seen both peers yet and there is
+                // still time. Answering now would lock in "direct" before the
+                // evidence arrived; the peers are still re-announcing anyway.
+                if (mode == null) return;
+
                 // Idempotent: peers keep re-announcing until they get this, so
                 // answering on every REG is exactly the retry behaviour we want.
-                Send($"RBF1 PEER {theirs.Address} {theirs.Port}\n", mine);
-                Send($"RBF1 PEER {mine.Address} {mine.Port}\n", theirs);
-                Console.WriteLine($"~ punch {matchId}: {mine} <-> {theirs}");
+                Send($"RBF1 PEER {theirs.Address} {theirs.Port} {mode}\n", mine);
+                Send($"RBF1 PEER {mine.Address} {mine.Port} {mode}\n", theirs);
+                Console.WriteLine($"~ punch {matchId}: {mine} <-> {theirs}  [{mode}]");
+            }
+        }
+
+        /// <summary>direct / lan / relay, decided once for the pair.</summary>
+        private string DecideMode(string matchId, IPEndPoint a, IPEndPoint b)
+        {
+            // Same public address means one router in front of both. Reaching each
+            // other through it needs a hairpin, which plenty of consumer routers do
+            // in one direction only; the LAN address the lobby already handed out
+            // is better in every way.
+            if (a.Address.Equals(b.Address)) return "lan";
+
+            if (Relay == null) return "direct";
+
+            // Symmetric NAT: the endpoint seen here differs from the one the relay
+            // sees, because the mapping is made per destination. The mapping we
+            // would hand the peer is then good for nobody but us, and no amount of
+            // punching fixes that - the pair has to be relayed.
+            bool have1 = Relay.ObservedEndpoint(matchId, 1) != null;
+            bool have2 = Relay.ObservedEndpoint(matchId, 2) != null;
+            if (!have1 || !have2)
+                return WithinGrace(matchId) ? null : "direct";
+
+            if (IsSymmetric(matchId, 1) || IsSymmetric(matchId, 2)) return "relay";
+
+            return "direct";
+        }
+
+        private bool WithinGrace(string matchId)
+        {
+            lock (_gate)
+                return _regs.TryGetValue(matchId, out var reg) &&
+                       DateTime.UtcNow - reg.First < RelayGrace;
+        }
+
+        private bool IsSymmetric(string matchId, int side)
+        {
+            var here = ObservedHere(matchId, side);
+            var there = Relay.ObservedEndpoint(matchId, side);
+            // Not registered at the relay yet: say nothing rather than guess.
+            if (here == null || there == null) return false;
+            return !here.Equals(there);
+        }
+
+        private IPEndPoint ObservedHere(string matchId, int side)
+        {
+            lock (_gate)
+            {
+                if (!_regs.TryGetValue(matchId, out var reg)) return null;
+                return side == 1 ? reg.Side1 : reg.Side2;
             }
         }
 

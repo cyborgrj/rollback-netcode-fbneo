@@ -36,25 +36,40 @@ enum NatPunchResult {
     NAT_PUNCH_ERR_TIMEOUT = -5    // peer never showed up at the rendezvous
 };
 
-// Blocks for at most nTimeoutMs. On NAT_PUNCH_OK, szOutPeerIp / pOutPeerPort
-// hold the peer's PUBLIC endpoint, ready to hand to ggpo_add_player.
+// How the two peers should reach each other. The RENDEZVOUS decides this, not
+// the emulator: it is the only party that sees both NATs, and a split verdict
+// (one side relaying while the other aims at a public endpoint) meets nowhere.
+typedef enum {
+    NAT_PUNCH_MODE_DIRECT = 0,  // use the peer's public endpoint below
+    NAT_PUNCH_MODE_LAN    = 1,  // same router: keep the LAN address the lobby gave
+    NAT_PUNCH_MODE_RELAY  = 2   // symmetric NAT: send everything to the game relay
+} NatPunchMode;
+
+typedef struct NatPunchPlan {
+    NatPunchMode   mode;
+    char           szPeerIp[64];   // peer's PUBLIC endpoint (DIRECT only)
+    unsigned short nPeerPort;
+} NatPunchPlan;
+
+// Blocks for at most nTimeoutMs, then fills `out`.
 //
-// pbOutSameNat (optional) comes back 1 when the rendezvous saw BOTH of us at the
-// same public address - i.e. we are on the same LAN. Talking through the public
-// address then means asking the router to hairpin, which plenty of consumer
-// routers do in only one direction; the caller should use the LAN address it
-// already has instead. pfnLog is optional and receives progress lines.
-int NatPunchResolvePeer(const char*     szRendezvousHost,
-                        unsigned short  nRendezvousPort,
-                        const char*     szMatchId,
-                        int             nSide,          // 1 or 2
-                        unsigned short  nLocalPort,     // the port libggpo will bind
-                        char*           szOutPeerIp,
-                        int             nOutPeerIpLen,
-                        unsigned short* pOutPeerPort,
-                        int*            pbOutSameNat,
-                        int             nTimeoutMs,
-                        void          (*pfnLog)(const char*));
+// nGameRelayPort is the udp port of the relay on the SAME host. We register
+// there from this very socket, which does two jobs at once: it primes the relay
+// in case the verdict is RELAY, and it gives the rendezvous a second vantage
+// point on our NAT. A NAT that remaps per destination shows a different source
+// endpoint at the two ports, and that is precisely the case hole punching cannot
+// win. Pass 0 to skip the probe (no relay configured).
+//
+// pfnLog is optional and receives one-line progress messages.
+int NatPunchResolvePeer(const char*      szRendezvousHost,
+                        unsigned short   nRendezvousPort,
+                        unsigned short   nGameRelayPort,
+                        const char*      szMatchId,
+                        int              nSide,          // 1 or 2
+                        unsigned short   nLocalPort,     // the port libggpo will bind
+                        NatPunchPlan*  out,
+                        int              nTimeoutMs,
+                        void           (*pfnLog)(const char*));
 
 #ifdef __cplusplus
 }
