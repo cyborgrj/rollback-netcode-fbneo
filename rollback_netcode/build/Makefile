@@ -1,5 +1,5 @@
 # Builds  librollbackfbneo.a  =  core (state_ring, ggpo_bridge, nat_punch, relay, port_map)
-#                             +  fbneo_host
+#                             +  fbneo_host, ram_probe
 #                             +  vendored libggpo
 #
 # This .a is linked into the FBNeo MinGW build by
@@ -56,6 +56,7 @@ OUR_SRC += $(ROOT)/core/nat_punch.cpp
 OUR_SRC += $(ROOT)/core/relay.cpp
 OUR_SRC += $(ROOT)/core/port_map.cpp
 OUR_SRC += $(ROOT)/fbneo/fbneo_host.cpp
+OUR_SRC += $(ROOT)/fbneo/ram_probe.cpp
 
 GGPO_SRC :=
 GGPO_SRC += $(GGPO)/lib/ggpo/bitvector.cpp

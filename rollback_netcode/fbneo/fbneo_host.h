@@ -79,6 +79,10 @@ int  FbnHostIsWatching(void);
 //  <0  => fatal; caller should FbnHostStop()
 int  FbnHostRunFrame(int bDraw);
 
+// Append one line to rbf-netplay.log, the emulator-side diagnostic log. Shared
+// so every module that runs inside the emulator writes to one place, in order.
+void FbnHostLogLine(const char* s);
+
 // diagnostics (emu thread) - snapshots for the gRPC agent
 int       FbnHostInputBytesPerPlayer(void);
 long long FbnHostFrameCount(void);

@@ -1,36 +1,39 @@
 diff --git a/src/burner/win32/drv.cpp b/src/burner/win32/drv.cpp
-index 8882b27..3db5a03 100644
+index 8882b27..5a1ca8e 100644
 --- a/src/burner/win32/drv.cpp
 +++ b/src/burner/win32/drv.cpp
-@@ -2,6 +2,7 @@
+@@ -2,6 +2,8 @@
  #include "burner.h"
  #include "neocdlist.h"
  #include "pcecdlist.h"
 +#include "fbneo_host.h"		// rollback_netcode: libggpo session host
++#include "ram_probe.h"		// rollback_netcode: work RAM sampling
  
  int bDrvOkay = 0;						// 1 if the Driver has been initted okay, and it's okay to use the BurnDrv functions
  
-@@ -314,6 +315,7 @@ int DrvInitCallback()
+@@ -314,6 +316,8 @@ int DrvInitCallback()
  int DrvExit()
  {
  	if (bDrvOkay) {
 +		FbnHostStop();				// rollback_netcode: close any GGPO session
++		RamProbeRecordStop();		// rollback_netcode: close any -rbfprobe recording
  		NeoCDZRateChangeback();
  		StopReplay();
  		VidExit();
 diff --git a/src/burner/win32/main.cpp b/src/burner/win32/main.cpp
-index 9039ec6..dbfcbb9 100644
+index 9039ec6..f27583f 100644
 --- a/src/burner/win32/main.cpp
 +++ b/src/burner/win32/main.cpp
-@@ -25,6 +25,7 @@ bool bDisableDebugConsole = true;
+@@ -25,6 +25,8 @@ bool bDisableDebugConsole = true;
  #endif
  
  #include "version.h"
 +#include "fbneo_host.h"		// rollback_netcode: libggpo session host
++#include "ram_probe.h"		// rollback_netcode: work RAM sampling (-rbfprobe)
  
  HINSTANCE hAppInst = NULL;			// Application Instance
  HANDLE hMainThread;
-@@ -863,6 +864,14 @@ static int AppInit()
+@@ -863,6 +865,15 @@ static int AppInit()
  	//  2 Silent + specified path
  	INT32 nExport = ParseExportPath(szCmdLine, NULL, NULL);
  
@@ -38,6 +41,7 @@ index 9039ec6..dbfcbb9 100644
 +	// ROM audit (variable length -> desyncs the two peers' start). -rbfnet or an
 +	// explicit -noscan suppresses it for this run.
 +	if (_tcsstr(szCmdLine, _T("-rbfnet ")) || _tcsstr(szCmdLine, _T("-rbfwatch ")) ||
++	    _tcsstr(szCmdLine, _T("-rbfprobe")) ||
 +	    _tcsstr(szCmdLine, _T("-noscan"))) {
 +		bSkipStartupCheck = true;
 +	}
@@ -45,10 +49,33 @@ index 9039ec6..dbfcbb9 100644
  	// Suppresses ROMs scanning when full list is exported
  	if (-1 == nExport) {
  		// Build the ROM information
-@@ -1041,6 +1050,114 @@ static void tp_validate()
+@@ -1041,6 +1052,137 @@ static void tp_validate()
  	return;
  }
  
++// rollback_netcode: parse  -rbfprobe  (optionally  -rbfprobe interval=30)
++// Arms the work-RAM recorder for this run. Returns the sample interval in
++// frames, or 0 when the flag is absent.
++//
++// This is a calibration tool: it writes a few megabytes per match, and the
++// file is what turns into the per-game scoreboard table. Nothing about a
++// normal match, online or off, touches it.
++static int RbfParseProbe()
++{
++	TCHAR* p = _tcsstr(szCmdLine, _T("-rbfprobe"));
++	if (p == NULL) return 0;
++	p += _tcslen(_T("-rbfprobe"));
++
++	// The interval is the one thing worth tuning by hand, and only when a
++	// match is long enough that half-second samples make an awkward file.
++	TCHAR* eq = _tcsstr(p, _T("interval="));
++	if (eq != NULL && (eq - p) < 8) {
++		int n = _ttoi(eq + _tcslen(_T("interval=")));
++		if (n > 0 && n <= 600) return n;
++	}
++	return 30;		// two samples a second
++}
++
 +// rollback_netcode: parse  -rbfnet player=1,localport=7000,peerip=1.2.3.4,peerport=7000,delay=2
 +// from the command line into an FbnHostConfig. Returns true when a usable config
 +// was found (peer ip + both ports present). Independent of FBNeo's own option
@@ -160,7 +187,7 @@ index 9039ec6..dbfcbb9 100644
  int ProcessCmdLine()
  {
  	unsigned int i;
-@@ -1405,6 +1522,30 @@ int ProcessCmdLine()
+@@ -1405,6 +1547,33 @@ int ProcessCmdLine()
  					}
  
  					IpsPatchExit();
@@ -169,6 +196,9 @@ index 9039ec6..dbfcbb9 100644
 +					// viewer, -rbfnet opens a GGPO session of our own. Watching is
 +					// checked first: the two are never both meaningful.
 +					if (bDrvOkay) {
++						int nProbe = RbfParseProbe();
++						if (nProbe > 0) RamProbeRecordStart(nProbe, FbnHostLogLine);
++
 +						FbnWatchConfig rbfWatch;
 +						FbnHostConfig  rbfCfg;
 +						if (RbfParseWatchCfg(&rbfWatch)) {

@@ -49,8 +49,12 @@ static void RbfLog(const char* fmt, ...)
 	fclose(f);
 }
 
-// plain callback shape for modules that take a logger (nat_punch)
+// plain callback shape for modules that take a logger (nat_punch, ram_probe)
 static void RbfLogLine(const char* s) { RbfLog("%s", s ? s : ""); }
+
+// ...and the same thing for the FBNeo side of the fence, which has no other way
+// to reach this log.
+void FbnHostLogLine(const char* s) { RbfLogLine(s); }
 
 // ===========================================================================
 //  Driver-input map:  FBNeo digital inputs  <->  per-player bit index

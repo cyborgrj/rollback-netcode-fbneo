@@ -9,10 +9,10 @@ build — com a lógica de verdade morando em `rollback_netcode/`. Isso deixa o
 
 | patch | mexe em | propósito |
 |-------|---------|-----------|
-| `0001-run-cpp-ggpo-tick.diff` | `src/burner/win32/run.cpp` | rotear o passo de emulação por frame via `FbnHostRunFrame()` quando uma sessão de rollback está ativa; fechar a janela quando uma transmissão assistida acaba |
+| `0001-run-cpp-ggpo-tick.diff` | `src/burner/win32/run.cpp` | rotear o passo de emulação por frame via `FbnHostRunFrame()` quando uma sessão de rollback está ativa; fechar a janela quando uma transmissão assistida acaba; uma chamada a `RamProbeFrame()` por frame emulado |
 | `0002-mingw-link-rollback.diff` | `makefile.mingw` | `-I` para achar `fbneo_host.h` + linkar `../rollback_netcode/build/librollbackfbneo.a -lws2_32` |
 | `0004-netplay-lockdown.diff` | `src/burner/win32/scrn.cpp` | durante uma partida: bloqueia qualquer pausa (`SetPauseMode`, pausa por perda de foco, pausa do menu) e deixa passar só os itens de vídeo inofensivos no `OnCommand` |
-| `0003-cmdline-rbfnet-session.diff` | `src/burner/win32/main.cpp`, `drv.cpp` | parse de `-rbfnet player=..,localport=..,peerip=..,peerport=..,delay=..,relayip=..,relayport=..,p1=..,p2=..` → `FbnHostStart()` após `DrvInit`, e de `-rbfwatch matchid=..,relayip=..,relayport=..` → `FbnHostStartWatch()`; `FbnHostStop()` no `DrvExit`; `-rbfnet`, `-rbfwatch` ou `-noscan` desliga o audit de ROMs no startup (`bSkipStartupCheck`) |
+| `0003-cmdline-rbfnet-session.diff` | `src/burner/win32/main.cpp`, `drv.cpp` | parse de `-rbfnet player=..,localport=..,peerip=..,peerport=..,delay=..,relayip=..,relayport=..,p1=..,p2=..` → `FbnHostStart()` após `DrvInit`, e de `-rbfwatch matchid=..,relayip=..,relayport=..` → `FbnHostStartWatch()`; `FbnHostStop()` no `DrvExit`; parse de `-rbfprobe [interval=N]` → `RamProbeRecordStart()` (calibragem do placar, ver [`../../tools/README.md`](../../tools/README.md)); `-rbfnet`, `-rbfwatch`, `-rbfprobe` ou `-noscan` desliga o audit de ROMs no startup (`bSkipStartupCheck`) |
 
 ## Aplicando
 
