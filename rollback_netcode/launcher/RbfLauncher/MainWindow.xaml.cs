@@ -103,10 +103,23 @@ namespace RbfLauncher
         {
             c.LoginOk += _ =>
             {
+                // The read loop can get here before ConnectAsync returns, so take the
+                // client from the closure - _client may still be null.
+                _client = c;
+
                 Chat.SetClient(c);
                 Chat.SetRoom(_currentGame);
+
+                // A room opened while offline was built with no client at all, and
+                // RoomView drops every roster it receives in that state. Hand it
+                // the client and re-push what we have, or it stays empty until the
+                // player leaves and comes back.
+                CurrentRoom?.SetClient(c);
+                CurrentRoom?.SetRoster(_roster);
+                CurrentRoom?.SetMatches(_matches);
+
                 UpdateHeader();
-                if (_currentGame != null) _client?.JoinRoom(_currentGame);
+                if (_currentGame != null) c.JoinRoom(_currentGame);
             };
             c.LoginRejected += reason =>
             {
@@ -141,6 +154,7 @@ namespace RbfLauncher
 
         private void Disconnect(string reason)
         {
+            bool wasOn = _client != null && _client.LoggedIn;
             CloseTransientDialogs();
             _client?.Dispose();
             _client = null;
@@ -152,8 +166,14 @@ namespace RbfLauncher
             CurrentRoom?.SetMatches(_matches);
             CurrentRoom?.SetClient(null);
             UpdateHeader();
-            if (!string.IsNullOrEmpty(reason) && reason != "desconectado")
-                PlayerLabel.Text = "offline (" + reason + ")";
+
+            // The header is a single line sitting next to the buttons, so a gRPC
+            // status string ran straight over them. Say it in a dialog instead,
+            // and say what to do about it.
+            if (wasOn && !string.IsNullOrEmpty(reason) && reason != "desconectado")
+                MessageBox.Show("Você foi desconectado do servidor (" + reason + ").\n\n" +
+                                "Clique em Conectar para entrar novamente.",
+                                "RBF", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void UpdateHeader()

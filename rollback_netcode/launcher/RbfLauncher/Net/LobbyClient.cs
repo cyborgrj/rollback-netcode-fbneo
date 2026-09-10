@@ -174,8 +174,25 @@ namespace RbfLauncher.Net
             }
             catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled) { return; }
             catch (OperationCanceledException) { return; }
-            catch (Exception ex) { reason = ex.Message; }
+            catch (RpcException ex) { reason = Friendly(ex.StatusCode); }
+            catch (Exception) { reason = "erro inesperado"; }
             Post(() => Disconnected?.Invoke(reason));
+        }
+
+        /// <summary>A raw gRPC failure reads "Status(StatusCode=Unavailable,
+        /// Detail=\"Error starting gRPC call... end of TCP stream\")". Accurate,
+        /// and no use at all to somebody who just wants to know they dropped.</summary>
+        private static string Friendly(StatusCode code)
+        {
+            switch (code)
+            {
+                case StatusCode.Unavailable:      return "o servidor não respondeu";
+                case StatusCode.DeadlineExceeded: return "o servidor demorou demais";
+                case StatusCode.Unauthenticated:
+                case StatusCode.PermissionDenied: return "o servidor recusou a sessão";
+                case StatusCode.Internal:         return "erro interno no servidor";
+                default:                          return "conexão perdida";
+            }
         }
 
         private void Handle(ServerMsg m)
