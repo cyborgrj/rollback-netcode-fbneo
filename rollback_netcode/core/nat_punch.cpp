@@ -102,6 +102,7 @@ int NatPunchResolvePeer(const char*      szRendezvousHost,
     int bGotPeer = 0;
     char szSelfIp[64] = "";
     unsigned int nSelfPort = 0;
+    int bRelaySeen = 0;
 
     DWORD tStart    = GetTickCount();
     DWORD tLastSend = 0;
@@ -152,7 +153,12 @@ int NatPunchResolvePeer(const char*      szRendezvousHost,
             else if (strcmp(szMode, "lan")   == 0) out->mode = NAT_PUNCH_MODE_LAN;
             else                                   out->mode = NAT_PUNCH_MODE_DIRECT;
         } else if (sscanf(buf, "RBF1 GSELF %63s %u", ip, &port) == 2) {
-            /* the relay saw us too - nothing to do, the rendezvous compares them */
+            // The rendezvous compares the two sightings itself; all we need to
+            // know here is that the relay is reachable at all.
+            if (!bRelaySeen) {
+                bRelaySeen = 1;
+                punch_log(pfnLog, "nat punch: game relay answered from our side (%s:%u)", ip, port);
+            }
         } else if (sscanf(buf, "RBF1 SELF %63s %u", ip, &port) == 2) {
             // Only worth a line when it is news. The rendezvous answers every
             // announcement, and a hundred identical lines buried the log.
@@ -164,6 +170,15 @@ int NatPunchResolvePeer(const char*      szRendezvousHost,
             }
         }
     }
+
+    // Worth shouting about: with no sighting at the relay the rendezvous cannot
+    // tell a symmetric NAT from an honest one, so it falls back to "direct" and
+    // a pair that needed relaying just fails to connect. Almost always a closed
+    // udp port on the server.
+    if (nGameRelayPort && !bRelaySeen)
+        punch_log(pfnLog, "nat punch: WARNING game relay udp/%u never answered - "
+                          "symmetric NAT cannot be detected (port closed on the server?)",
+                  (unsigned)nGameRelayPort);
 
     // A server too old to send a verdict still tells us both public addresses,
     // and equal addresses mean one router in front of both of us.
