@@ -101,21 +101,34 @@ int NatPunchResolvePeer(const char*      szRendezvousHost,
     unsigned int nPeerPort = 0;
     int bGotPeer = 0;
     char szSelfIp[64] = "";
+    unsigned int nSelfPort = 0;
 
-    DWORD tStart = GetTickCount();
+    DWORD tStart    = GetTickCount();
+    DWORD tLastSend = 0;
+    int   bEverSent = 0;
+
     while (!bGotPeer && (int)(GetTickCount() - tStart) < nTimeoutMs) {
-        sendto(s, szReg, nReg, 0, (struct sockaddr*)&srv, sizeof(srv));
-        // Registering at the relay from this same socket is what lets the
-        // rendezvous compare the two source endpoints and spot a NAT that
-        // remaps per destination.
-        if (nGameRelayPort) sendto(s, szGreg, nGreg, 0, (struct sockaddr*)&relay, sizeof(relay));
+        // Announce on a clock. Announcing once per loop turn instead would feed
+        // itself: every announcement draws a reply, a queued reply makes select
+        // return at once, and that immediately announces again - a storm of a
+        // hundred-odd packets a second where four will do.
+        DWORD now = GetTickCount();
+        if (!bEverSent || (int)(now - tLastSend) >= PUNCH_RETRY_MS) {
+            sendto(s, szReg, nReg, 0, (struct sockaddr*)&srv, sizeof(srv));
+            // Registering at the relay from this same socket is what lets the
+            // rendezvous compare the two source endpoints and spot a NAT that
+            // remaps per destination.
+            if (nGameRelayPort) sendto(s, szGreg, nGreg, 0, (struct sockaddr*)&relay, sizeof(relay));
+            tLastSend = now;
+            bEverSent = 1;
+        }
 
         fd_set rf;
         FD_ZERO(&rf);
         FD_SET(s, &rf);
         struct timeval tv;
         tv.tv_sec  = 0;
-        tv.tv_usec = PUNCH_RETRY_MS * 1000;
+        tv.tv_usec = 50 * 1000;   // short: the clock above decides when to talk
 
         if (select(0, &rf, NULL, NULL, &tv) <= 0) continue;
 
@@ -141,9 +154,14 @@ int NatPunchResolvePeer(const char*      szRendezvousHost,
         } else if (sscanf(buf, "RBF1 GSELF %63s %u", ip, &port) == 2) {
             /* the relay saw us too - nothing to do, the rendezvous compares them */
         } else if (sscanf(buf, "RBF1 SELF %63s %u", ip, &port) == 2) {
-            strncpy(szSelfIp, ip, sizeof(szSelfIp) - 1);
-            szSelfIp[sizeof(szSelfIp) - 1] = '\0';
-            punch_log(pfnLog, "nat punch: our public endpoint is %s:%u", ip, port);
+            // Only worth a line when it is news. The rendezvous answers every
+            // announcement, and a hundred identical lines buried the log.
+            if (strcmp(szSelfIp, ip) != 0 || nSelfPort != port) {
+                punch_log(pfnLog, "nat punch: our public endpoint is %s:%u", ip, port);
+                strncpy(szSelfIp, ip, sizeof(szSelfIp) - 1);
+                szSelfIp[sizeof(szSelfIp) - 1] = '\0';
+                nSelfPort = port;
+            }
         }
     }
 
