@@ -136,7 +136,12 @@ int MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*))
 	}
 
 	g_d.nCharCount = g_map->nCharCount;
-	score_log(pfnLog, "score: reading %s", szGame);
+	if (g_firstTo > 0)
+		score_log(pfnLog, "score: reading %s, limite FT%d", szGame, g_firstTo);
+	else
+		score_log(pfnLog, "score: reading %s, sem limite (livre) - "
+		                  "se voce pediu FT, o servidor mandou 0: ele esta desatualizado?",
+		          szGame);
 	return MATCH_SCORE_OK;
 }
 
