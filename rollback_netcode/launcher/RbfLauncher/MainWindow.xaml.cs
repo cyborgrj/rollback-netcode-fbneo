@@ -308,11 +308,22 @@ namespace RbfLauncher
 
         // The emulator parses -rbfnet as a comma list of key=value, so a name with
         // a comma, space or equals sign would split the argument in two.
+        // The emulator reads -rbfnet as a comma list that ends at the first
+        // space, so a name has to survive the trip without containing one.
+        // Percent-encoding gets it there and back intact; replacing the
+        // characters outright, as this used to, showed "Cyborg_RJ" on screen to
+        // somebody whose name has a space in it.
         private static string Sanitize(string s)
         {
             if (string.IsNullOrEmpty(s)) return "?";
-            var sb = new System.Text.StringBuilder(s.Length);
-            foreach (char c in s) sb.Append(c <= ' ' || c == ',' || c == '=' || c == '"' ? '_' : c);
+            var sb = new System.Text.StringBuilder(s.Length + 8);
+            foreach (char c in s)
+            {
+                if (c == '%' || c <= ' ' || c == ',' || c == '=' || c == '"')
+                    sb.AppendFormat("%{0:X2}", (int)c > 0xFF ? '?' : (int)c);
+                else
+                    sb.Append(c);
+            }
             return sb.ToString();
         }
 

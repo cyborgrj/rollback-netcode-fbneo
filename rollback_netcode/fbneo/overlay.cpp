@@ -143,12 +143,31 @@ static int textWidth(const char* s)
 }
 
 // ---- public ---------------------------------------------------------------
+
+// Names arrive percent-encoded, because -rbfnet is a comma list that ends at
+// the first space and plenty of people have a space in their name. Undo it
+// here so the screen shows what the player actually chose to be called.
+static void unescape(char* dst, size_t cap, const char* src)
+{
+	size_t o = 0;
+	for (size_t i = 0; src && src[i] && o + 1 < cap; i++) {
+		if (src[i] == '%' && src[i + 1] && src[i + 2]) {
+			int hi = src[i + 1], lo = src[i + 2];
+			hi = (hi >= '0' && hi <= '9') ? hi - '0' : ((hi | 32) >= 'a' && (hi | 32) <= 'f') ? (hi | 32) - 'a' + 10 : -1;
+			lo = (lo >= '0' && lo <= '9') ? lo - '0' : ((lo | 32) >= 'a' && (lo | 32) <= 'f') ? (lo | 32) - 'a' + 10 : -1;
+			if (hi >= 0 && lo >= 0) { dst[o++] = (char)((hi << 4) | lo); i += 2; continue; }
+		}
+		dst[o++] = src[i];
+	}
+	dst[o] = '\0';
+}
+
 void OverlayShow(const char* szP1, const char* szP2)
 {
 	memset(g_p1, 0, sizeof(g_p1));
 	memset(g_p2, 0, sizeof(g_p2));
-	if (szP1) strncpy(g_p1, szP1, OV_MAX_NAME);
-	if (szP2) strncpy(g_p2, szP2, OV_MAX_NAME);
+	unescape(g_p1, sizeof(g_p1), szP1);
+	unescape(g_p2, sizeof(g_p2), szP2);
 	g_on = (g_p1[0] || g_p2[0]) ? 1 : 0;
 }
 
