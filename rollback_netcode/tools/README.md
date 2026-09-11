@@ -119,9 +119,21 @@ Dois jogos fogem do formato "melhor de três":
 Personagens confirmados:
 
 - `sf2ce`: 4 = Ryu, 5 = E.Honda, 6 = Ken.
-- `sfa2`: 0 = Ryu, 1 = Ken, 3 = Nash/Charlie, 5 = Adon. No `sfa2` esse byte
-  acompanha o cursor **ao vivo** na tela de seleção, então uma gravação passeando
-  pelo grid mapeia o elenco inteiro de uma vez.
+- `sfa2`: **elenco completo.** Esse byte acompanha o cursor **ao vivo** na tela de
+  seleção, então três passeios pelo grid bastaram.
+
+  | id | | id | | id | |
+  |----|--|----|--|----|--|
+  | 0 | Ryu | 6 | Sodom | 12 | Dan |
+  | 1 | Ken | 7 | Guy | 13 | Sakura |
+  | 2 | Akuma | 8 | Birdie | 14 | Rolento |
+  | 3 | Nash/Charlie | 9 | Rose | 15 | Dhalsim |
+  | 4 | Chun Li | 10 | M. Bison | 16 | Zangief |
+  | 5 | Adon | 11 | Sagat | 17 | Gen |
+
+  Os 18 personagens ocupam os ids 0..17 sem buraco e sem repetição, o que é a
+  própria verificação: qualquer erro de leitura teria deixado um valor de fora e
+  outro em dobro.
 - `kof98`: 0 = Kyo, 1 = Benimaru, 2 = Daimon, 18 = Kim, 19 = Choi, 20 = Chang,
   27 = Iori, 28 = Mature, 29 = Vice. (19 e 20 saíram da ordem em que o time da
   CPU entrou na luta — vale reconfirmar.)
