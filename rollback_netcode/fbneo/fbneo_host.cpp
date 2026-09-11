@@ -75,6 +75,7 @@ static int           g_localPlayer = 1;   // our side in the match (1 or 2)
 static int           g_inputPlayer = 1;   // driver player the LOCAL controls are bound to
 static int           g_active      = 0;
 static int           g_ringReady   = 0;
+static int           g_peerGone    = 0;   // the opponent left; end the match
 static int           g_analogWarned = 0;
 static FbnHostConfig g_cfg;
 
@@ -302,6 +303,18 @@ static void host_on_event(const GgpoBridgeEvent* ev, void* /*user*/)
 	}
 	RbfLog("ggpo: %s (player=%d a=%d b=%d)", n, ev->player, ev->a, ev->b);
 	bprintf(PRINT_IMPORTANT, _T("[fbneo_host] ggpo: %S (player=%d a=%d b=%d)\n"), n, ev->player, ev->a, ev->b);
+
+	// The opponent is gone for good - not the brief silence that "interrupted"
+	// reports and "resumed" takes back. libggpo happily carries on here,
+	// predicting the missing player forever, which means the person still
+	// connected keeps playing against a frozen opponent and watching their own
+	// score climb. Whatever the score is at this instant is the true one, so
+	// the session ends now and that is what gets recorded.
+	if (ev->code == GGPO_BRIDGE_EV_DISCONNECTED) {
+		g_peerGone = 1;
+		RbfLog("opponent disconnected - ending the match here.");
+	}
+
 	// TODO: forward to the gRPC agent event sink (via the command/event queue).
 }
 
@@ -342,6 +355,7 @@ static int startCommon(const FbnHostConfig* cfg)
 	g_localPlayer = cfg->nLocalPlayer;
 	g_inputPlayer = (cfg->nInputPlayer >= 1 && cfg->nInputPlayer <= cfg->nPlayers) ? cfg->nInputPlayer : 1;
 	g_ringReady   = 0;
+	g_peerGone    = 0;
 	g_watch       = 0;
 	g_watchFrames = 0;
 
@@ -674,6 +688,11 @@ int FbnHostRunFrame(int bDraw)
 	}
 
 	int r = GgpoBridgeTick();
+
+	// Checked after the tick, so the frame that carried the disconnect event
+	// still completes and the score includes it.
+	if (g_peerGone) return -1;
+
 	if (r == GGPO_BRIDGE_OK)      return 1;
 	if (r == GGPO_BRIDGE_SKIPPED) return 0;
 

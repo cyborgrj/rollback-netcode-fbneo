@@ -19,6 +19,10 @@
 #include <windows.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+// fbneo_host owns rbf-netplay.log; this is the only thing overlay needs from it.
+extern "C" void FbnHostLogLine(const char* s);
 
 // ---- Frame Perfect palette (Dracula) --------------------------------------
 #define OV_CYAN    0x8BE9FDu   // player one
@@ -53,26 +57,108 @@ static int      g_haveFace  = 0;         // 1 when the real typeface loaded
 static int      g_claimed   = 0;         // a blitter draws the line itself
 static int      g_softLogged = 0;        // said once that we are on the soft path
 
-// Johnny Fever is public domain, so it ships with the emulator; Arial is the
-// fallback for a folder where somebody deleted it.
+// The file ships under a generic name so anybody can swap it: drop your own
+// font in beside the emulator as fonte_placar.otf (or .ttf) and it is used.
+// Delete it and Arial takes over, which is also what happens if the file turns
+// out to be something Windows will not render.
 static const char* kFontFiles[] = {
-	"Johnny Fever.otf",
-	"support\\Johnny Fever.otf",
-	"fonts\\Johnny Fever.otf",
+	"fonte_placar.otf",
+	"fonte_placar.ttf",
+	"support\\fonte_placar.otf",
+	"support\\fonte_placar.ttf",
 };
+
+static char g_face[64] = "Arial";
+
+// ---- reading the family name out of the font file -------------------------
+//
+// AddFontResourceEx loads a file but tells us nothing about it, and CreateFont
+// wants a family NAME. With a fixed filename and an arbitrary font inside it,
+// the name has to come from the file itself - so this reads the sfnt "name"
+// table. Big-endian throughout, which is why every read goes through be16/be32.
+static unsigned be16(const unsigned char* p) { return (unsigned)((p[0] << 8) | p[1]); }
+static unsigned be32(const unsigned char* p)
+{
+	return ((unsigned)p[0] << 24) | ((unsigned)p[1] << 16) | ((unsigned)p[2] << 8) | p[3];
+}
+
+static int readFaceName(const char* szPath, char* out, size_t cap)
+{
+	FILE* f = fopen(szPath, "rb");
+	if (!f) return 0;
+
+	fseek(f, 0, SEEK_END);
+	long len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	if (len < 12 || len > 8 * 1024 * 1024) { fclose(f); return 0; }
+
+	unsigned char* buf = (unsigned char*)malloc((size_t)len);
+	if (!buf) { fclose(f); return 0; }
+	if (fread(buf, 1, (size_t)len, f) != (size_t)len) { free(buf); fclose(f); return 0; }
+	fclose(f);
+
+	int ok = 0;
+	const unsigned numTables = be16(buf + 4);
+	unsigned nameOff = 0, nameLen = 0;
+
+	for (unsigned i = 0; i < numTables; i++) {
+		const unsigned rec = 12 + i * 16;
+		if (rec + 16 > (unsigned)len) break;
+		if (memcmp(buf + rec, "name", 4) == 0) {
+			nameOff = be32(buf + rec + 8);
+			nameLen = be32(buf + rec + 12);
+			break;
+		}
+	}
+
+	if (nameOff && nameLen && nameOff + 6 <= (unsigned)len) {
+		const unsigned count   = be16(buf + nameOff + 2);
+		const unsigned strBase = nameOff + be16(buf + nameOff + 4);
+		int best = -1;                 // prefer the Windows/Unicode record
+
+		for (unsigned i = 0; i < count; i++) {
+			const unsigned r = nameOff + 6 + i * 12;
+			if (r + 12 > (unsigned)len) break;
+			if (be16(buf + r + 6) != 1) continue;          // nameID 1 = family
+
+			const unsigned plat = be16(buf + r);
+			const unsigned sl   = be16(buf + r + 8);
+			const unsigned so   = strBase + be16(buf + r + 10);
+			if (so + sl > (unsigned)len || sl == 0) continue;
+
+			// Windows records are UTF-16BE; Mac ones are single-byte. Take the
+			// low byte either way - these names are ASCII in practice, and a
+			// name that is not will simply fail to match later and fall back.
+			size_t o = 0;
+			if (plat == 3) {
+				for (unsigned k = 1; k < sl && o + 1 < cap; k += 2) out[o++] = (char)buf[so + k];
+			} else {
+				for (unsigned k = 0; k < sl && o + 1 < cap; k++)    out[o++] = (char)buf[so + k];
+			}
+			out[o] = '\0';
+
+			if (o) { ok = 1; if (plat == 3) { best = 1; break; } }
+		}
+		(void)best;
+	}
+
+	free(buf);
+	return ok;
+}
 
 static void ovInitGdi(void)
 {
 	if (g_fontTried) return;
 	g_fontTried = 1;
 
-	const char* szFace = "Arial";
+	char szFound[64] = "";
 	for (unsigned i = 0; i < sizeof(kFontFiles) / sizeof(kFontFiles[0]); i++) {
-		if (AddFontResourceExA(kFontFiles[i], FR_PRIVATE, NULL) > 0) {
-			szFace = "Johnny Fever";
-			g_haveFace = 1;
-			break;
-		}
+		if (!readFaceName(kFontFiles[i], szFound, sizeof(szFound))) continue;
+		if (AddFontResourceExA(kFontFiles[i], FR_PRIVATE, NULL) <= 0) continue;
+		strncpy(g_face, szFound, sizeof(g_face) - 1);
+		g_haveFace = 1;
+		FbnHostLogLine("overlay: usando a fonte de fonte_placar");
+		break;
 	}
 
 	HDC screen = GetDC(NULL);
@@ -97,7 +183,31 @@ static void ovInitGdi(void)
 	for (int i = 0; i < 2; i++) {
 		g_font[i] = CreateFontA(-px[i], 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
 		                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-		                        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, szFace);
+		                        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, g_face);
+	}
+
+	// Did Windows actually give us that face, or quietly substitute something
+	// when the file turned out to be unusable? GDI never says no - it just
+	// hands back a different font. If the name that comes back is not the one
+	// we asked for, treat the drop-in as a failure and go to Arial, which is
+	// the promise: a font that does not work costs nothing but itself.
+	if (g_haveFace && g_font[0]) {
+		HFONT old = (HFONT)SelectObject(g_dc, g_font[0]);
+		char szActual[64] = "";
+		GetTextFaceA(g_dc, sizeof(szActual), szActual);
+		SelectObject(g_dc, old);
+
+		if (_stricmp(szActual, g_face) != 0) {
+			FbnHostLogLine("overlay: o Windows nao aceitou a fonte de fonte_placar - usando Arial");
+			g_haveFace = 0;
+			strcpy(g_face, "Arial");
+			for (int i = 0; i < 2; i++) {
+				DeleteObject(g_font[i]);
+				g_font[i] = CreateFontA(-px[i], 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+				                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+				                        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, g_face);
+			}
+		}
 	}
 
 	SetBkMode(g_dc, OPAQUE);
@@ -260,11 +370,8 @@ int OverlayGetLine(OverlayLine* out)
 const char* OverlayFaceName(void)
 {
 	ovInitGdi();
-	return g_haveFace ? "Johnny Fever" : "Arial";
+	return g_face;
 }
-
-// fbneo_host owns rbf-netplay.log; this is the only thing overlay needs from it.
-extern "C" void FbnHostLogLine(const char* s);
 
 void OverlayClaim(int bClaimed)
 {
