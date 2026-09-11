@@ -16,6 +16,7 @@
 #include "../core/relay.h"
 #include "../core/port_map.h"
 #include "match_score.h"
+#include "overlay.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -279,6 +280,7 @@ static int startCommon(const FbnHostConfig* cfg)
 	// A game we have no addresses for is not an error - the match runs, it
 	// just goes unscored.
 	MatchScoreStart(RbfLogLine);
+	OverlayShow(g_cfg.szP1Name, g_cfg.szP2Name);
 
 	return buildInputMap();
 }
@@ -434,6 +436,9 @@ int FbnHostStartWatch(const FbnWatchConfig* cfg)
 
 	g_watch  = 1;
 	g_active = 1;
+	// A viewer knows the names from the stream header, so the overlay works
+	// there too - and knowing who is playing is half the point of watching.
+	OverlayShow(info.szP1, info.szP2);
 	RbfLog("watching %s: %s vs %s (%s)", cfg->szMatchId, info.szP1, info.szP2, info.szGame);
 	bprintf(PRINT_IMPORTANT, _T("[fbneo_host] watching %S vs %S.\n"), info.szP1, info.szP2);
 	return 0;
@@ -562,6 +567,7 @@ void FbnHostStop(void)
 		g_active = 0;
 		bprintf(PRINT_IMPORTANT, _T("[fbneo_host] session closed.\n"));
 	}
+	OverlayHide();
 	g_watch        = 0;
 	g_relayPending = 0;
 	g_ringReady    = 0;

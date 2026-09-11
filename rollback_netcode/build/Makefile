@@ -58,6 +58,7 @@ OUR_SRC += $(ROOT)/core/port_map.cpp
 OUR_SRC += $(ROOT)/fbneo/fbneo_host.cpp
 OUR_SRC += $(ROOT)/fbneo/ram_probe.cpp
 OUR_SRC += $(ROOT)/fbneo/match_score.cpp
+OUR_SRC += $(ROOT)/fbneo/overlay.cpp
 
 GGPO_SRC :=
 GGPO_SRC += $(GGPO)/lib/ggpo/bitvector.cpp

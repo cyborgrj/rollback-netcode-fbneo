@@ -1,0 +1,23 @@
+diff --git a/src/intf/video/vid_interface.cpp b/src/intf/video/vid_interface.cpp
+index 225329c..48c428a 100644
+--- a/src/intf/video/vid_interface.cpp
++++ b/src/intf/video/vid_interface.cpp
+@@ -1,5 +1,6 @@
+ // Video Output - (calls all the Vid Out plugins)
+ #include "burner.h"
++#include "overlay.h"		// rollback_netcode: names and score over the game
+ 
+ #define DEFAULT_IMAGE_WIDTH (304)
+ #define DEFAULT_IMAGE_HEIGHT (224)
+@@ -429,6 +430,11 @@ INT32 VidFrameCallback(bool bRedraw)        // Called from blitter  (VidFrame()
+ #if defined (BUILD_WIN32) || defined (INCLUDE_LUA_SUPPORT)
+ 		FBA_LuaGui((unsigned char*)pVidImage, nVidImageWidth, nVidImageHeight, nVidImageBPP, nVidImagePitch);
+ #endif
++
++		// rollback_netcode: who is playing and the score. Drawn into the game
++		// image, not over the window, so every blitter shows it the same way
++		// and a screenshot carries it too.
++		OverlayDraw((unsigned char*)pVidImage, nVidImageWidth, nVidImageHeight, nVidImageBPP, nVidImagePitch);
+ 	}
+ 
+ 	return 0;
