@@ -1,0 +1,32 @@
+# Django sob gunicorn.
+#   sudo cp frameperfect-web.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now frameperfect-web
+
+[Unit]
+Description=Frame Perfect - site e API (Django)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=notify
+User=ubuntu
+WorkingDirectory=/home/ubuntu/frameperfect/backend
+Environment="PATH=/home/ubuntu/frameperfect/venv/bin"
+ExecStart=/home/ubuntu/frameperfect/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile - \
+    config.wsgi:application
+
+# So no localhost, de proposito: quem fala com a internet e o Nginx. Um gunicorn
+# escutando em 0.0.0.0 contorna o reverse proxy inteiro sem ninguem perceber.
+
+Restart=always
+RestartSec=3
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

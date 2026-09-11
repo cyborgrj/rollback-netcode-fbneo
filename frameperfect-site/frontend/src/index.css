@@ -1,0 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-ground text-ink font-sans antialiased;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  h1, h2 { @apply font-display font-normal; text-wrap: balance; }
+  ::selection { background: #7FE8FF; color: #0A0C14; }
+  :focus-visible { outline: 2px solid #7FE8FF; outline-offset: 3px; }
+}
+
+@layer components {
+  /* O vidro do CRT. Fica de proposito discreto: tem que ler como vidro, nao
+     como filtro de foto. */
+  .crt {
+    @apply pointer-events-none fixed inset-0 z-10;
+    background:
+      repeating-linear-gradient(to bottom,
+        rgba(0,0,0,.22) 0px, rgba(0,0,0,.22) 1px,
+        transparent 1px, transparent 3px),
+      radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.55) 100%);
+    mix-blend-mode: multiply;
+  }
+  .eyebrow { @apply font-pixel text-[9px] tracking-[0.14em] uppercase text-p2; }
+  .btn {
+    @apply inline-block rounded-[3px] border border-p1 bg-p1 px-[18px] py-[10px]
+           text-sm font-semibold text-ground no-underline;
+  }
+  .btn-ghost { @apply bg-transparent text-p1 hover:bg-p1/10; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}

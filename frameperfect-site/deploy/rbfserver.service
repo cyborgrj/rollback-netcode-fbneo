@@ -1,0 +1,22 @@
+# O lobby .NET que ja existe, para ficar tudo junto.
+#   sudo cp rbfserver.service /etc/systemd/system/
+
+[Unit]
+Description=Frame Perfect - lobby e matchmaking (.NET)
+After=network.target frameperfect-web.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/rbfserver
+ExecStart=/home/ubuntu/rbfserver/RbfServer --bind 0.0.0.0 --port 50051
+
+# A chave que autoriza este servico a chamar /api/internal/ do Django. Tem que
+# ser a mesma do .env do backend.
+Environment="FRAME_PERFECT_KEY=troque-isto"
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
