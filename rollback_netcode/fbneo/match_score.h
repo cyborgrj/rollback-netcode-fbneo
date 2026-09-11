@@ -47,7 +47,16 @@ enum MatchScoreResult {
 
 typedef struct MatchScoreData {
 	char      szGame[32];
-	int       bStarted;      // a fight actually began
+	int       bStarted;       // a fight is running right now
+	int       bEverStarted;   // at least one fight has happened this session
+	// Games won - what a scoreboard should show. A game is best-of-three on
+	// the machine, but counting to two is not the same thing: a double KO can
+	// take a game past two rounds, and somebody who wins one round in each of
+	// five games has won no games at all.
+	int       nP1Games;
+	int       nP2Games;
+	int       nGames;         // finished games, including drawn ones
+	// Rounds of the game being played right now; reset when it ends.
 	int       nP1Rounds;
 	int       nP2Rounds;
 	int       nCharCount;    // 1, or 3 for a team game

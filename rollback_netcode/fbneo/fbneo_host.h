@@ -70,6 +70,12 @@ void FbnHostStop(void);
 int  FbnHostIsActive(void);    // a match OR a spectated stream is running
 int  FbnHostIsWatching(void);
 
+// Bracket FBNeo GetInput() call. Before fills the driver input bytes with a
+// sentinel; after takes this machine-s copy of the controls and works out which
+// driver player they belong to. Both are no-ops outside a match.
+void FbnHostBeforeInput(void);
+void FbnHostAfterInput(void);
+
 // Call once per emulated frame from RunFrame(), AFTER GetInput(true) has
 // populated the driver input bytes. Runs exactly one synchronized frame; any
 // rollback re-simulation runs silently and synchronously inside this call.

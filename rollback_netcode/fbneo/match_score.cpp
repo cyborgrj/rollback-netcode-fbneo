@@ -49,6 +49,32 @@ static int  g_p1Down = 0, g_p2Down = 0;   // already counted this knockout
 static int  g_p1Low  = 0x7FFFFFFF;
 static int  g_p2Low  = 0x7FFFFFFF;
 static long long g_frame = 0;
+static int  g_matchHold = 0;   // consecutive live frames with both words cleared
+static int  g_matchOver = 0;   // this clearing has already been counted
+
+// Hand the finished game to whoever won more rounds of it, then start the
+// round count over. A drawn game - a double KO at match point, most often -
+// counts for neither side, which is what happens on the machine too.
+static void awardGame(void)
+{
+	if (g_map && g_map->bBars) {
+		const int p1Bars = g_p2Down ? 2 : ((g_p2Low <= g_map->nFull / 2) ? 1 : 0);
+		const int p2Bars = g_p1Down ? 2 : ((g_p1Low <= g_map->nFull / 2) ? 1 : 0);
+		if (p1Bars > p2Bars)      g_d.nP1Games++;
+		else if (p2Bars > p1Bars) g_d.nP2Games++;
+	} else {
+		if (g_d.nP1Rounds > g_d.nP2Rounds)      g_d.nP1Games++;
+		else if (g_d.nP2Rounds > g_d.nP1Rounds) g_d.nP2Games++;
+	}
+
+	g_d.nGames++;
+	g_d.nP1Rounds = 0;
+	g_d.nP2Rounds = 0;
+	g_p1Low = g_p2Low = 0x7FFFFFFF;
+	g_p1Down = g_p2Down = 0;
+	g_p1Hold = g_p2Hold = 0;
+	g_d.bStarted = 0;      // the next fight has to announce itself the same way
+}
 
 static void score_log(void (*pfn)(const char*), const char* fmt, ...)
 {
@@ -121,8 +147,9 @@ void MatchScoreFrame(void)
 	// Two full bars at once happens nowhere but the start of a fight.
 	if (!g_d.bStarted) {
 		if (l1 != g_map->nFull || l2 != g_map->nFull) return;
-		g_d.bStarted    = 1;
-		g_d.nStartFrame = g_frame;
+		g_d.bStarted     = 1;
+		g_d.bEverStarted = 1;
+		if (!g_d.nStartFrame) g_d.nStartFrame = g_frame;
 	}
 
 	// Both alive: the character fields are filled in and not yet overwritten.
@@ -158,6 +185,24 @@ void MatchScoreFrame(void)
 		g_p2Hold = 0;
 		if (l2 > 0) g_p2Down = 0;
 	}
+
+	// ---- rounds are not games -------------------------------------------
+	// Every one of these games clears both life words to zero when the match
+	// itself is over - which is a different event from a round ending, where
+	// the loser goes negative and then refills. So that is where a game is
+	// awarded, and it is why this does not simply wait for somebody to reach
+	// two: a double KO can take a match past two rounds, and five matches
+	// each won by a single round would otherwise read as two games won.
+	if (l1 == 0 && l2 == 0) {
+		if (g_matchHold < SCORE_HOLD_FRAMES) g_matchHold++;
+		if (g_matchHold >= SCORE_HOLD_FRAMES && !g_matchOver) {
+			g_matchOver = 1;
+			awardGame();
+		}
+	} else {
+		g_matchHold = 0;
+		g_matchOver = 0;
+	}
 }
 
 int MatchScoreGet(MatchScoreData* out)
@@ -172,7 +217,7 @@ int MatchScoreGet(MatchScoreData* out)
 		out->nP2Rounds = g_p1Down ? 2 : ((g_p1Low <= g_map->nFull / 2) ? 1 : 0);
 	}
 
-	return g_d.bStarted ? 1 : 0;
+	return g_d.bEverStarted ? 1 : 0;
 }
 
 void MatchScoreStop(void (*pfnLog)(const char*))
@@ -192,10 +237,12 @@ void MatchScoreStop(void (*pfnLog)(const char*))
 			for (int i = 1; i < d.nCharCount && n > 0 && n < (int)sizeof(szP2); i++)
 				n += snprintf(szP2 + n, sizeof(szP2) - n, "/%d", d.nP2Char[i]);
 		}
-		score_log(pfnLog, "score: %s  P1[%s] %d x %d P2[%s]  (%s)",
-		          d.szGame, szP1, d.nP1Rounds, d.nP2Rounds, szP2,
-		          d.nP1Rounds > d.nP2Rounds ? "P1 venceu"
-		          : d.nP2Rounds > d.nP1Rounds ? "P2 venceu" : "empate");
+		score_log(pfnLog, "score: %s  P1[%s] %d x %d P2[%s]  (%d partidas, %s)"
+		                  "  rounds em andamento: %d x %d",
+		          d.szGame, szP1, d.nP1Games, d.nP2Games, szP2, d.nGames,
+		          d.nP1Games > d.nP2Games ? "P1 venceu"
+		          : d.nP2Games > d.nP1Games ? "P2 venceu" : "empate",
+		          d.nP1Rounds, d.nP2Rounds);
 	} else {
 		score_log(pfnLog, "score: no fight started, nothing to report");
 	}

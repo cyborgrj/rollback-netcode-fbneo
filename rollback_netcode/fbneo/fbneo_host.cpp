@@ -151,18 +151,90 @@ static int buildInputMap(void)
 //  GgpoBridgeHost callbacks
 // ===========================================================================
 
-// GetInput(true) has already written THIS machine's reading into every driver
-// input byte. Pack the local player's digital slice into a little-endian bitmask.
+// ---- reading OUR controls, and only ours ----------------------------------
+//
+// The driver's input bytes are shared ground: FBNeo writes this machine's
+// controls into them, and applyInputs writes the whole match's synchronized
+// inputs into the same bytes. Reading our own controls straight out of them is
+// therefore only safe at one instant - right after FBNeo has written and
+// before anything else has. Any later, and a rollback has already re-simulated
+// several frames on top, so we read the PEER's input back out and send it as
+// our own. That is what "player one is driving both characters" looks like.
+//
+// So we take a copy at that one safe instant (FbnHostAfterInput, called from
+// run.cpp immediately after GetInput) and poll from the copy.
+//
+// The same moment answers a question we used to assume the answer to: WHICH
+// driver player holds this machine's controls. FBNeo only writes the inputs
+// the user has actually bound, so by filling every input byte with a value it
+// would never produce and seeing which ones come back changed, we learn what is
+// bound instead of hoping it is player one. Somebody who mapped only the P2
+// controls used to end up polling the bytes their opponent's inputs land in.
+#define FBN_INPUT_SENTINEL 0xAA
+
+static unsigned char g_snap[GGPO_BRIDGE_MAX_PLAYERS][GGPO_BRIDGE_MAX_INPUT_BYTES];
+static int           g_boundMask   = 0;   // bit p-1 set when player p is bound here
+static int           g_boundLogged = 0;
+
+void FbnHostBeforeInput(void)
+{
+	if (!g_active || g_watch) return;
+	for (int p = 0; p < g_nPlayers; p++) {
+		const FbnPlayerMap* m = &g_map[p];
+		for (int b = 0; b < m->nBits; b++)
+			if (m->pVal[b]) *m->pVal[b] = FBN_INPUT_SENTINEL;
+	}
+}
+
+void FbnHostAfterInput(void)
+{
+	if (!g_active || g_watch) return;
+
+	int mask = 0;
+	memset(g_snap, 0, sizeof(g_snap));
+
+	for (int p = 0; p < g_nPlayers; p++) {
+		const FbnPlayerMap* m = &g_map[p];
+		int bTouched = 0;
+		for (int b = 0; b < m->nBits; b++) {
+			if (!m->pVal[b]) continue;
+			const unsigned char v = *m->pVal[b];
+			if (v == FBN_INPUT_SENTINEL) {
+				*m->pVal[b] = 0;    // unbound: never leave the sentinel where the game could read it
+				continue;
+			}
+			bTouched = 1;
+			if (v) g_snap[p][b >> 3] |= (unsigned char)(1 << (b & 7));
+		}
+		if (bTouched) mask |= 1 << p;
+	}
+
+	g_boundMask = mask;
+
+	// P1 first, because that is where FBNeo puts a single player's controls by
+	// default and changing that for somebody whose setup already works would be
+	// a regression. Only when P1 is not bound do we go looking.
+	int want = g_inputPlayer;
+	if (mask & 1) {
+		want = 1;
+	} else if (mask) {
+		for (int p = 0; p < g_nPlayers; p++) if (mask & (1 << p)) { want = p + 1; break; }
+	}
+
+	if (!g_boundLogged) {
+		g_boundLogged = 1;
+		RbfLog("input: controls bound here = mask 0x%X, reading player %d (we are side %d)",
+		       mask, want, g_localPlayer);
+	}
+	g_inputPlayer = want;
+}
+
 static void host_poll_local_input(void* out, int nInputBytes, void* /*user*/)
 {
 	memset(out, 0, nInputBytes);
-	// FBNeo binds the physical controls to ONE driver player (P1 by default),
-	// whichever side we are in the match - so "my" input always comes from that
-	// player's bytes, never from g_localPlayer's.
-	const FbnPlayerMap* m = &g_map[g_inputPlayer - 1];
-	unsigned char* o = (unsigned char*)out;
-	for (int b = 0; b < m->nBits; b++)
-		if (m->pVal[b] && *m->pVal[b]) o[b >> 3] |= (unsigned char)(1 << (b & 7));
+	const int p = (g_inputPlayer >= 1 && g_inputPlayer <= g_nPlayers) ? g_inputPlayer - 1 : 0;
+	memcpy(out, g_snap[p], (nInputBytes < GGPO_BRIDGE_MAX_INPUT_BYTES)
+	                        ? nInputBytes : GGPO_BRIDGE_MAX_INPUT_BYTES);
 }
 
 // Write libggpo's synchronized inputs (all players, prediction-corrected) back
@@ -417,6 +489,8 @@ int FbnHostStartWatch(const FbnWatchConfig* cfg)
 	g_nPlayers    = info.nPlayers;
 	g_localPlayer = 1;
 	g_inputPlayer = 1;
+	g_boundMask   = 0;
+	g_boundLogged = 0;
 	g_ringReady   = 0;
 	g_watchFrames = 0;
 

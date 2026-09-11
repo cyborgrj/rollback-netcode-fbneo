@@ -169,8 +169,8 @@ void OverlayDraw(unsigned char* p, int w, int h, int bpp, int pitch)
 	char szRight[OV_MAX_NAME + 8];
 
 	if (bScore) {
-		snprintf(szLeft,  sizeof(szLeft),  "%s %d", g_p1[0] ? g_p1 : "P1", d.nP1Rounds);
-		snprintf(szRight, sizeof(szRight), "%d %s", d.nP2Rounds, g_p2[0] ? g_p2 : "P2");
+		snprintf(szLeft,  sizeof(szLeft),  "%s %d", g_p1[0] ? g_p1 : "P1", d.nP1Games);
+		snprintf(szRight, sizeof(szRight), "%d %s", d.nP2Games, g_p2[0] ? g_p2 : "P2");
 	} else {
 		snprintf(szLeft,  sizeof(szLeft),  "%s", g_p1[0] ? g_p1 : "P1");
 		snprintf(szRight, sizeof(szRight), "%s", g_p2[0] ? g_p2 : "P2");
@@ -182,14 +182,14 @@ void OverlayDraw(unsigned char* p, int w, int h, int bpp, int pitch)
 
 	if (bScore) {
 		char szNum[8];
-		snprintf(szNum, sizeof(szNum), "%d", d.nP1Rounds);
+		snprintf(szNum, sizeof(szNum), "%d", d.nP1Games);
 
 		const char* szName = g_p1[0] ? g_p1 : "P1";
 		drawText(p, w, h, bpp, pitch, OV_MARGIN_X, y, szName, OV_CYAN);
 		drawText(p, w, h, bpp, pitch,
 		         OV_MARGIN_X + textWidth(szName) + OV_ADVANCE, y, szNum, OV_WHITE);
 
-		snprintf(szNum, sizeof(szNum), "%d", d.nP2Rounds);
+		snprintf(szNum, sizeof(szNum), "%d", d.nP2Games);
 		szName = g_p2[0] ? g_p2 : "P2";
 		const int right = w - OV_MARGIN_X;
 		drawText(p, w, h, bpp, pitch, right - textWidth(szName), y, szName, OV_LILAC);
