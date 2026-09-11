@@ -182,6 +182,43 @@ namespace Rbf.ProtoTest
                 // Both sides must agree, or one emulator stops and the other does not.
                 Check(msA.MatchStart.FirstTo == msB.MatchStart.FirstTo, "os dois lados receberam o mesmo limite");
                 Check(msA.MatchStart.PlayerNum != msB.MatchStart.PlayerNum, "cada lado recebeu um numero de jogador");
+
+                // Both emulators report the same match. The server keeps the
+                // first and compares the second; it answers neither, so what is
+                // being checked here is that the stream survives it. The server
+                // console is where the reconciliation shows up.
+                var res = new MatchResult
+                {
+                    MatchId = msA.MatchStart.MatchId,
+                    Game = "sf2ce",
+                    P1Games = 3,
+                    P2Games = 1,
+                    Games = 4,
+                    FirstTo = firstTo,
+                    Reason = firstTo > 0 ? "limit" : "closed",
+                };
+                res.P1Chars.Add(6);
+                res.P2Chars.Add(5);
+
+                a.Send(new ClientMsg { MatchResult = res });
+                b.Send(new ClientMsg { MatchResult = res });
+
+                // ...and one that disagrees, from a player who was not in it.
+                // The server has to refuse this: knowing a match id cannot be
+                // enough to write its history.
+                using (var c = new Peer(host, "c" + suffix))
+                {
+                    c.Send(new ClientMsg { Hello = new Hello { Username = c.Name, ClientVer = "test", LanIp = "192.168.1.12" } });
+                    if (c.Await(ServerMsg.KindOneofCase.Welcome) != null)
+                    {
+                        var fake = res.Clone();
+                        fake.P1Games = 99;
+                        c.Send(new ClientMsg { MatchResult = fake });
+                        Thread.Sleep(300);
+                    }
+                    Check(a.Await(ServerMsg.KindOneofCase.Error, null, 400) == null,
+                          "o stream continuou saudavel depois dos resultados");
+                }
             }
 
             Console.WriteLine();

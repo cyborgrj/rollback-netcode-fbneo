@@ -87,6 +87,19 @@ void MatchScoreStop(void (*pfnLog)(const char*));
 
 int  MatchScoreIsActive(void);
 
+// Write the result where the launcher can find it: rbf-result-<matchId>.txt in
+// the emulator folder, one key=value per line.
+//
+// A file, rather than talking to the launcher directly, because the two are
+// separate processes and this has to survive the interesting cases - the
+// emulator being closed by the window button, the match ending on a
+// disconnect, the launcher being busy. Whoever reads it deletes it.
+//
+// szReason is why the session ended: "limit", "disconnect" or "closed".
+// Returns 0 when something was written.
+int  MatchScoreWriteResult(const char* szMatchId, int nFirstTo, const char* szReason,
+                           void (*pfnLog)(const char*));
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

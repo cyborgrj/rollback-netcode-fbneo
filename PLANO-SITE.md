@@ -89,7 +89,9 @@ mil replays por GB.
 ## Ordem
 
 1. ✅ leitor de placar dentro do emulador (`fbneo/match_score.cpp`)
-2. ⬜ o resultado chegar ao servidor pelo gRPC
+2. ✅ o resultado chegar ao servidor pelo gRPC (emulador escreve `rbf-result-<id>.txt`,
+   o launcher lê ao fechar e manda `MatchResult`; o servidor valida que quem
+   reportou jogou a partida)
 3. ⬜ Django + Postgres + contas + o POST do resultado
 4. ⬜ relay salvando replay + `-rbfreplay`
 5. ⬜ o site em si

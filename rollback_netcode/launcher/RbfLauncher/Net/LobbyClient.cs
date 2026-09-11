@@ -294,6 +294,8 @@ namespace RbfLauncher.Net
         public void LeaveRoom() => Send(new ClientMsg { LeaveRoom = new LeaveRoom() });
         public void SendChallenge(string userId, int frameDelay, int firstTo) =>
             Send(new ClientMsg { Challenge = new Challenge { TargetUserId = userId, FrameDelay = frameDelay, FirstTo = firstTo } });
+        public void SendMatchResult(MatchResult r) =>
+            Send(new ClientMsg { MatchResult = r });
         public void ReplyChallenge(string id, bool accept, int frameDelay) =>
             Send(new ClientMsg { ChallengeReply = new ChallengeReply { ChallengeId = id, Accept = accept, FrameDelay = frameDelay } });
         public void SendChat(ChatScope scope, string text) =>

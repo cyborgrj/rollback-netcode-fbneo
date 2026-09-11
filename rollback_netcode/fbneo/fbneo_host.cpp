@@ -76,6 +76,7 @@ static int           g_inputPlayer = 1;   // driver player the LOCAL controls ar
 static int           g_active      = 0;
 static int           g_ringReady   = 0;
 static int           g_peerGone    = 0;   // the opponent left; end the match
+static const char*   g_endReason   = "closed";   // why the session ended
 static int           g_analogWarned = 0;
 static FbnHostConfig g_cfg;
 
@@ -311,7 +312,8 @@ static void host_on_event(const GgpoBridgeEvent* ev, void* /*user*/)
 	// score climb. Whatever the score is at this instant is the true one, so
 	// the session ends now and that is what gets recorded.
 	if (ev->code == GGPO_BRIDGE_EV_DISCONNECTED) {
-		g_peerGone = 1;
+		g_peerGone  = 1;
+		g_endReason = "disconnect";
 		RbfLog("opponent disconnected - ending the match here.");
 	}
 
@@ -356,6 +358,7 @@ static int startCommon(const FbnHostConfig* cfg)
 	g_inputPlayer = (cfg->nInputPlayer >= 1 && cfg->nInputPlayer <= cfg->nPlayers) ? cfg->nInputPlayer : 1;
 	g_ringReady   = 0;
 	g_peerGone    = 0;
+	g_endReason   = "closed";
 	g_watch       = 0;
 	g_watchFrames = 0;
 
@@ -649,6 +652,9 @@ void FbnHostStop(void)
 			PortMapClose();
 			// Before the log line that closes the session, so the result and
 			// the match it belongs to sit together in the file.
+			// The file goes out before the reader is torn down, and before the
+			// line that says the session closed - so the log reads in order.
+			MatchScoreWriteResult(g_cfg.szMatchId, g_cfg.nFirstTo, g_endReason, RbfLogLine);
 			MatchScoreStop(RbfLogLine);
 			RbfLog("session closed.");
 		}
@@ -697,6 +703,7 @@ int FbnHostRunFrame(int bDraw)
 	// both players to stop is the whole point of agreeing on a number.
 	MatchScoreData sc;
 	if (MatchScoreGet(&sc) && sc.bLimitReached) {
+		g_endReason = "limit";
 		RbfLog("first to %d reached - ending the session.", g_cfg.nFirstTo);
 		return -1;
 	}

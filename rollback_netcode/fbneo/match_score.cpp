@@ -261,3 +261,62 @@ void MatchScoreStop(void (*pfnLog)(const char*))
 }
 
 int MatchScoreIsActive(void) { return g_map != NULL; }
+
+static void writeChars(FILE* f, const char* szKey, const int* pChars, int nCount, int bHave)
+{
+	if (!bHave) return;
+	fprintf(f, "%s=", szKey);
+	for (int i = 0; i < nCount; i++) fprintf(f, i ? ",%d" : "%d", pChars[i]);
+	fputc('\n', f);
+}
+
+int MatchScoreWriteResult(const char* szMatchId, int nFirstTo, const char* szReason,
+                          void (*pfnLog)(const char*))
+{
+	MatchScoreData d;
+	if (!MatchScoreGet(&d)) {
+		score_log(pfnLog, "result: nenhuma luta comecou - nada a registrar");
+		return -1;
+	}
+	if (!szMatchId || !szMatchId[0]) {
+		score_log(pfnLog, "result: partida sem id - nada a registrar");
+		return -1;
+	}
+
+	// Anything but [0-9a-zA-Z-] would let a match id reach outside the folder.
+	// It comes from the server, but a filename built from a value we did not
+	// generate is worth checking whatever its source.
+	char szSafe[48];
+	size_t n = 0;
+	for (size_t i = 0; szMatchId[i] && n + 1 < sizeof(szSafe); i++) {
+		const char c = szMatchId[i];
+		if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
+		    (c >= 'A' && c <= 'Z') || c == '-') szSafe[n++] = c;
+	}
+	szSafe[n] = '\0';
+	if (!n) return -1;
+
+	char szPath[128];
+	snprintf(szPath, sizeof(szPath), "rbf-result-%s.txt", szSafe);
+
+	FILE* f = fopen(szPath, "wb");
+	if (!f) {
+		score_log(pfnLog, "result: nao consegui escrever %s", szPath);
+		return -1;
+	}
+
+	fprintf(f, "match=%s\n",  szSafe);
+	fprintf(f, "game=%s\n",   d.szGame);
+	fprintf(f, "p1games=%d\n", d.nP1Games);
+	fprintf(f, "p2games=%d\n", d.nP2Games);
+	fprintf(f, "games=%d\n",   d.nGames);
+	fprintf(f, "firstto=%d\n", nFirstTo);
+	fprintf(f, "reason=%s\n",  szReason ? szReason : "closed");
+	writeChars(f, "p1chars", d.nP1Char, d.nCharCount, d.bHaveP1Char);
+	writeChars(f, "p2chars", d.nP2Char, d.nCharCount, d.bHaveP2Char);
+	fclose(f);
+
+	score_log(pfnLog, "result: %s escrito (%d x %d, %s)",
+	          szPath, d.nP1Games, d.nP2Games, szReason ? szReason : "closed");
+	return 0;
+}

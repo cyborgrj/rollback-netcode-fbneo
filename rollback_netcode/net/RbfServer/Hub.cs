@@ -52,6 +52,12 @@ namespace Rbf.Server
         public int FirstTo;         // games that end the session; 0 = free play
         public DateTime StartedUtc;
         public int PeerPingMs;      // estimated RTT between the two players
+
+        // What the emulators read out of the game. Both players report the same
+        // match, so the first one in is kept and the second is compared against
+        // it - see ReportResult.
+        public MatchResult Result;
+        public string ResultFromId;
     }
 
     /// <summary>Last N chat lines for one scope. Bounded on purpose: the lobby
@@ -411,6 +417,60 @@ namespace Rbf.Server
         }
 
         // ---- chat ---------------------------------------------------
+        /// <summary>A player reporting what their emulator read out of the game
+        /// at the end of the session. Both players report the same match.</summary>
+        public void ReportResult(Session s, MatchResult r)
+        {
+            if (s == null || r == null || string.IsNullOrEmpty(r.MatchId)) return;
+
+            lock (_gate)
+            {
+                if (!_matches.TryGetValue(r.MatchId, out var m))
+                {
+                    Console.WriteLine($"! resultado de {s.Username} para partida desconhecida {r.MatchId}");
+                    return;
+                }
+
+                // Only the two people who played it. Without this, anybody who
+                // learns a match id can write its history.
+                if (s.UserId != m.P1Id && s.UserId != m.P2Id)
+                {
+                    Console.WriteLine($"! {s.Username} reportou resultado de uma partida que nao jogou ({r.MatchId})");
+                    return;
+                }
+
+                if (m.Result == null)
+                {
+                    m.Result = r;
+                    m.ResultFromId = s.UserId;
+                    Console.WriteLine($"# resultado {m.Id} {r.Game}: {r.P1Games} x {r.P2Games} " +
+                                      $"({r.Games} partidas, {r.Reason}" +
+                                      (r.FirstTo > 0 ? $", FT{r.FirstTo}" : ", livre") + ")" +
+                                      Chars(" p1:", r.P1Chars) + Chars(" p2:", r.P2Chars) +
+                                      $"  [de {s.Username}]");
+                    return;
+                }
+
+                if (m.ResultFromId == s.UserId) return;   // the same client saying it twice
+
+                // Two readings of one match that disagree means a desync or a
+                // client that was changed. Neither is something to swallow.
+                if (m.Result.P1Games != r.P1Games || m.Result.P2Games != r.P2Games)
+                {
+                    Console.WriteLine($"!! resultados divergentes em {m.Id}: " +
+                                      $"{m.Result.P1Games}x{m.Result.P2Games} vs {r.P1Games}x{r.P2Games} " +
+                                      $"(de {s.Username})");
+                }
+            }
+        }
+
+        private static string Chars(string prefix, IEnumerable<int> ids)
+        {
+            if (ids == null) return "";
+            var s = string.Join("/", ids);
+            return s.Length == 0 ? "" : prefix + s;
+        }
+
         public void Chat(Session s, ChatScope scope, string text)
         {
             // Collapse anything that would break the one-line-per-message

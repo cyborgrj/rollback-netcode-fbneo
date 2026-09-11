@@ -23,6 +23,7 @@ message ClientMsg {
     MatchStatus    match_status    = 6;
     Ping           ping            = 7;
     ChatSend       chat            = 8;
+    MatchResult    match_result    = 9;
   }
 }
 
@@ -153,6 +154,24 @@ message MatchStart {
   int32  first_to        = 12;
 }
 message MatchAborted { string match_id = 1; string reason = 2; }
+
+// What the emulator read out of the game when the session ended. Both players
+// report the same match; the server keeps the first and complains if the second
+// disagrees, because two different readings of one match means a desync or a
+// tampered client and either is worth knowing about.
+message MatchResult {
+  string match_id = 1;
+  string game     = 2;
+  int32  p1_games = 3;
+  int32  p2_games = 4;
+  int32  games    = 5;    // finished games, draws included
+  int32  first_to = 6;    // 0 = livre
+  string reason   = 7;    // "limit" | "disconnect" | "closed"
+
+  // Character ids, in the order they entered. One each, or three for a KOF team.
+  repeated int32 p1_chars = 8;
+  repeated int32 p2_chars = 9;
+}
 
 message Pong { int64 t = 1; }
 message ServerError { string message = 1; }

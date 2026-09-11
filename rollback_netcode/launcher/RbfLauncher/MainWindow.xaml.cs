@@ -300,7 +300,10 @@ namespace RbfLauncher
                 {
                     proc.EnableRaisingEvents = true;
                     proc.Exited += (s, e) => Dispatcher.BeginInvoke((Action)(() =>
-                        _client?.ReportMatch(ms.MatchId, Phase.Ended)));
+                    {
+                        _client?.ReportMatch(ms.MatchId, Phase.Ended);
+                        SendResultIfAny(ms.MatchId);
+                    }));
                 }
                 catch { /* process may already have exited */ }
                 _client?.ReportMatch(ms.MatchId, Phase.Running);
@@ -313,8 +316,34 @@ namespace RbfLauncher
             }
         }
 
-        // The emulator parses -rbfnet as a comma list of key=value, so a name with
-        // a comma, space or equals sign would split the argument in two.
+        /// <summary>The emulator leaves what it read beside itself; pick it up and
+        /// pass it on. Nothing to send is the normal case for a session that never
+        /// got as far as a fight.</summary>
+        private void SendResultIfAny(string matchId)
+        {
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(_config.ResolvedEmulatorPath);
+                var r = MatchResultFile.TakeFrom(dir, matchId);
+                if (r == null || _client == null) return;
+
+                var msg = new MatchResult
+                {
+                    MatchId = r.MatchId,
+                    Game    = r.Game,
+                    P1Games = r.P1Games,
+                    P2Games = r.P2Games,
+                    Games   = r.Games,
+                    FirstTo = r.FirstTo,
+                    Reason  = r.Reason,
+                };
+                msg.P1Chars.AddRange(r.P1Chars);
+                msg.P2Chars.AddRange(r.P2Chars);
+                _client.SendMatchResult(msg);
+            }
+            catch { /* a result that cannot be sent must not take the launcher with it */ }
+        }
+
         // The emulator reads -rbfnet as a comma list that ends at the first
         // space, so a name has to survive the trip without containing one.
         // Percent-encoding gets it there and back intact; replacing the
