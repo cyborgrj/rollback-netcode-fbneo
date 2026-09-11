@@ -20,7 +20,28 @@ o que falta é mostrar o estado, não mudar o comportamento:
 ⚠️ Verificar também se o re-entrar realmente funciona: houve um relato de
 reconectar e continuar sem ver ninguém. Reproduzir parando o `rbfserver`.
 
-## Emulador: a barra depende do blitter
+## Placar sobe mesmo sem o P2 ter entrado na luta
+
+**Baixa prioridade, mas é acabamento que o produto precisa.**
+
+Irmão do problema da desconexão (esse já resolvido, em `b8d41c5`): se o P2
+conecta mas nunca aperta start, o P1 joga contra a CPU e ganha partida após
+partida, com o placar contando tudo. Ninguém precisa estar de má fé para isso
+acontecer — basta sair da frente do computador.
+
+Duas formas de checar, da mais barata para a mais precisa:
+
+1. **Input não-nulo dos dois lados.** O emulador já recebe os inputs
+   sincronizados dos dois jogadores em todo frame. Se o lado do P2 foi zero a
+   sessão inteira, ninguém está lá. Não depende de jogo nenhum.
+2. **O bit de Start por jogador.** O `buildInputMap` em `fbneo_host.cpp` já
+   percorre os inputs do driver **por nome** (`"P2 Start"`), então dá para
+   guardar o índice do bit de start de cada lado e exigir que ele tenha sido
+   pressionado. Mais preciso, e continua sem tabela por jogo.
+
+A regra deve valer para contar **partida**, não para desenhar a barra: mostrar
+o nome do oponente que está conectado e parado está certo; contar vitória
+contra ele não.
 
 A barra nítida só existe no DirectX 9 (`patches/fbneo/0006`). Em DirectDraw cai
 no desenho dentro da imagem do jogo, que é borrado. O padrão do build agora é
