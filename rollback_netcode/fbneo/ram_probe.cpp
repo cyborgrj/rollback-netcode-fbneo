@@ -4,13 +4,14 @@
 // The recording format, little-endian throughout, read by tools/ProbeAnalyze:
 //
 //   "RBFPROBE"            8 bytes
-//   u32 version           1
+//   u32 version           2
 //   u32 ramLen            bytes of work RAM
 //   u32 cpuBase           address the CPU sees ram[0] at
 //   u32 chunkSize         64
 //   u32 interval          frames between samples
 //   char game[32]         driver short name, NUL padded
-//   char reserved[32]
+//   u32 byteSwap          1 when buffer index = cpu address ^ 1 (all 68000 RAM)
+//   char reserved[28]
 //   then records, each a tag byte:
 //     1 = full   u32 frame, ramLen bytes
 //     2 = delta  u32 frame, u32 nChunks, nChunks * (u32 chunkIndex, chunkSize bytes)
@@ -30,7 +31,7 @@
 #include <time.h>
 
 #define PROBE_CHUNK       64
-#define PROBE_VERSION      1
+#define PROBE_VERSION      2
 // A calibration run is one match. Left going by accident it would quietly fill
 // the disk, so it stops itself and says so.
 #define PROBE_MAX_BYTES   (128u * 1024u * 1024u)
@@ -39,15 +40,22 @@
 // The name comes from the area scan the driver itself publishes; the base is
 // where the 68000 sees that block, which is the address a cheat table or a
 // disassembly would quote.
-static const struct { const char* szName; unsigned int nCpuBase; } kWorkRam[] = {
-	{ "68K RAM",  0x100000 },   // Neo Geo cartridge work RAM (neo_run.cpp)
-	{ "CpsRamFF", 0xFF0000 },   // CPS1 / CPS2 68000 work RAM (cps_mem.cpp)
+//
+// bSwap says the buffer holds the two bytes of each 16-bit word the other way
+// round from the CPU address - which is how FBNeo stores all 68000 memory. See
+// ReadByte() in cpu/m68000_intf.cpp: for mapped memory it does a ^= 1 before
+// indexing. Without undoing that, a three-byte field reads back shuffled and
+// nothing lines up with any published address.
+static const struct { const char* szName; unsigned int nCpuBase; int bSwap; } kWorkRam[] = {
+	{ "68K RAM",  0x100000, 1 },   // Neo Geo cartridge work RAM (neo_run.cpp)
+	{ "CpsRamFF", 0xFF0000, 1 },   // CPS1 / CPS2 68000 work RAM (cps_mem.cpp)
 };
 
 // ---- attached RAM ----------------------------------------------------------
 static const UINT8* g_pRam        = NULL;
 static UINT32       g_nRamLen     = 0;
 static UINT32       g_nCpuBase    = 0;
+static int          g_bSwap       = 0;
 static int          g_attachTried = 0;
 
 // ---- recorder --------------------------------------------------------------
@@ -79,6 +87,7 @@ static char         s_seen[512];      // every area name we walked past
 static const UINT8* s_found;
 static UINT32       s_foundLen;
 static UINT32       s_foundBase;
+static int          s_foundSwap;
 
 static INT32 __cdecl ProbeAcb(struct BurnArea* pba)
 {
@@ -99,6 +108,7 @@ static INT32 __cdecl ProbeAcb(struct BurnArea* pba)
 			s_found     = (const UINT8*)pba->Data;
 			s_foundLen  = pba->nLen;
 			s_foundBase = kWorkRam[i].nCpuBase;
+			s_foundSwap = kWorkRam[i].bSwap;
 			break;
 		}
 	}
@@ -111,7 +121,7 @@ int RamProbeAttach(void (*pfnLog)(const char*))
 	if (g_attachTried) return RAM_PROBE_ERR_NO_RAM;
 	g_attachTried = 1;
 
-	s_found = NULL; s_foundLen = 0; s_foundBase = 0; s_seen[0] = '\0';
+	s_found = NULL; s_foundLen = 0; s_foundBase = 0; s_foundSwap = 0; s_seen[0] = '\0';
 
 	// ACB_READ, so nothing anywhere writes to driver state: every driver gates
 	// its post-load fixups on ACB_WRITE.
@@ -129,6 +139,7 @@ int RamProbeAttach(void (*pfnLog)(const char*))
 	g_pRam     = s_found;
 	g_nRamLen  = s_foundLen;
 	g_nCpuBase = s_foundBase;
+	g_bSwap    = s_foundSwap;
 	probe_log(pfnLog, "ram probe: work RAM %u bytes at cpu 0x%06X", g_nRamLen, g_nCpuBase);
 	return RAM_PROBE_OK;
 }
@@ -147,7 +158,9 @@ unsigned char RamProbeRead8(unsigned int nCpuAddr)
 	// and at 0x1Fxxxx, CPS from 0xFF0000 up), so wrap rather than reject: an
 	// address copied from a mirror still lands on the right byte. Every size in
 	// kWorkRam is a power of two, which is what makes the mask legitimate.
-	return g_pRam[(nCpuAddr - g_nCpuBase) & (g_nRamLen - 1)];
+	unsigned int off = (nCpuAddr - g_nCpuBase) & (g_nRamLen - 1);
+	if (g_bSwap) off ^= 1;
+	return g_pRam[off];
 }
 
 // ===========================================================================
@@ -204,7 +217,7 @@ int RamProbeRecordStart(int nInterval, void (*pfnLog)(const char*))
 
 	char szHdrGame[32]; memset(szHdrGame, 0, sizeof(szHdrGame));
 	strncpy(szHdrGame, szGame, sizeof(szHdrGame) - 1);
-	char szPad[32];     memset(szPad, 0, sizeof(szPad));
+	char szPad[28];     memset(szPad, 0, sizeof(szPad));
 
 	fwrite("RBFPROBE", 1, 8, g_fp);
 	wr32(g_fp, PROBE_VERSION);
@@ -213,6 +226,7 @@ int RamProbeRecordStart(int nInterval, void (*pfnLog)(const char*))
 	wr32(g_fp, PROBE_CHUNK);
 	wr32(g_fp, (UINT32)g_interval);
 	fwrite(szHdrGame, 1, sizeof(szHdrGame), g_fp);
+	wr32(g_fp, (UINT32)g_bSwap);
 	fwrite(szPad,     1, sizeof(szPad),     g_fp);
 
 	probe_log(pfnLog, "ram probe: recording %s every %d frames", szPath, g_interval);

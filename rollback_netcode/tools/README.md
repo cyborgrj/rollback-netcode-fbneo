@@ -76,21 +76,47 @@ E a barra de vida é melhor que o contador também para o leitor ao vivo: ela di
 **quem** perdeu o round e **quando**, sem depender de como cada jogo guarda o
 placar.
 
-### 4. O que já está mapeado
+### 4. A pegadinha dos bytes trocados
 
-| jogo | vida P1 | vida P2 | personagem P1 | personagem P2 | cheio | KO |
-|------|---------|---------|----------------|----------------|-------|----|
-| `sf2ce` | `0xFF83E8` | `0xFF86E8` | `0xFF83D8` | `0xFF86D8` | `0x90` (144) | `0xFF` |
+O FBNeo guarda a memória do 68000 **com os dois bytes de cada palavra de 16 bits
+invertidos**. Está em `cpu/m68000_intf.cpp`, no `ReadByte()`: para memória
+mapeada ele faz `a ^= 1` antes de indexar. Ou seja, o índice no buffer **não é**
+o endereço da CPU.
 
-Os dois jogadores ficam em structs paralelas separadas por **0x300**. O KO não é
-vida zero: a vida vira `0xFF` (−1 com sinal) e só depois a struct é limpa, o que
-distingue "perdeu o round" de "a partida acabou".
+Isso não é detalhe cosmético: sem desfazer, um campo de três bytes (o time do
+KOF, por exemplo) volta embaralhado e nada bate com endereço nenhum publicado.
+O `ram_probe` e o `ProbeAnalyze` desfazem a troca, então tudo aqui — entrada e
+saída — está em **endereço de CPU**. Vale para o Neo Geo e para o CPS.
 
-Personagens do `sf2ce` confirmados até agora: **4 = Ryu, 5 = E.Honda, 6 = Ken**.
-O resto sai com uma gravação por personagem — o byte é escrito no instante em
-que a luta começa, então basta escolher, esperar o "Fight!" e fechar.
+### 5. O que já está mapeado
 
-`vsav`, `kof98` e `sfa2` ainda faltam.
+Endereços de CPU. `vida` é um byte; cheio é o valor da esquerda, e o round
+acabou quando ele passa a valer mais que isso (estourou para negativo).
+
+| jogo | vida P1 | vida P2 | personagem P1 | personagem P2 | cheio | morreu |
+|------|---------|---------|----------------|----------------|-------|--------|
+| `sf2ce` | `0xFF83E9` | `0xFF86E9` | `0xFF83D9` | `0xFF86D9` | `0x90` (144) | `0xFF` |
+| `kof98` | `0x108239` | `0x108439` | `0x10A84E`+3 | `0x10A85F`+3 | `0x67` (103) | `> 0x67` (`0xFA`…`0xFF`) |
+
+No `sf2ce` os dois jogadores ficam a **0x300** um do outro; no `kof98`, a
+**0x200**. Em nenhum dos dois o KO é vida zero — a vida estoura para negativo
+(`0xFF`, `0xFA`, `0xFC`…) e só depois a struct é limpa, e é isso que distingue
+"perdeu o round" de "a partida acabou".
+
+O `kof98` é 3x3, então o personagem não é um byte e sim **três em sequência**, na
+ordem em que entram na luta.
+
+Personagens confirmados:
+
+- `sf2ce`: 4 = Ryu, 5 = E.Honda, 6 = Ken.
+- `kof98`: 0 = Kyo, 1 = Benimaru, 2 = Daimon, 18 = Kim, 19 = Choi, 20 = Chang,
+  27 = Iori, 28 = Mature, 29 = Vice. (19 e 20 saíram da ordem em que o time da
+  CPU entrou na luta — vale reconfirmar.)
+
+O resto sai com uma gravação por personagem: o byte é escrito no instante em que
+a luta começa, então basta escolher, esperar o "Fight!" e fechar.
+
+`vsav` e `sfa2` ainda faltam.
 
 ## Formato do `.rbfp`
 

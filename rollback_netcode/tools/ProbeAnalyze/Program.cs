@@ -32,9 +32,17 @@ internal sealed class Header
     public int    Version;
     public uint   RamLen;
     public uint   CpuBase;
+    // FBNeo keeps 68000 memory with the two bytes of each word the other way
+    // round (cpu/m68000_intf.cpp does a ^= 1 on every mapped byte access), so
+    // a buffer index is not a CPU address. Undoing it here is what makes a
+    // multi-byte field read back in order and match a published address.
+    public bool   ByteSwap = true;
     public uint   ChunkSize;
     public uint   Interval;
     public string Game = "";
+
+    public int  IndexOf(uint cpuAddr) { uint o = cpuAddr - CpuBase; return (int)(ByteSwap ? (o ^ 1) : o); }
+    public uint AddrOf(int index)     { uint o = (uint)index;       return CpuBase + (ByteSwap ? (o ^ 1) : o); }
 }
 
 // What one address did over the whole recording. Volatile bytes - timers,
@@ -58,8 +66,8 @@ internal sealed class Recording
     public List<uint> Frames = new();
     public Track[] Tracks;
 
-    public uint AddrOf(int index) => H.CpuBase + (uint)index;
-    public int  IndexOf(uint addr) => (int)(addr - H.CpuBase);
+    public uint AddrOf(int index) => H.AddrOf(index);
+    public int  IndexOf(uint addr) => H.IndexOf(addr);
     public bool Holds(uint addr) => addr >= H.CpuBase && addr < H.CpuBase + H.RamLen;
 }
 
@@ -107,14 +115,17 @@ internal static class Program
             {
                 var rec = Load(files[0]);
                 int want = int.Parse(args[iEnds + 1]);
+                var ends = new List<string>();
                 for (int i = 0; i < rec.Tracks.Length; i++)
                 {
                     var t = rec.Tracks[i];
                     if (t.First != 0 || t.Last != want) continue;
                     if (want != 0 && !LooksLikeCounter(t)) continue;
                     if (want == 0 && t.Changes != 0) continue;
-                    Console.WriteLine($"0x{rec.AddrOf(i):X6}");
+                    ends.Add($"0x{rec.AddrOf(i):X6}");
                 }
+                ends.Sort(StringComparer.Ordinal);
+                foreach (var e in ends) Console.WriteLine(e);
                 return 0;
             }
 
@@ -224,9 +235,20 @@ internal static class Program
             Interval  = br.ReadUInt32(),
         };
         h.Game = Encoding.ASCII.GetString(br.ReadBytes(32)).TrimEnd('\0');
-        br.ReadBytes(32);   // reserved
+        if (h.Version >= 2)
+        {
+            h.ByteSwap = br.ReadUInt32() != 0;
+            br.ReadBytes(28);   // reserved
+        }
+        else
+        {
+            // Version 1 did not record it, and every driver it could have been
+            // made with is a 68000.
+            h.ByteSwap = true;
+            br.ReadBytes(32);
+        }
 
-        if (h.Version != 1) throw new InvalidDataException($"recording version {h.Version} is newer than this tool.");
+        if (h.Version > 2) throw new InvalidDataException($"recording version {h.Version} is newer than this tool.");
         if (h.RamLen == 0 || h.RamLen > 8u * 1024 * 1024) throw new InvalidDataException("implausible RAM size in header.");
         return h;
     }
@@ -435,7 +457,7 @@ internal static class Program
         var lines = new List<string>();
 
         var h = ReadHeader(path);
-        int off = (int)(addr - h.CpuBase);
+        int off = h.IndexOf(addr);
         if (off < 0 || off >= h.RamLen)
             throw new ArgumentException($"0x{addr:X6} is outside this recording (0x{h.CpuBase:X6}..0x{h.CpuBase + h.RamLen - 1:X6}).");
 
@@ -469,8 +491,14 @@ internal static class Program
         });
 
         if (first == null) { Console.Error.WriteLine("no samples in that window."); return; }
+        // Sorted, because the whole point of this listing is to be joined
+        // against the same listing from another recording - and the byte swap
+        // means buffer order is not address order.
+        var outp = new List<string>();
         for (int i = 0; i < first.Length; i++)
-            if (!moved[i]) Console.WriteLine($"0x{h.CpuBase + (uint)i:X6} {first[i]}");
+            if (!moved[i]) outp.Add($"0x{h.AddrOf(i):X6} {first[i]}");
+        outp.Sort(StringComparer.Ordinal);
+        foreach (var line in outp) Console.WriteLine(line);
     }
 
     private static void Health(string path)
@@ -531,7 +559,7 @@ internal static class Program
             if (downs[i] < 8) continue;             // it takes more than a couple of hits
             if (ups[i] > 6) continue;
 
-            uint addr = h.CpuBase + (uint)i;
+            uint addr = h.AddrOf(i);
             string zeros   = zeroAt[i]   == null ? "-" : string.Join(",", zeroAt[i].Select(f => "f" + f));
             string refills2 = refillAt[i] == null ? "-" : string.Join(",", refillAt[i].Select(f => "f" + f));
             Console.WriteLine($"  0x{addr:X6}  max {max[i],3}  {downs[i],3} quedas   zerou em {zeros}   encheu em {refills2}");
@@ -615,8 +643,7 @@ internal static class Program
         byte[] prev = null;
 
         var h = ReadHeader(path);
-        int off = (int)(addr - h.CpuBase);
-        if (off < 0 || off + width > h.RamLen)
+        if (h.IndexOf(addr) < 0 || h.IndexOf(addr + (uint)width - 1) >= h.RamLen)
             throw new ArgumentException($"0x{addr:X6}+{width} is outside this recording.");
 
         Console.WriteLine($"0x{addr:X6}..0x{addr + width - 1:X6} in {Path.GetFileName(path)} ({h.Game}), " +
@@ -624,7 +651,7 @@ internal static class Program
         Walk(path, (sample, frame, ram) =>
         {
             var slice = new byte[width];
-            Array.Copy(ram, off, slice, 0, width);
+            for (int k = 0; k < width; k++) slice[k] = ram[h.IndexOf(addr + (uint)k)];
             if (prev != null && slice.AsSpan().SequenceEqual(prev)) return;
             Console.WriteLine($"  f{frame,-8} " + string.Join(" ", slice.Select(b => b.ToString("X2"))));
             prev = slice;
@@ -657,6 +684,7 @@ internal static class Program
             if (ta.First > 63 || tb.First > 63) continue;   // rosters are small
             hits.Add(a.AddrOf(i));
         }
+        hits.Sort();
 
         if (hits.Count == 0)
         {
@@ -680,7 +708,7 @@ internal static class Program
             sb.Append("   ");
             for (int j = 0; j < len && j < 16; j++)
             {
-                int idx = a.IndexOf(start) + j;
+                int idx = a.IndexOf(start + (uint)j);
                 sb.Append($"{a.Tracks[idx].First:X2}/{b.Tracks[idx].First:X2} ");
             }
             Console.WriteLine(sb.ToString());
