@@ -504,10 +504,10 @@ internal static class Program
     private static void Health(string path)
     {
         byte[] max = null, last = null;
-        int[] ups = null, bigUps = null, downs = null, zeroed = null;
-        var refills = new List<uint>[0];
+        int[] ups = null, bigUps = null, downs = null, zeroed = null, over = null;
         List<uint>[] refillAt = null;
         List<uint>[] zeroAt = null;
+        List<uint>[] overAt = null;
 
         var h = Walk(path, (sample, frame, ram) =>
         {
@@ -519,6 +519,8 @@ internal static class Program
                 downs = new int[ram.Length]; zeroed = new int[ram.Length];
                 refillAt = new List<uint>[ram.Length];
                 zeroAt   = new List<uint>[ram.Length];
+                overAt   = new List<uint>[ram.Length];
+                over     = new int[ram.Length];
                 return;
             }
 
@@ -541,6 +543,12 @@ internal static class Program
                     downs[i]++;
                     if (v == 0) { zeroed[i]++; (zeroAt[i] ??= new List<uint>()).Add(frame); }
                 }
+
+                // The real end-of-round marker in every one of these games: a
+                // life bar that runs out does not stop at zero, it goes past it
+                // and wraps. Reading it as a fall to a huge number is what makes
+                // it findable without knowing which game this is.
+                if (p <= 0x40 && v >= 0xF0) { over[i]++; (overAt[i] ??= new List<uint>()).Add(frame); }
                 last[i] = v;
             }
         });
@@ -553,7 +561,9 @@ internal static class Program
         for (int i = 0; i < max.Length; i++)
         {
             if (max[i] < 48) continue;              // a life bar is not a three-bit field
-            if (zeroed[i] < 1) continue;            // somebody has to have lost a round
+            // Normally a life bar we care about is one that ran out. --loose keeps
+            // the winner side too, which is how you find the pair.
+            if (!Loose && zeroed[i] < 1 && over[i] < 1) continue;
             if (bigUps[i] < 1) continue;            // and the round has to have started over
             if (ups[i] != bigUps[i]) continue;      // no healing, ever
             if (downs[i] < 8) continue;             // it takes more than a couple of hits
@@ -561,8 +571,9 @@ internal static class Program
 
             uint addr = h.AddrOf(i);
             string zeros   = zeroAt[i]   == null ? "-" : string.Join(",", zeroAt[i].Select(f => "f" + f));
+            string overs   = overAt[i]   == null ? "-" : string.Join(",", overAt[i].Select(f => "f" + f));
             string refills2 = refillAt[i] == null ? "-" : string.Join(",", refillAt[i].Select(f => "f" + f));
-            Console.WriteLine($"  0x{addr:X6}  max {max[i],3}  {downs[i],3} quedas   zerou em {zeros}   encheu em {refills2}");
+            Console.WriteLine($"  0x{addr:X6}  max {max[i],3}  {downs[i],3} quedas   estourou em {overs}   zerou em {zeros}   encheu em {refills2}");
             found++;
         }
 

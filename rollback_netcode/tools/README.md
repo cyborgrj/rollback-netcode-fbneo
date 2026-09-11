@@ -90,33 +90,47 @@ saída — está em **endereço de CPU**. Vale para o Neo Geo e para o CPS.
 
 ### 5. O que já está mapeado
 
-Endereços de CPU. `vida` é um byte; cheio é o valor da esquerda, e o round
-acabou quando ele passa a valer mais que isso (estourou para negativo).
+**A regra é a mesma nos quatro jogos**, e isso não era óbvio antes de olhar: a
+vida é uma **palavra de 16 bits com sinal**, big-endian (68000). Cheia vale um
+positivo; o round acabou quando ela fica **negativa** (`0xFFFF`, `0xFFFA`,
+`0xFFFC`…). Nunca é zero — zero é a struct sendo limpa quando a partida acaba, e
+é justamente isso que separa "perdeu o round" de "acabou".
 
-| jogo | vida P1 | vida P2 | personagem P1 | personagem P2 | cheio | morreu |
-|------|---------|---------|----------------|----------------|-------|--------|
-| `sf2ce` | `0xFF83E9` | `0xFF86E9` | `0xFF83D9` | `0xFF86D9` | `0x90` (144) | `0xFF` |
-| `kof98` | `0x108239` | `0x108439` | `0x10A84E`+3 | `0x10A85F`+3 | `0x67` (103) | `> 0x67` (`0xFA`…`0xFF`) |
+Endereços de CPU:
 
-No `sf2ce` os dois jogadores ficam a **0x300** um do outro; no `kof98`, a
-**0x200**. Em nenhum dos dois o KO é vida zero — a vida estoura para negativo
-(`0xFF`, `0xFA`, `0xFC`…) e só depois a struct é limpa, e é isso que distingue
-"perdeu o round" de "a partida acabou".
+| jogo | vida P1 | vida P2 | passo | cheia | personagem P1 | personagem P2 |
+|------|---------|---------|-------|-------|----------------|----------------|
+| `sf2ce` | `0xFF83E8` | `0xFF86E8` | `0x300` | `0x0090` (144) | `0xFF83D9` | `0xFF86D9` |
+| `sfa2`  | `0xFF8450` | `0xFF8850` | `0x400` | `0x0090` (144) | `0xFF8482` | `0xFF8882` |
+| `vsav`  | `0xFF8450` | `0xFF8850` | `0x400` | `0x0120` (288) | `0xFF841C` (16 bits) | **falta** |
+| `kof98` | `0x108238` | `0x108438` | `0x200` | `0x0067` (103) | `0x10A84E`+3 | `0x10A85F`+3 |
 
-O `kof98` é 3x3, então o personagem não é um byte e sim **três em sequência**, na
-ordem em que entram na luta.
+Dois jogos fogem do formato "melhor de três":
+
+- **`vsav`** não recarrega a vida e não tem corte entre rounds — o `--activity`
+  não acha round nenhum ali, e não é defeito. A barra vale `0x0120` = **duas**
+  barras de 144. O placar sai de quantas barras cada lado perdeu: 2 quando a
+  vida fica negativa, 1 quando cai a 144 ou menos, 0 acima disso. Conferido: num
+  2x1 o vencedor tinha chegado a 86, e num 2x0 o vencedor não tomou um ponto de
+  dano e ficou em `0x0120` do começo ao fim.
+- **`kof98`** é 3x3, então o personagem não é um byte e sim **três em sequência**,
+  na ordem em que entram na luta.
 
 Personagens confirmados:
 
 - `sf2ce`: 4 = Ryu, 5 = E.Honda, 6 = Ken.
+- `sfa2`: 0 = Ryu, 1 = Ken, 3 = Nash/Charlie, 5 = Adon. No `sfa2` esse byte
+  acompanha o cursor **ao vivo** na tela de seleção, então uma gravação passeando
+  pelo grid mapeia o elenco inteiro de uma vez.
 - `kof98`: 0 = Kyo, 1 = Benimaru, 2 = Daimon, 18 = Kim, 19 = Choi, 20 = Chang,
   27 = Iori, 28 = Mature, 29 = Vice. (19 e 20 saíram da ordem em que o time da
   CPU entrou na luta — vale reconfirmar.)
+- `vsav`: 36 = Jedah, 22 = L.Raptor (só o lado P1).
 
-O resto sai com uma gravação por personagem: o byte é escrito no instante em que
-a luta começa, então basta escolher, esperar o "Fight!" e fechar.
-
-`vsav` e `sfa2` ainda faltam.
+**O que falta:** o personagem do P2 no `vsav`. `0xFF881C`, que seria o simétrico,
+oscila entre dois valores vizinhos o tempo todo — é campo de animação, não id. O
+jeito barato de fechar isso é gravar uma partida **de dois jogadores humanos**,
+em que as duas structs são simétricas de verdade.
 
 ## Formato do `.rbfp`
 
