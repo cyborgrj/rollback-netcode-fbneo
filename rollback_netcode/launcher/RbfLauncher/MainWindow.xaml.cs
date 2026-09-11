@@ -265,16 +265,22 @@ namespace RbfLauncher
                     args += string.Format(",gamerelay={0}", ms.GameRelayPort);
             }
 
+            // Who is playing, always - the emulator draws both names over the
+            // game whether or not anybody is watching, so this must not hang off
+            // the relay being configured.
+            {
+                string me = _client?.Username ?? "";
+                string p1 = ms.PlayerNum == 1 ? me : ms.PeerUsername;
+                string p2 = ms.PlayerNum == 1 ? ms.PeerUsername : me;
+                args += string.Format(",p1={0},p2={1}", Sanitize(p1), Sanitize(p2));
+            }
+
             // Side 1 broadcasts the match to the relay so it can be watched. Both
             // sides get the arguments; the emulator ignores them unless it is P1.
             if (_client != null && _client.RelayPort > 0 && !string.IsNullOrWhiteSpace(_config.ServerHost))
             {
-                string me = _client.Username ?? "";
-                string p1 = ms.PlayerNum == 1 ? me : ms.PeerUsername;
-                string p2 = ms.PlayerNum == 1 ? ms.PeerUsername : me;
-                args += string.Format(",relayip={0},relayport={1},p1={2},p2={3}",
-                                      _config.ServerHost, _client.RelayPort,
-                                      Sanitize(p1), Sanitize(p2));
+                args += string.Format(",relayip={0},relayport={1}",
+                                      _config.ServerHost, _client.RelayPort);
                 if (args.IndexOf(",matchid=", StringComparison.Ordinal) < 0)
                     args += ",matchid=" + ms.MatchId;   // hole punching usually added it already
             }
