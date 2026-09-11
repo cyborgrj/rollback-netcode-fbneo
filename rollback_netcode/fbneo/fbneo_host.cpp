@@ -352,7 +352,7 @@ static int startCommon(const FbnHostConfig* cfg)
 	// A game we have no addresses for is not an error - the match runs, it
 	// just goes unscored.
 	MatchScoreStart(RbfLogLine);
-	OverlayShow(g_cfg.szP1Name, g_cfg.szP2Name);
+	OverlayShow(g_cfg.szP1Name, g_cfg.szP2Name, g_cfg.nFirstTo);
 
 	return buildInputMap();
 }
@@ -512,7 +512,7 @@ int FbnHostStartWatch(const FbnWatchConfig* cfg)
 	g_active = 1;
 	// A viewer knows the names from the stream header, so the overlay works
 	// there too - and knowing who is playing is half the point of watching.
-	OverlayShow(info.szP1, info.szP2);
+	OverlayShow(info.szP1, info.szP2, 0);
 	RbfLog("watching %s: %s vs %s (%s)", cfg->szMatchId, info.szP1, info.szP2, info.szGame);
 	bprintf(PRINT_IMPORTANT, _T("[fbneo_host] watching %S vs %S.\n"), info.szP1, info.szP2);
 	return 0;

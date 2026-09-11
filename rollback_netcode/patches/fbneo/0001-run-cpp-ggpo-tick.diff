@@ -1,8 +1,8 @@
 diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
-index e6ad1a4..ecc9054 100644
+index e6ad1a4..fe0fd94 100644
 --- a/src/burner/win32/run.cpp
 +++ b/src/burner/win32/run.cpp
-@@ -1,947 +1,1000 @@
+@@ -1,947 +1,1012 @@
 -// Run module
 -#include "burner.h"
 -
@@ -955,6 +955,7 @@ index e6ad1a4..ecc9054 100644
 +#include "fbneo_host.h"		// rollback_netcode: libggpo session host
 +#include "ram_probe.h"		// rollback_netcode: work RAM sampling (-rbfprobe)
 +#include "match_score.h"		// rollback_netcode: reads the score out of the game
++#include "overlay.h"		// rollback_netcode: names and score over the game
 +
 +int bRunPause = 0;
 +int bAltPause = 0;
@@ -1022,6 +1023,17 @@ index e6ad1a4..ecc9054 100644
 +
 +static void CheckSystemMacros() // These are the Pause / FFWD macros added to the input dialog
 +{
++	// rollback_netcode: Tab walks the overlay through off / small / large.
++	// Read straight from the keyboard rather than through FBNeo's input map,
++	// so it needs no binding and cannot collide with a game button; gated on
++	// focus so it does not fire while the player is in another window.
++	{
++		static int bPrevTab = 0;
++		const int bTab = (bHasFocus && (GetAsyncKeyState(VK_TAB) & 0x8000)) ? 1 : 0;
++		if (bTab && !bPrevTab && OverlayIsOn()) OverlayCycle();
++		bPrevTab = bTab;
++	}
++
 +	// Pause
 +	if (macroSystemPause && macroSystemPause != prevPause && timeGetTime() > prevPause_debounce+90) {
 +		if (bHasFocus) {

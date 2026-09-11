@@ -50,6 +50,9 @@ typedef struct FbnHostConfig {
 	unsigned short nRelayPort;
 	char           szP1Name[32];
 	char           szP2Name[32];
+	// The match limit the two players agreed on: first to this many games ends
+	// the session. 0 means nobody set one.
+	int            nFirstTo;
 } FbnHostConfig;
 
 // Watching somebody else's match: no GGPO session, no input of our own. The
