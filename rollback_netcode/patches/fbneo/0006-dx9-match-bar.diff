@@ -1,8 +1,8 @@
 diff --git a/src/intf/video/win32/vid_directx9.cpp b/src/intf/video/win32/vid_directx9.cpp
-index 5835e30..73604ce 100644
+index 5835e30..50cd63e 100644
 --- a/src/intf/video/win32/vid_directx9.cpp
 +++ b/src/intf/video/win32/vid_directx9.cpp
-@@ -1,2707 +1,2863 @@
+@@ -1,2707 +1,2868 @@
 -// DirectX9 Enhanced video output
 -#include "burner.h"
 -#include "vid_softfx.h"
@@ -3774,6 +3774,11 @@ index 5835e30..73604ce 100644
 +			font->DrawText(NULL, str, -1, &o, flags, 0xFF000000);
 +		}
 +	}
++	// Twice. The glyph is anti-aliased, so its edge pixels are part
++	// transparent and blend with the black ring underneath - which reads as a
++	// dark smudge eating into the letter. Laying it down a second time
++	// saturates those edges and the letter comes back.
++	font->DrawText(NULL, str, -1, &rc, flags, colour);
 +	font->DrawText(NULL, str, -1, &rc, flags, colour);
 +}
 +

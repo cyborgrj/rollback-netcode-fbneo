@@ -51,6 +51,7 @@ static HFONT    g_font[2] = { NULL, NULL };
 static int      g_fontTried = 0;
 static int      g_haveFace  = 0;         // 1 when the real typeface loaded
 static int      g_claimed   = 0;         // a blitter draws the line itself
+static int      g_softLogged = 0;        // said once that we are on the soft path
 
 // Johnny Fever is public domain, so it ships with the emulator; Arial is the
 // fallback for a folder where somebody deleted it.
@@ -262,8 +263,21 @@ const char* OverlayFaceName(void)
 	return g_haveFace ? "Johnny Fever" : "Arial";
 }
 
-void OverlayClaim(int bClaimed) { g_claimed = bClaimed ? 1 : 0; }
-int  OverlayClaimed(void)       { return g_claimed; }
+// fbneo_host owns rbf-netplay.log; this is the only thing overlay needs from it.
+extern "C" void FbnHostLogLine(const char* s);
+
+void OverlayClaim(int bClaimed)
+{
+	const int now = bClaimed ? 1 : 0;
+	if (now != g_claimed) {
+		g_claimed = now;
+		FbnHostLogLine(now
+			? "overlay: o blitter desenha na resolucao da janela (nitido)"
+			: "overlay: o blitter devolveu o desenho da barra");
+	}
+}
+
+int  OverlayClaimed(void) { return g_claimed; }
 
 void OverlayDraw(unsigned char* img, int w, int h, int bpp, int pitch)
 {
@@ -276,6 +290,17 @@ void OverlayDraw(unsigned char* img, int w, int h, int bpp, int pitch)
 
 	ovInitGdi();
 	if (!g_dc) return;
+
+	// Say so, once. This path draws into a 384-pixel-wide image and lets the
+	// blitter magnify it, which is soft no matter what typeface is used - and
+	// soft here is indistinguishable from soft anywhere else when somebody is
+	// looking at the screen wondering why the names are hard to read.
+	if (!g_softLogged) {
+		g_softLogged = 1;
+		FbnHostLogLine("overlay: desenhando DENTRO da imagem do jogo "
+		               "(este blitter nao desenha a barra) - vai ficar borrado. "
+		               "Use o blitter DirectX 9 no menu Video.");
+	}
 
 	const int idx = (L.nMode == 2) ? 1 : 0;
 
