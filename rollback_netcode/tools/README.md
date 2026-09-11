@@ -54,7 +54,18 @@ ProbeAnalyze <arq.rbfp> --steps f1,f2 [tol] bytes cuja história termina exatame
 ProbeAnalyze <arq.rbfp> --ends <n>          endereços que terminaram nesse valor (um por linha)
 ProbeAnalyze <arq.rbfp> --constin <a>-<b>   bytes parados entre dois frames (`0xEND VALOR`)
 ProbeAnalyze <a.rbfp> <b.rbfp> --chars      id de personagem, comparando duas gravações
+ProbeAnalyze <arq.rbfp>... --score          aplica a regra final: placar e personagens
 ```
+
+O `--score` é a **referência** do leitor que roda dentro do emulador
+([`../fbneo/match_score.cpp`](../fbneo/match_score.cpp)). Os dois têm que
+concordar. Sempre que um dos dois mudar, rode:
+
+```
+ProbeAnalyze --score D:\RBF\rbf-probe-*.rbfp
+```
+
+São oito partidas cujo resultado era conhecido de antemão, e as oito batem.
 
 Os endereços são endereços de CPU — `0xFF8xxx` no CPS1/CPS2, `0x10xxxx` no
 Neo Geo — os mesmos que apareceriam num arquivo de cheat ou num disassembly.

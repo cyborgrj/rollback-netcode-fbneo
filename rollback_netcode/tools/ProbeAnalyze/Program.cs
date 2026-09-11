@@ -129,6 +129,16 @@ internal static class Program
                 return 0;
             }
 
+            // The shipping rule, run over a recording whose result we already
+            // know. This is the oracle the emulator-side reader has to agree
+            // with - it is cheap to re-check every recording here, and there is
+            // no way to re-check anything once it is inside the emulator.
+            if (flags.Contains("--score"))
+            {
+                foreach (var f in files) Score(f);
+                return 0;
+            }
+
             // Where did the rounds end? Nothing in the file says so directly,
             // but a round transition rewrites half the world - the KO, the
             // win pose, the next round being set up - while the middle of a
@@ -619,6 +629,127 @@ internal static class Program
 
         if (found == 0) Console.WriteLine("  none - try a wider tolerance, or a different set of moments.");
         else Console.WriteLine($"\n({found} bytes)");
+    }
+
+    // ---------------------------------------------------------------------
+    //  The shipping rule
+    // ---------------------------------------------------------------------
+
+    // One entry per game we can read. Addresses are CPU addresses; life is a
+    // signed 16-bit big-endian word and a side has lost when its own word goes
+    // negative. Characters are one byte, or three in a row for a KOF team, and
+    // are only meaningful once the fight has started.
+    private sealed class GameMap
+    {
+        public string Game;
+        public uint LifeP1, LifeP2;
+        public uint CharP1, CharP2;   // 0 = not known for this game
+        public int  CharCount = 1;
+        public int  Full;
+        // vsav has no rounds: one gauge worth two 144-unit bars, no refill, no
+        // round break. The score there is how many bars each side lost.
+        public bool Bars;
+    }
+
+    private static readonly GameMap[] Maps =
+    {
+        new GameMap { Game = "sf2ce", LifeP1 = 0xFF83E8, LifeP2 = 0xFF86E8,
+                      CharP1 = 0xFF83D9, CharP2 = 0xFF86D9, Full = 0x90 },
+        new GameMap { Game = "sfa2",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
+                      CharP1 = 0xFF8482, CharP2 = 0xFF8882, Full = 0x90 },
+        new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
+                      CharP1 = 0xFF841D, CharP2 = 0,       Full = 0x120, Bars = true },
+        new GameMap { Game = "kof98", LifeP1 = 0x108238, LifeP2 = 0x108438,
+                      CharP1 = 0x10A84E, CharP2 = 0x10A85F, CharCount = 3, Full = 0x67 },
+    };
+
+    private static int Life(Header h, byte[] ram, uint a)
+        => (short)((ram[h.IndexOf(a)] << 8) | ram[h.IndexOf(a + 1)]);
+
+    private static string Who(Header h, byte[] ram, uint a, int n)
+    {
+        if (a == 0) return "?";
+        var v = new List<string>();
+        for (uint k = 0; k < n; k++) v.Add(ram[h.IndexOf(a + k)].ToString());
+        return string.Join("/", v);
+    }
+
+    private static void Score(string path)
+    {
+        var h = ReadHeader(path);
+        var m = Maps.FirstOrDefault(x => x.Game == h.Game);
+        if (m == null)
+        {
+            Console.WriteLine($"{Path.GetFileName(path)}: no map for {h.Game}.");
+            return;
+        }
+
+        int p1Won = 0, p2Won = 0;          // rounds won, i.e. the OTHER side died
+        bool p1Down = false, p2Down = false;
+        int p1Low = int.MaxValue, p2Low = int.MaxValue;
+        string c1 = "?", c2 = "?";
+        bool started = false;
+        uint startFrame = 0, endFrame = 0;
+
+        Walk(path, (sample, frame, ram) =>
+        {
+            int l1 = Life(h, ram, m.LifeP1);
+            int l2 = Life(h, ram, m.LifeP2);
+
+            // Two full bars at once happens nowhere but the start of a fight.
+            if (!started && l1 == m.Full && l2 == m.Full)
+            {
+                started = true;
+                startFrame = frame;
+            }
+            if (!started) return;
+
+            // Read the characters on every frame where both sides are alive,
+            // and keep the last such reading. Capturing once at the start is
+            // wrong twice over: sf2ce fills the field a moment AFTER the bars
+            // go full, and the arcade writes the NEXT opponent into it as soon
+            // as the match is over. Between those two, the field is stable.
+            if (l1 > 0 && l2 > 0)
+            {
+                c1 = Who(h, ram, m.CharP1, m.CharCount);
+                c2 = Who(h, ram, m.CharP2, m.CharCount);
+            }
+
+            // Zero is the struct being cleared at the end of the match, not a
+            // life total - counting it as a low told us a player who finished
+            // untouched had lost a bar.
+            if (l1 > 0 && l1 < p1Low) p1Low = l1;
+            if (l2 > 0 && l2 < p2Low) p2Low = l2;
+
+            // Edge, not level: the value sits negative for the whole knockout
+            // animation. It only counts again once that side has life back -
+            // and "back" means above zero, because zero is the struct being
+            // cleared when the match is over, not a new round.
+            if (l1 < 0) { if (!p1Down) { p1Down = true; p2Won++; endFrame = frame; } }
+            else if (l1 > 0) p1Down = false;
+
+            if (l2 < 0) { if (!p2Down) { p2Down = true; p1Won++; endFrame = frame; } }
+            else if (l2 > 0) p2Down = false;
+        });
+
+        if (!started)
+        {
+            Console.WriteLine($"{Path.GetFileName(path)} ({h.Game}): no fight in this recording.");
+            return;
+        }
+
+        if (m.Bars)
+        {
+            // Losing the gauge is losing both bars at once; getting through it
+            // with less than half left is one bar gone.
+            p1Won = p2Down ? 2 : (p2Low <= m.Full / 2 ? 1 : 0);
+            p2Won = p1Down ? 2 : (p1Low <= m.Full / 2 ? 1 : 0);
+        }
+
+        string verdict = p1Won > p2Won ? "P1 venceu" : p2Won > p1Won ? "P2 venceu" : "empate";
+        Console.WriteLine($"{Path.GetFileName(path),-42} {h.Game,-6} " +
+                          $"P1[{c1}] {p1Won} x {p2Won} P2[{c2}]   {verdict}" +
+                          $"   (luta f{startFrame}..f{endFrame})");
     }
 
     private static void Activity(string path)

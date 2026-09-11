@@ -15,6 +15,7 @@
 #include "../core/nat_punch.h"
 #include "../core/relay.h"
 #include "../core/port_map.h"
+#include "match_score.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -274,6 +275,10 @@ static int startCommon(const FbnHostConfig* cfg)
 	// Only side 1 broadcasts, and only if the lobby gave us a relay to dial.
 	g_relayPending = (g_localPlayer == 1 && g_cfg.szRelayIp[0] &&
 	                  g_cfg.nRelayPort && g_cfg.szMatchId[0]) ? 1 : 0;
+
+	// A game we have no addresses for is not an error - the match runs, it
+	// just goes unscored.
+	MatchScoreStart(RbfLogLine);
 
 	return buildInputMap();
 }
@@ -549,6 +554,9 @@ void FbnHostStop(void)
 			GgpoBridgeClose();
 			RelayPublishStop();
 			PortMapClose();
+			// Before the log line that closes the session, so the result and
+			// the match it belongs to sit together in the file.
+			MatchScoreStop(RbfLogLine);
 			RbfLog("session closed.");
 		}
 		g_active = 0;
