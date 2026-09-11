@@ -49,8 +49,39 @@ int  OverlayMode(void);   // 0 off, 1 small, 2 large
 
 // Called from VidFrameCallback with the finished game image. nBpp is BYTES per
 // pixel: 2 = RGB565, 3 and 4 = B,G,R in ascending bytes. Does nothing when no
-// session is showing.
+// session is showing, or when a blitter has claimed the job.
 void OverlayDraw(unsigned char* pImage, int nWidth, int nHeight, int nBpp, int nPitch);
+
+// ---- for a blitter that can do better -------------------------------------
+//
+// Drawing into the game image means drawing at about 384x224 and letting the
+// blitter magnify the result, which is legible but soft - eight source pixels
+// of letter cannot be made sharp by stretching them. A blitter that renders
+// text at WINDOW resolution should ask for the line and draw it itself.
+//
+// Layout is the caller's to do, but the rule is: the FT label is centred on
+// the screen, the player one group is right-aligned to its left and the player
+// two group left-aligned to its right. Anchoring on the middle rather than on
+// the edges is what keeps the two scores together when one player has a very
+// long name and the other a very short one.
+typedef struct OverlayLine {
+	int  nMode;                 // 1 small, 2 large
+	char szP1[40], szS1[8], szFt[12], szS2[8], szP2[40];
+	unsigned int rgbP1, rgbP2, rgbScore, rgbLabel, rgbBar;
+	int  nBarAlpha;             // 0..255
+} OverlayLine;
+
+// 1 when there is something to draw.
+int OverlayGetLine(OverlayLine* out);
+
+// The typeface that loaded: "Johnny Fever", or "Arial" when the file was not
+// found next to the emulator.
+const char* OverlayFaceName(void);
+
+// A blitter that draws the line itself says so here, and the in-image
+// fallback stands down.
+void OverlayClaim(int bClaimed);
+int  OverlayClaimed(void);
 
 #ifdef __cplusplus
 } // extern "C"

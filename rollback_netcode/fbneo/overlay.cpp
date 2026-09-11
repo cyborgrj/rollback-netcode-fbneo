@@ -50,6 +50,7 @@ static unsigned char* g_bits = NULL;     // BGRA, top-down
 static HFONT    g_font[2] = { NULL, NULL };
 static int      g_fontTried = 0;
 static int      g_haveFace  = 0;         // 1 when the real typeface loaded
+static int      g_claimed   = 0;         // a blitter draws the line itself
 
 // Johnny Fever is public domain, so it ships with the emulator; Arial is the
 // fallback for a folder where somebody deleted it.
@@ -229,56 +230,83 @@ void OverlayCycle(void)
 	g_mode = (g_mode + 1) % 3;
 }
 
+int OverlayGetLine(OverlayLine* out)
+{
+	if (!out) return 0;
+	if (!g_on || g_mode == 0) return 0;
+
+	memset(out, 0, sizeof(*out));
+	out->nMode     = g_mode;
+	out->rgbP1     = OV_CYAN;
+	out->rgbP2     = OV_LILAC;
+	out->rgbScore  = OV_WHITE;
+	out->rgbLabel  = OV_LABEL;
+	out->rgbBar    = OV_BAR;
+	out->nBarAlpha = OV_BAR_A;
+
+	MatchScoreData d;
+	if (MatchScoreGet(&d)) {
+		snprintf(out->szS1, sizeof(out->szS1), "%d", d.nP1Games);
+		snprintf(out->szS2, sizeof(out->szS2), "%d", d.nP2Games);
+	}
+	if (g_ft) snprintf(out->szFt, sizeof(out->szFt), "FT%d", g_ft);
+
+	strncpy(out->szP1, g_p1[0] ? g_p1 : "P1", sizeof(out->szP1) - 1);
+	strncpy(out->szP2, g_p2[0] ? g_p2 : "P2", sizeof(out->szP2) - 1);
+	return 1;
+}
+
+const char* OverlayFaceName(void)
+{
+	ovInitGdi();
+	return g_haveFace ? "Johnny Fever" : "Arial";
+}
+
+void OverlayClaim(int bClaimed) { g_claimed = bClaimed ? 1 : 0; }
+int  OverlayClaimed(void)       { return g_claimed; }
+
 void OverlayDraw(unsigned char* img, int w, int h, int bpp, int pitch)
 {
-	if (!g_on || g_mode == 0 || !img || w <= 0 || h <= 0 || pitch <= 0) return;
+	if (g_claimed) return;          // a blitter is drawing it properly instead
+	if (!img || w <= 0 || h <= 0 || pitch <= 0) return;
 	if (bpp != 2 && bpp != 3 && bpp != 4) return;
+
+	OverlayLine L;
+	if (!OverlayGetLine(&L)) return;
 
 	ovInitGdi();
 	if (!g_dc) return;
 
-	const int idx = (g_mode == 2) ? 1 : 0;
-
-	MatchScoreData d;
-	const int bScore = MatchScoreGet(&d);
-
-	char szS1[8] = "", szS2[8] = "", szFt[12] = "";
-	if (bScore) {
-		snprintf(szS1, sizeof(szS1), "%d", d.nP1Games);
-		snprintf(szS2, sizeof(szS2), "%d", d.nP2Games);
-	}
-	if (g_ft) snprintf(szFt, sizeof(szFt), "FT%d", g_ft);
-
-	const char* n1 = g_p1[0] ? g_p1 : "P1";
-	const char* n2 = g_p2[0] ? g_p2 : "P2";
+	const int idx = (L.nMode == 2) ? 1 : 0;
 
 	int th = 0;
-	const int w1  = ovMeasure(n1,   idx, &th);
-	const int ws1 = ovMeasure(szS1, idx, NULL);
-	const int wft = ovMeasure(szFt, idx, NULL);
-	const int ws2 = ovMeasure(szS2, idx, NULL);
-	const int w2  = ovMeasure(n2,   idx, NULL);
+	const int w1  = ovMeasure(L.szP1, idx, &th);
+	const int ws1 = ovMeasure(L.szS1, idx, NULL);
+	const int wft = ovMeasure(L.szFt, idx, NULL);
+	const int ws2 = ovMeasure(L.szS2, idx, NULL);
 	if (th <= 0) return;
 
-	// One space-ish between every pair, and a wider one either side of the FT
-	// label so the two scores read as a pair rather than as part of the names.
 	const int gap  = (idx ? OV_LARGE_PX : OV_SMALL_PX) / 2 + 2;
 	const int gapL = gap * 2;
-
-	int total = w1 + gap + ws1;
-	if (wft) total += gapL + wft + gapL; else total += gapL;
-	total += ws2 + gap + w2;
 
 	const int barH = th + 2;
 	ovBar(img, w, h, bpp, pitch, 0, barH);
 
-	int x = (w - total) / 2;
-	if (x < 1) x = 1;
-	const int y = 1;
+	// The middle of the screen is the anchor, not the edges. Right-align the
+	// player one group to the left of it and left-align player two to the
+	// right, so a thirty-character name pushes its own name outwards and
+	// leaves the two scores where they can be read together.
+	const int mid   = w / 2;
+	const int half  = wft ? (wft / 2 + gapL) : gapL / 2;
+	const int y     = 1;
 
-	x += ovText(img, w, h, bpp, pitch, x, y, n1, OV_CYAN, idx) + gap;
-	x += ovText(img, w, h, bpp, pitch, x, y, szS1, OV_WHITE, idx) + gapL;
-	if (wft) x += ovText(img, w, h, bpp, pitch, x, y, szFt, OV_LABEL, idx) + gapL;
-	x += ovText(img, w, h, bpp, pitch, x, y, szS2, OV_WHITE, idx) + gap;
-	ovText(img, w, h, bpp, pitch, x, y, n2, OV_LILAC, idx);
+	int x = mid - half - ws1;
+	ovText(img, w, h, bpp, pitch, x, y, L.szS1, L.rgbScore, idx);
+	ovText(img, w, h, bpp, pitch, x - gap - w1, y, L.szP1, L.rgbP1, idx);
+
+	if (wft) ovText(img, w, h, bpp, pitch, mid - wft / 2, y, L.szFt, L.rgbLabel, idx);
+
+	x = mid + half;
+	ovText(img, w, h, bpp, pitch, x, y, L.szS2, L.rgbScore, idx);
+	ovText(img, w, h, bpp, pitch, x + ws2 + gap, y, L.szP2, L.rgbP2, idx);
 }

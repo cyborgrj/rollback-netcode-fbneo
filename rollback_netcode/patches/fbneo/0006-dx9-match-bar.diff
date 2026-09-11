@@ -1,0 +1,169 @@
+diff --git a/src/intf/video/win32/vid_directx9.cpp b/src/intf/video/win32/vid_directx9.cpp
+index 5835e30..4ecb40b 100644
+--- a/src/intf/video/win32/vid_directx9.cpp
++++ b/src/intf/video/win32/vid_directx9.cpp
+@@ -88,6 +88,14 @@ static IDirect3DTexture9* pEffectTexture = NULL;
+ static VidEffect* pVidEffect = NULL;
+ static int nDX9HardFX = -1;
+ 
++#include "overlay.h"		// rollback_netcode: the match bar
++
++// rollback_netcode: our own fonts, sized from the window rather than fixed,
++// so the bar looks the same in a small window and in fullscreen. Declared up
++// here because vid_FontExit, further down, has to release them.
++static ID3DXFont* pRbfFont[2] = { NULL, NULL };
++static int        nRbfFontPx[2] = { 0, 0 };
++
+ static ID3DXFont* pFont = NULL;							// OSD font
+ static ID3DXFont* pStatusFont = NULL;					// Status font
+ static ID3DXFont* pStatusFontSmall = NULL;				// Status font (small)
+@@ -816,6 +824,12 @@ HANDLE_ERROR:
+ 
+ static void vid_FontExit()
+ {
++	// rollback_netcode: hand the match bar back, so a different blitter
++	// falls back to drawing it into the game image instead of showing none.
++	OverlayClaim(0);
++	RELEASE(pRbfFont[0]); pRbfFont[0] = NULL; nRbfFontPx[0] = 0;
++	RELEASE(pRbfFont[1]); pRbfFont[1] = NULL; nRbfFontPx[1] = 0;
++
+ 	RELEASE(pFont);
+ 	RELEASE(pStatusFont);
+ 	RELEASE(pStatusFontSmall);
+@@ -960,6 +974,10 @@ static int vid_FontInit()
+ 		}
+ 	}
+ 
++	// rollback_netcode: this blitter draws the match bar at window
++	// resolution, which is sharp; the in-image fallback stands down.
++	OverlayClaim(1);
++
+ 	if (!pTinyFont) {
+ 		HRESULT hr = _D3DXCreateFont(pD3DDevice, 18,
+ 									 0, FW_DEMIBOLD, 1, FALSE,
+@@ -987,6 +1005,8 @@ static int vid_FontInit()
+ 	return 0;
+ }
+ 
++#define RBFCOL(x) ((D3DCOLOR)(0xFF000000u | (x)))
++
+ static void textout(ID3DXFont *font, TCHAR *str, RECT dst, DWORD shadow, DWORD flags, DWORD color)
+ {
+ 	if (shadow) {
+@@ -1015,8 +1035,116 @@ static void textout(ID3DXFont *font, TCHAR *str, RECT dst, DWORD shadow, DWORD f
+ 	font->DrawText(NULL, str, -1, &dst, flags, color);
+ }
+ 
++// rollback_netcode ---------------------------------------------------------
++// The match bar, drawn here rather than into the game image. The game image
++// is about 384 pixels wide, so a name drawn there is eight pixels tall before
++// this blitter magnifies it - legible, but soft in a way no amount of care at
++// that size can fix. Drawn at window resolution it is simply sharp.
++static int RbfMeasure(ID3DXFont* font, TCHAR* str)
++{
++	if (!font || !str || !str[0]) return 0;
++	RECT rc = { 0, 0, 0, 0 };
++	font->DrawText(NULL, str, -1, &rc, DT_CALCRECT | DT_SINGLELINE, 0xFFFFFFFF);
++	return rc.right - rc.left;
++}
++
++static void RbfOverlayDraw(RECT frec)
++{
++	// The same normalisation vid_FontDraw does: in a window the rect is
++	// relative to the game image, not to the desktop.
++	if (!nVidFullscreen) {
++		frec.top = 0;
++		frec.left = 0;
++		frec.right = Dest.right - Dest.left;
++		frec.bottom = Dest.bottom - Dest.top;
++	}
++
++	OverlayLine L;
++	if (!OverlayGetLine(&L)) return;
++
++	const int W = frec.right - frec.left;
++	const int H = frec.bottom - frec.top;
++	if (W <= 0 || H <= 0) return;
++
++	// Sized from the window, so it stays the same apparent size in a small
++	// window and in fullscreen.
++	int want = (L.nMode == 2) ? (H / 16) : (H / 26);
++	if (want < 11) want = 11;
++	if (want > 64) want = 64;
++
++	const int slot = (L.nMode == 2) ? 1 : 0;
++	if (nRbfFontPx[slot] != want) {
++		RELEASE(pRbfFont[slot]);
++		pRbfFont[slot] = NULL;
++		TCHAR szFace[64];
++		_sntprintf(szFace, 63, _T("%S"), OverlayFaceName());
++		if (FAILED(_D3DXCreateFont(pD3DDevice, want, 0, FW_NORMAL, 1, FALSE,
++							  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
++							  DEFAULT_PITCH | FF_DONTCARE, szFace, &pRbfFont[slot]))) {
++			pRbfFont[slot] = NULL;
++			return;
++		}
++		nRbfFontPx[slot] = want;
++	}
++
++	ID3DXFont* font = pRbfFont[slot];
++	if (!font) return;
++
++	TCHAR szP1[64], szS1[16], szFt[24], szS2[16], szP2[64];
++	_sntprintf(szP1, 63, _T("%S"), L.szP1);
++	_sntprintf(szS1, 15, _T("%S"), L.szS1);
++	_sntprintf(szFt, 23, _T("%S"), L.szFt);
++	_sntprintf(szS2, 15, _T("%S"), L.szS2);
++	_sntprintf(szP2, 63, _T("%S"), L.szP2);
++
++	const int w1  = RbfMeasure(font, szP1);
++	const int ws1 = RbfMeasure(font, szS1);
++	const int wft = RbfMeasure(font, szFt);
++	const int ws2 = RbfMeasure(font, szS2);
++	const int gap = want / 2;
++	const int gapL = want;
++
++	const int barH = want + want / 3;
++	Boxxy(frec.left, frec.top, W, barH,
++		  D3DCOLOR_ARGB(L.nBarAlpha, (L.rgbBar >> 16) & 0xFF,
++						  (L.rgbBar >> 8) & 0xFF, L.rgbBar & 0xFF));
++
++	// The middle of the screen is the anchor, not the edges: a very long
++	// name then pushes itself outwards instead of shoving the two scores
++	// off to one side, where they stop reading as a score.
++	const int mid  = frec.left + W / 2;
++	const int half = wft ? (wft / 2 + gapL) : (gapL / 2);
++	const int top  = frec.top + (barH - want) / 2;
++	const int bot  = top + want + want / 2;
++
++	RECT rc;
++	rc.top = top; rc.bottom = bot;
++
++	rc.right = mid - half;      rc.left = rc.right - ws1;
++	textout(font, szS1, rc, 1, DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE, RBFCOL(L.rgbScore));
++
++	rc.right = mid - half - ws1 - gap;  rc.left = rc.right - w1;
++	textout(font, szP1, rc, 1, DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE, RBFCOL(L.rgbP1));
++
++	if (wft) {
++		rc.left = mid - wft / 2; rc.right = rc.left + wft;
++		textout(font, szFt, rc, 1, DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE, RBFCOL(L.rgbLabel));
++	}
++
++	rc.left = mid + half;       rc.right = rc.left + ws2;
++	textout(font, szS2, rc, 1, DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE, RBFCOL(L.rgbScore));
++
++	rc.left = mid + half + ws2 + gap;   rc.right = frec.right;
++	textout(font, szP2, rc, 1, DT_LEFT | DT_TOP | DT_NOCLIP | DT_SINGLELINE, RBFCOL(L.rgbP2));
++}
++
+ static void vid_FontDraw(RECT frec)
+ {
++	// rollback_netcode: the match bar is not part of the status display, so
++	// it is drawn before that setting gets a say - somebody who turned the
++	// OSD off still wants to know who they are playing.
++	RbfOverlayDraw(frec);
++
+ 	if (nVidSDisplayStatus == 0) {
+ 		return;
+ 	}
