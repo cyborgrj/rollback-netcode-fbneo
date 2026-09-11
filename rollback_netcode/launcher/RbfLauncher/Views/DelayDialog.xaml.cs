@@ -16,6 +16,13 @@ namespace RbfLauncher.Views
 
         public int FrameDelay => (int)Math.Round(DelaySlider.Value);
 
+        /// <summary>Games that end the session. 0 is "Livre" - no limit, which is
+        /// a real choice and not the absence of one.</summary>
+        public int FirstTo =>
+            Ft3.IsChecked == true  ? 3 :
+            Ft5.IsChecked == true  ? 5 :
+            Ft10.IsChecked == true ? 10 : 0;
+
         /// <summary>Outgoing challenge: "do you want to invite X?"</summary>
         public static DelayDialog ForOutgoing(string opponent, int opponentPingMs, int suggested, Window owner)
         {
@@ -31,7 +38,7 @@ namespace RbfLauncher.Views
 
         /// <summary>Incoming challenge: "X invited you", with their chosen delay.</summary>
         public static DelayDialog ForIncoming(string fromUser, string gameTitle, int suggested,
-                                              int theirDelay, int secondsToAnswer, Window owner)
+                                              int theirDelay, int firstTo, int secondsToAnswer, Window owner)
         {
             var d = new DelayDialog(owner);
             d.Title = "Desafio";
@@ -39,6 +46,14 @@ namespace RbfLauncher.Views
             d.PingRow.Visibility = Visibility.Collapsed;
             d.YesButton.Content = "Aceitar";
             d.NoButton.Content = "Recusar";
+
+            // The limit is the challenger's call, not something to haggle over -
+            // so it is shown, not offered. Accepting the challenge accepts it.
+            d.FtRow.Visibility = Visibility.Collapsed;
+            d.FtText.Text = firstTo > 0
+                ? "Limite da sessão: FT" + firstTo + " (quem ganhar " + firstTo + " partidas primeiro encerra)."
+                : "Limite da sessão: livre - vocês jogam o quanto quiserem.";
+
             d.Init(theirDelay > 0 ? theirDelay : suggested, secondsToAnswer);
             d.HintText.Text = fromUser + " escolheu " + theirDelay +
                               ". O valor final é a média entre a escolha dos dois.";
@@ -58,6 +73,13 @@ namespace RbfLauncher.Views
             DelaySlider.ValueChanged += (s, e) => UpdateDelayText();
             UpdateDelayText();
 
+            if (FtRow.Visibility == Visibility.Visible)
+            {
+                RoutedEventHandler ft = (s, e) => UpdateFtText();
+                Ft3.Checked += ft; Ft5.Checked += ft; Ft10.Checked += ft; FtFree.Checked += ft;
+                UpdateFtText();
+            }
+
             if (secondsToAnswer <= 0) return;
 
             _left = secondsToAnswer;
@@ -73,6 +95,14 @@ namespace RbfLauncher.Views
         }
 
         private void UpdateCount() => CountText.Text = "Expira em " + _left + "s";
+
+        private void UpdateFtText()
+        {
+            int n = FirstTo;
+            FtText.Text = n > 0
+                ? "A sessão termina quando alguém ganhar " + n + " partidas, e o resultado é registrado."
+                : "Sem limite: vocês jogam o quanto quiserem e encerram quando quiserem.";
+        }
 
         private void UpdateDelayText()
         {

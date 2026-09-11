@@ -365,7 +365,7 @@ static int startCommon(const FbnHostConfig* cfg)
 
 	// A game we have no addresses for is not an error - the match runs, it
 	// just goes unscored.
-	MatchScoreStart(RbfLogLine);
+	MatchScoreStart(g_cfg.nFirstTo, RbfLogLine);
 	OverlayShow(g_cfg.szP1Name, g_cfg.szP2Name, g_cfg.nFirstTo);
 
 	return buildInputMap();
@@ -692,6 +692,14 @@ int FbnHostRunFrame(int bDraw)
 	// Checked after the tick, so the frame that carried the disconnect event
 	// still completes and the score includes it.
 	if (g_peerGone) return -1;
+
+	// The agreed number of games is up. Ending it here rather than trusting
+	// both players to stop is the whole point of agreeing on a number.
+	MatchScoreData sc;
+	if (MatchScoreGet(&sc) && sc.bLimitReached) {
+		RbfLog("first to %d reached - ending the session.", g_cfg.nFirstTo);
+		return -1;
+	}
 
 	if (r == GGPO_BRIDGE_OK)      return 1;
 	if (r == GGPO_BRIDGE_SKIPPED) return 0;

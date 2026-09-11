@@ -98,7 +98,7 @@ namespace Rbf.Server
                     _hub.LeaveRoom(s); break;
                 case ClientMsg.KindOneofCase.Challenge:
                     Req(s, $"challenge -> {_hub.NameOf(m.Challenge.TargetUserId)}  (delay {m.Challenge.FrameDelay})");
-                    _hub.Challenge(s, m.Challenge.TargetUserId, m.Challenge.FrameDelay); break;
+                    _hub.Challenge(s, m.Challenge.TargetUserId, m.Challenge.FrameDelay, m.Challenge.FirstTo); break;
                 case ClientMsg.KindOneofCase.ChallengeReply:
                     Req(s, $"challenge_reply {(m.ChallengeReply.Accept ? "aceita" : "recusa")}  (delay {m.ChallengeReply.FrameDelay})");
                     _hub.ChallengeReply(s, m.ChallengeReply.ChallengeId, m.ChallengeReply.Accept,

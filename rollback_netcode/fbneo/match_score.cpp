@@ -51,6 +51,7 @@ static int  g_p2Low  = 0x7FFFFFFF;
 static long long g_frame = 0;
 static int  g_matchHold = 0;   // consecutive live frames with both words cleared
 static int  g_matchOver = 0;   // this clearing has already been counted
+static int  g_firstTo   = 0;   // games that end the session; 0 = free play
 
 // Hand the finished game to whoever won more rounds of it, then start the
 // round count over. A drawn game - a double KO at match point, most often -
@@ -68,6 +69,9 @@ static void awardGame(void)
 	}
 
 	g_d.nGames++;
+	if (g_firstTo > 0 && (g_d.nP1Games >= g_firstTo || g_d.nP2Games >= g_firstTo))
+		g_d.bLimitReached = 1;
+
 	g_d.nP1Rounds = 0;
 	g_d.nP2Rounds = 0;
 	g_p1Low = g_p2Low = 0x7FFFFFFF;
@@ -104,9 +108,10 @@ static void readChars(unsigned int nAddr, int* pOut, int nCount, int* pbHave)
 	*pbHave = 1;
 }
 
-int MatchScoreStart(void (*pfnLog)(const char*))
+int MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*))
 {
 	g_map = NULL;
+	g_firstTo = (nFirstTo > 0 && nFirstTo < 100) ? nFirstTo : 0;
 	memset(&g_d, 0, sizeof(g_d));
 	g_p1Hold = g_p2Hold = 0;
 	g_p1Down = g_p2Down = 0;

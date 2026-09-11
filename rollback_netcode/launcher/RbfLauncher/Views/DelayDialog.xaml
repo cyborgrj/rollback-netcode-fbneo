@@ -34,6 +34,18 @@
     <TextBlock x:Name="HintText" Foreground="{StaticResource TextDim}" FontSize="11"
                Margin="0,4,0,0" TextWrapping="Wrap" />
 
+    <TextBlock Text="Limite da sessão" Foreground="{StaticResource TextDim}" FontSize="12" Margin="0,20,0,0" />
+
+    <StackPanel x:Name="FtRow" Orientation="Horizontal" Margin="0,8,0,0">
+      <RadioButton x:Name="Ft3"    Content="FT3"   Foreground="{StaticResource Text}" Margin="0,0,18,0" IsChecked="True" />
+      <RadioButton x:Name="Ft5"    Content="FT5"   Foreground="{StaticResource Text}" Margin="0,0,18,0" />
+      <RadioButton x:Name="Ft10"   Content="FT10"  Foreground="{StaticResource Text}" Margin="0,0,18,0" />
+      <RadioButton x:Name="FtFree" Content="Livre" Foreground="{StaticResource Text}" />
+    </StackPanel>
+
+    <TextBlock x:Name="FtText" Foreground="{StaticResource TextDim}" FontSize="11"
+               Margin="0,6,0,0" TextWrapping="Wrap" />
+
     <TextBlock x:Name="CountText" Foreground="{StaticResource TextDim}" FontSize="12"
                Margin="0,12,0,0" Visibility="Collapsed" />
 

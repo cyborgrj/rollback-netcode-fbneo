@@ -36,6 +36,7 @@ namespace Rbf.Server
         public string ToId;
         public string Game;
         public int    DelayFrom;   // frames the challenger asked for
+        public int    FirstTo;     // games that end the session; 0 = no limit
         public int    DelayTo;     // frames the challenged answered with
         public CancellationTokenSource Expiry;
     }
@@ -48,6 +49,7 @@ namespace Rbf.Server
         public string P2Id;
         public int Port;
         public int FrameDelay;
+        public int FirstTo;         // games that end the session; 0 = free play
         public DateTime StartedUtc;
         public int PeerPingMs;      // estimated RTT between the two players
     }
@@ -223,7 +225,7 @@ namespace Rbf.Server
             return frames;
         }
 
-        public void Challenge(Session from, string targetUserId, int frameDelay)
+        public void Challenge(Session from, string targetUserId, int frameDelay, int firstTo)
         {
             lock (_gate)
             {
@@ -246,6 +248,8 @@ namespace Rbf.Server
                     ToId = to.UserId,
                     Game = from.Game,
                     DelayFrom = Math.Max(0, Math.Min(10, frameDelay)),
+                    // 0 stays 0 - that is "livre", not "unset".
+                    FirstTo   = Math.Max(0, Math.Min(99, firstTo)),
                     Expiry = new CancellationTokenSource(),
                 };
                 _challenges[c.Id] = c;
@@ -261,6 +265,7 @@ namespace Rbf.Server
                         FromUsername = from.Username,
                         Game = c.Game,
                         FromFrameDelay = c.DelayFrom,
+                        FirstTo        = c.FirstTo,
                         SuggestedDelay = SuggestDelay(from.PingMs, to.PingMs),
                     }
                 });
@@ -312,6 +317,9 @@ namespace Rbf.Server
                     FrameDelay = (c.DelayFrom == 0 && c.DelayTo == 0)
                                  ? FrameDelay
                                  : (c.DelayFrom + c.DelayTo + 1) / 2,
+                    // Not negotiated: the challenger set the rule and the other
+                    // side accepted it by accepting the challenge.
+                    FirstTo    = c.FirstTo,
                     StartedUtc = DateTime.UtcNow,
                     PeerPingMs = from.PingMs + to.PingMs,
                 };
@@ -330,7 +338,7 @@ namespace Rbf.Server
                 SendMatchStartLocked(m, from, 1, to);
                 SendMatchStartLocked(m, to, 2, from);
                 BroadcastLobbyLocked();
-                Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1, {from.PingMs}ms, wants {c.DelayFrom}) vs {to.Username}@{to.RemoteIp} (P2, {to.PingMs}ms, wants {c.DelayTo})  udp :{m.Port}  delay {m.FrameDelay}");
+                Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1, {from.PingMs}ms, wants {c.DelayFrom}) vs {to.Username}@{to.RemoteIp} (P2, {to.PingMs}ms, wants {c.DelayTo})  udp :{m.Port}  delay {m.FrameDelay}  {(m.FirstTo > 0 ? "FT" + m.FirstTo : "livre")}");
             }
         }
 
@@ -351,6 +359,7 @@ namespace Rbf.Server
                     PeerUsername = peer.Username,
                     PunchPort = PunchPort,
                     GameRelayPort = GameRelayPort,
+                    FirstTo = m.FirstTo,
                 }
             });
         }

@@ -212,7 +212,7 @@ namespace RbfLauncher.Views
 
             var dlg = DelayDialog.ForOutgoing(p.Username, p.PingMs, suggested, Window.GetWindow(this));
             if (dlg.ShowDialog() == true)
-                _client.SendChallenge(p.UserId, dlg.FrameDelay);
+                _client.SendChallenge(p.UserId, dlg.FrameDelay, dlg.FirstTo);
         }
 
         private UIElement BuildPlayerRow(RosterEntry p, bool iAmFree)

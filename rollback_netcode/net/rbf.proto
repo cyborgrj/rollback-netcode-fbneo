@@ -37,7 +37,8 @@ message JoinRoom  { string game = 1; }   // FBNeo short name, e.g. "sfa2"
 message LeaveRoom { }
 
 // frame_delay is what THIS side wants; the server averages the two.
-message Challenge      { string target_user_id = 1; int32 frame_delay = 2; }
+// first_to: quantas partidas ganhas encerram a sessao. 0 = livre, sem limite.
+message Challenge      { string target_user_id = 1; int32 frame_delay = 2; int32 first_to = 3; }
 message ChallengeReply { string challenge_id = 1; bool accept = 2; int32 frame_delay = 3; }
 
 message MatchStatus {
@@ -115,7 +116,8 @@ message ChallengeIn {
   string from_username = 3;
   string game         = 4;
   int32  from_frame_delay = 5;   // what the challenger asked for
-  int32  suggested_delay  = 6;   // server\x27s suggestion from both pings
+  int32  suggested_delay  = 6;   // the server suggestion, from both pings
+  int32  first_to         = 7;   // the rule the challenger picked; 0 = no limit
 }
 message ChallengeResult {
   string  challenge_id  = 1;
@@ -145,6 +147,10 @@ message MatchStart {
   // Where the game traffic goes when the rendezvous decides the pair cannot be
   // punched (a carrier NAT that remaps per destination). udp, same host. 0 = off.
   int32  game_relay_port = 11;
+
+  // Games won that end the session. 0 = free play, no limit. Both sides get the
+  // same number - it is the challenger's to choose, not something to negotiate.
+  int32  first_to        = 12;
 }
 message MatchAborted { string match_id = 1; string reason = 2; }
 

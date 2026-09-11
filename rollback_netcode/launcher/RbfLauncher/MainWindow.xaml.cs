@@ -205,9 +205,12 @@ namespace RbfLauncher
             _openChallenge?.ForceClose();
             var title = GameCatalog.All.FirstOrDefault(g => g.ShortName == ci.Game)?.Title ?? ci.Game;
             // Same slider the challenger saw, pre-set to what they asked for.
-            // The server averages both answers into the match\x27s frame delay.
+            // The server averages both answers into the match frame delay. The
+            // session limit is not averaged - it is shown, because accepting a
+            // challenge means accepting the rule it came with.
             var dlg = DelayDialog.ForIncoming(ci.FromUsername, title,
-                                              ci.SuggestedDelay, ci.FromFrameDelay, 25, this);
+                                              ci.SuggestedDelay, ci.FromFrameDelay,
+                                              ci.FirstTo, 25, this);
             _openChallenge = dlg;
             bool? ok = dlg.ShowDialog();
             _openChallenge = null;
@@ -274,6 +277,10 @@ namespace RbfLauncher
                 string p2 = ms.PlayerNum == 1 ? ms.PeerUsername : me;
                 args += string.Format(",p1={0},p2={1}", Sanitize(p1), Sanitize(p2));
             }
+
+            // 0 is "livre" and the emulator reads it as no limit, so it is worth
+            // sending either way rather than leaving the key out.
+            args += string.Format(",ft={0}", ms.FirstTo);
 
             // Side 1 broadcasts the match to the relay so it can be watched. Both
             // sides get the arguments; the emulator ignores them unless it is P1.

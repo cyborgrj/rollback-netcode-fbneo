@@ -64,6 +64,8 @@ typedef struct MatchScoreData {
 	int       nP2Char[MATCH_SCORE_MAX_CHARS];
 	int       bHaveP1Char;
 	int       bHaveP2Char;   // vsav cannot read the opponent side yet
+	// Somebody reached the agreed number of games. The session should end.
+	int       bLimitReached;
 	long long nStartFrame;
 	long long nEndFrame;
 } MatchScoreData;
@@ -71,7 +73,7 @@ typedef struct MatchScoreData {
 // Arm the reader for the running driver. Call after BurnDrvInit. Returns
 // MATCH_SCORE_ERR_NO_MAP for a game we have no addresses for, which is not
 // fatal - the match just goes unscored.
-int  MatchScoreStart(void (*pfnLog)(const char*));
+int  MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*));
 
 // One sample. Call once per LIVE frame (never from a rollback re-simulation).
 // No-op unless MatchScoreStart succeeded.
