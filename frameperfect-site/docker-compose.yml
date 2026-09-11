@@ -1,0 +1,76 @@
+# Tudo que o site precisa, sem instalar nada na maquina alem do Docker.
+#
+#   docker compose up --build
+#
+#   site       http://localhost:5173
+#   API        http://localhost:8000
+#   Postgres   localhost:5432  (so para ferramenta local; o site fala por rede interna)
+#
+# Isto e o ambiente de DESENVOLVIMENTO: o Vite roda com recarga automatica e o
+# Django com o runserver. Producao continua sendo Nginx + gunicorn + systemd na
+# Lightsail, que e o que esta em deploy/ - um container a mais numa instancia
+# pequena e memoria que nao sobra.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: frameperfect
+      POSTGRES_USER: frameperfect
+      POSTGRES_PASSWORD: dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      # O backend espera este healthcheck: subir o Django antes do Postgres
+      # aceitar conexao da o erro mais confuso possivel para quem esta comecando.
+      test: ["CMD-SHELL", "pg_isready -U frameperfect -d frameperfect"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    environment:
+      DEBUG: "1"
+      SECRET_KEY: apenas-para-desenvolvimento
+      ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      CORS_ORIGINS: http://localhost:5173
+      SITE_URL: http://localhost:5173
+      DB_HOST: db
+      DB_NAME: frameperfect
+      DB_USER: frameperfect
+      DB_PASSWORD: dev
+      INTERNAL_API_KEY: chave-de-desenvolvimento
+      EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      # Dentro da rede do compose o backend atende por nome, nao por localhost.
+      VITE_API_ALVO: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - node_modules:/app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  node_modules:

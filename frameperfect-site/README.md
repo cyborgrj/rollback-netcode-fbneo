@@ -3,12 +3,11 @@
 Django (API) + React (site) + PostgreSQL, para rodar na mesma Lightsail que já
 hospeda o lobby .NET.
 
-> ⚠️ **Este código ainda não foi executado.** A máquina onde ele foi escrito não
-> tem Node, Python, Postgres nem Docker, então nada aqui foi compilado, migrado
-> ou aberto no navegador — ao contrário do emulador e do servidor de lobby, que
-> são compilados e testados a cada mudança. Trate como um esqueleto revisável, não
-> como algo que já rodou. O primeiro `migrate` e o primeiro `npm run dev` vão
-> achar coisas.
+> **Estado, em 11/09:** o **frontend compila e roda** — foi assim que o erro de
+> iluminação do gabinete 3D apareceu (valores da era three r128 num projeto que
+> usa 0.160, onde a intensidade é física e a luz pontual cai com o quadrado da
+> distância). O **backend ainda não foi executado**: falta Python ou Docker nesta
+> máquina. O primeiro `migrate` vai achar coisas.
 
 Para ver a cara do site sem instalar nada, há uma versão da página inicial
 publicada como artefato — mesma paleta, mesma tipografia, mesmo gabinete 3D.
@@ -25,7 +24,32 @@ frontend/    React + Vite + Tailwind
 deploy/      Nginx, systemd
 ```
 
-## Rodar em desenvolvimento
+## Rodar com Docker (mais simples)
+
+Só precisa do Docker Desktop. Nada de Python, Postgres ou Node na máquina.
+
+```bash
+cd frameperfect-site
+docker compose up --build
+```
+
+Site em `http://localhost:5173`, API em `http://localhost:8000`. O Postgres sobe
+junto, as migrations rodam sozinhas, e o Vite recarrega quando você salva um
+arquivo — as duas pastas são montadas como volume, então editar aqui muda lá
+dentro na hora.
+
+O e-mail de confirmação **é impresso no log do container** em vez de enviado, o
+que evita depender de SMTP só para testar cadastro:
+
+```bash
+docker compose logs -f backend
+```
+
+> Isto é o ambiente de desenvolvimento. Produção continua Nginx + gunicorn +
+> systemd na Lightsail (ver `deploy/`) — um container a mais numa instância
+> pequena é memória que não sobra.
+
+## Rodar sem Docker
 
 Precisa de **Python 3.11+**, **Node 18+** e **PostgreSQL 14+**.
 

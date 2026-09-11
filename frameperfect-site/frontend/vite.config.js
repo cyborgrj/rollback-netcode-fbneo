@@ -9,7 +9,13 @@ export default defineConfig({
     // caminho relativo e nao precisa saber o endereco do backend. Em producao
     // quem faz isso e o Nginx, do mesmo jeito.
     proxy: {
-      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      // Fora do Docker o Django atende em 127.0.0.1; dentro da rede do compose
+      // ele atende pelo nome do servico. VITE_API_ALVO cobre os dois casos sem
+      // o front precisar saber onde esta rodando.
+      "/api": {
+        target: process.env.VITE_API_ALVO || "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
     },
   },
 });
