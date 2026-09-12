@@ -98,3 +98,14 @@ O `rbfserver` de lá precisa de `git pull` + `dotnet publish` + restart para
 receber as partidas detalhadas. Um servidor antigo aceita o `MatchResult` e
 ignora os campos que não conhece: o placar total chega, o detalhe por partida
 não. Nada quebra, mas o `resultados.jsonl` fica sem o que interessa.
+
+## O lobby não confere o token de login
+
+A partir de 12/09 o launcher exige login na API do Frame Perfect. Mas o
+`RbfServer` continua aceitando qualquer nome no `Hello` — quem trocar o cliente,
+ou rodar o emulador na mão, entra sem conta.
+
+O que fecha isso: o `Hello` leva o `access_token`, e o servidor pergunta ao
+Django se ele vale (uma rota interna, chamada só de localhost). Enquanto isso
+não existe, a autenticação é um portão do lado do launcher e vale como
+comodidade, não como segurança.

@@ -6,10 +6,11 @@
         Background="{StaticResource Bg}">
   <StackPanel Margin="24">
 
-    <TextBlock Text="Nome do jogador" Foreground="{StaticResource TextDim}" />
-    <TextBox x:Name="PlayerBox" Margin="0,4,0,16" Padding="6,5" />
+    <TextBlock Text="API da conta (Django)  —  login, perfil e ranking"
+               Foreground="{StaticResource TextDim}" />
+    <TextBox x:Name="ApiBox" Margin="0,4,0,16" Padding="6,5" />
 
-    <TextBlock Text="Servidor (IP ou host)  —  usado no &quot;Conectar&quot;" Foreground="{StaticResource TextDim}" />
+    <TextBlock Text="Lobby (IP ou host)  —  usado no &quot;Conectar&quot;" Foreground="{StaticResource TextDim}" />
     <Grid Margin="0,4,0,16">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />

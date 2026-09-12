@@ -108,11 +108,6 @@ namespace Rbf.Server
         private readonly Dictionary<string, Match> _recent = new();
         private readonly Queue<string> _recentOrder = new Queue<string>();
         private const int RecentCap = 128;
-
-        // How long to wait for the second player's reading before archiving
-        // what we have. Both emulators close within seconds of each other in
-        // the normal case; this is the ceiling for the case where one does not.
-        private const int ResultGraceMs = 20000;
         private readonly ChatRing _globalChat = new ChatRing(ChatBacklog);
         private readonly Dictionary<string, ChatRing> _roomChat = new();
 
@@ -451,16 +446,7 @@ namespace Rbf.Server
             _recent[m.Id] = m;
             _recentOrder.Enqueue(m.Id);
             while (_recentOrder.Count > RecentCap)
-            {
-                var old = _recentOrder.Dequeue();
-                if (_recent.TryGetValue(old, out var dropped))
-                {
-                    // Falling out of the window with a result nobody confirmed
-                    // is still a result. Better an unconfirmed row than none.
-                    FlushResultLocked(dropped, null, false);
-                    _recent.Remove(old);
-                }
-            }
+                _recent.Remove(_recentOrder.Dequeue());
         }
 
         private Match FindMatchLocked(string id) =>
@@ -470,8 +456,13 @@ namespace Rbf.Server
 
         // ---- results ------------------------------------------------
         /// <summary>A player reporting what their emulator read out of the game
-        /// at the end of the session. Both players report the same match: the
-        /// first reading is kept, the second confirms it or contradicts it.</summary>
+        /// at the end of the session.
+        ///
+        /// The first reading is written down and that is the record. The second
+        /// player reports the same match and is only compared against it - two
+        /// readings that disagree are worth a line in the log, but waiting for
+        /// the second one would mean a launcher that crashed costs the record of
+        /// a session that was played. Register what arrived, and move on.</summary>
         public void ReportResult(Session s, MatchResult r)
         {
             if (s == null || r == null || string.IsNullOrEmpty(r.MatchId)) return;
@@ -499,45 +490,23 @@ namespace Rbf.Server
                     m.ResultFromId = s.UserId;
                     PrintResult(m, r, s.Username);
 
-                    // Give the other side a chance to confirm it, then write it
-                    // down whether or not they did. Somebody whose launcher
-                    // crashed should not cost the record of a match that was
-                    // played.
-                    var pending = m;
-                    _ = Task.Delay(ResultGraceMs).ContinueWith(_ =>
-                    {
-                        lock (_gate) FlushResultLocked(pending, null, false);
-                    });
+                    m.Archived = true;
+                    MatchArchive.Write(m, r, s.UserId);
                     return;
                 }
 
                 if (m.ResultFromId == s.UserId) return;   // the same client saying it twice
 
                 // Two readings of one match that disagree means a desync or a
-                // client that was changed. Neither is something to swallow.
-                bool divergent = m.Result.P1Games != r.P1Games || m.Result.P2Games != r.P2Games;
-                if (divergent)
+                // client that was changed. Neither is something to swallow -
+                // but the record is already written, and it stays written.
+                if (m.Result.P1Games != r.P1Games || m.Result.P2Games != r.P2Games)
                 {
                     Console.WriteLine($"!! resultados divergentes em {m.Id}: " +
                                       $"{m.Result.P1Games}x{m.Result.P2Games} vs {r.P1Games}x{r.P2Games} " +
-                                      $"(de {s.Username})");
+                                      $"(de {s.Username}) - gravado o primeiro");
                 }
-                else
-                {
-                    Console.WriteLine($"# {m.Id} confirmado por {s.Username}");
-                }
-
-                FlushResultLocked(m, s.UserId, divergent);
             }
-        }
-
-        /// <summary>Write the match down, once. Called from both the
-        /// confirmation path and the grace timer, so it has to be idempotent.</summary>
-        private void FlushResultLocked(Match m, string secondReporterId, bool divergent)
-        {
-            if (m == null || m.Archived || m.Result == null) return;
-            m.Archived = true;
-            MatchArchive.Write(m, m.Result, secondReporterId, divergent);
         }
 
         /// <summary>The session as a person would read it: the totals, then one

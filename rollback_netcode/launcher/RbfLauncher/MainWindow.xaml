@@ -23,8 +23,10 @@
                   MinWidth="108" Click="ChatToggle_Click" Content="Mostrar Chat" />
           <Button x:Name="ConnectButton" Style="{StaticResource Btn}" Padding="10,6" Margin="0,0,8,0"
                   Click="ConnectButton_Click" Content="Conectar" />
-          <Button x:Name="SettingsButton" Style="{StaticResource Btn}" Padding="10,6" Click="SettingsButton_Click"
-                  Content="Configura&#231;&#245;es" />
+          <Button x:Name="SettingsButton" Style="{StaticResource Btn}" Padding="10,6" Margin="0,0,8,0"
+                  Click="SettingsButton_Click" Content="Configura&#231;&#245;es" />
+          <Button x:Name="LogoutButton" Style="{StaticResource Btn}" Padding="10,6"
+                  Click="LogoutButton_Click" Content="Sair da conta" />
         </StackPanel>
       </Grid>
     </Border>

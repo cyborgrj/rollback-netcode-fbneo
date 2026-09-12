@@ -21,6 +21,28 @@ namespace RbfLauncher
             catch { /* value not supported on this OS - system default stays */ }
 
             DispatcherUnhandledException += OnUnhandled;
+
+            // The login window is a dialog shown before any main window exists,
+            // so the default "quit when the last window closes" would end the
+            // process the moment it is dismissed - including on a successful
+            // login, in the gap before the main window opens.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+            ShowLogin();
+        }
+
+        /// <summary>Login first, library second. Called again by "Sair da conta",
+        /// which is why it is a method and not a few lines in OnStartup.</summary>
+        internal void ShowLogin()
+        {
+            var cfg = Core.AppConfig.Load();
+            var login = new Views.LoginWindow(cfg);
+
+            if (login.ShowDialog() != true) { Shutdown(); return; }
+
+            var main = new MainWindow(login.Session);
+            MainWindow = main;
+            main.Show();
         }
 
         private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)

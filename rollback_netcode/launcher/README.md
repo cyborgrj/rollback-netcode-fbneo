@@ -56,6 +56,56 @@ are shown whole, never cropped. The csproj copies the folder next to the exe as
 `src\`. Missing art → placeholder / thumbnail fallback. Details in
 [`src/README.md`](../src/README.md).
 
+## Entrar: a conta vem antes de tudo
+
+O launcher **abre na tela de login**, não na biblioteca. Quem você é no lobby é
+a sua conta do Frame Perfect, então não há nada de sensato para mostrar antes
+disso — e deixar digitar um nome livre aqui daria duas identidades para a mesma
+pessoa.
+
+```
+LoginWindow ──POST /api/auth/login/──> {access, refresh}
+            ──GET  /api/auth/me/ ────> {id, username, nickname, ranking}
+                 │
+                 └─> UserSession.Current ──> MainWindow ──> entra no lobby gRPC
+                                                            com session.Username
+```
+
+A API fica em `apiBaseUrl` (padrão `http://localhost:8000`), editável na própria
+tela de login, em Configurações, ou no `rbf-launcher.json`. O lobby gRPC é outro
+endereço e outra porta — os dois não vão morar sempre na mesma máquina.
+
+O que fica guardado na `UserSession`: `Id`, `Username`, `DisplayName` (o
+`nickname`, ou o `username` quando ele é nulo — que é o caso normal, não a
+exceção), `Ranking`, `AccessToken` e `RefreshToken`.
+
+**Os tokens só existem em memória.** Refresh token em arquivo ao lado do exe é
+senha em arquivo ao lado do exe, e este launcher roda em máquina compartilhada.
+Fechar o launcher desloga; é a troca pretendida.
+
+Quando uma chamada autenticada leva `401`, o `AuthApi` troca o refresh token por
+um access novo e repete a chamada **uma vez**. Se o refresh também for recusado,
+a sessão acabou e o jogador volta para o login. Sem laço: um refresh que produz
+um token que o servidor continua recusando é problema para avisar, não para
+martelar.
+
+⚠️ **O lobby ainda não confere o token.** Hoje a autenticação é um portão do
+lado do launcher: o `RbfServer` continua aceitando qualquer nome no `Hello`.
+Para o portão valer de verdade, o `Hello` precisa levar o access token e o
+servidor precisa perguntar ao Django se ele é válido.
+
+### Testar o fluxo sem Django
+
+```bash
+cd rollback_netcode/launcher
+dotnet run --project AuthTest
+```
+
+23 checagens contra uma API de mentira: senha errada, API fora do ar, `500`,
+token expirado no meio da sessão, refresh recusado, refresh rotacionado. São
+justamente os caminhos que só rodam em dia ruim — a pior hora para descobrir
+que nunca estiveram certos.
+
 ## Config (`rbf-launcher.json`, next to the exe)
 
 ```json
@@ -63,9 +113,15 @@ are shown whole, never cropped. The csproj copies the folder next to the exe as
   "emulatorPath": "fbneo.exe",
   "emulatorArgs": "-w",
   "romsDir": "roms\\arcade",
-  "playerName": "you"
+  "playerName": "you",
+  "apiBaseUrl": "http://localhost:8000",
+  "serverHost": "18.228.40.244",
+  "serverPort": 50051
 }
 ```
+
+`playerName` agora é só o último usuário digitado no login, para a tela já vir
+preenchida. Quem manda é a conta.
 
 Relative paths resolve against the launcher folder. `romsDir` defaults to
 FBNeo's own arcade default; if you point it elsewhere you must also tell FBNeo

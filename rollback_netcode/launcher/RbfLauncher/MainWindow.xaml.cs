@@ -14,6 +14,9 @@ namespace RbfLauncher
         private readonly AppConfig _config;
         private readonly RomService _roms;
         private readonly EmulatorService _emu;
+        private readonly UserSession _session;
+        private bool _loggingOut;   // closing to go back to the login window
+        private bool _connecting;   // a lobby connection is in flight
 
         private LobbyClient _client;
         private IReadOnlyList<RosterEntry> _roster = new List<RosterEntry>();
@@ -22,17 +25,25 @@ namespace RbfLauncher
         private DelayDialog _openChallenge;
         private string _currentGame;   // room the RoomView is showing, null in the library
 
-        public MainWindow()
+        /// <summary>Only reachable with somebody logged in - the login window is
+        /// what opens the launcher now, so there is no signed-out state to draw.</summary>
+        public MainWindow(UserSession session)
         {
             InitializeComponent();
 
+            _session = session ?? throw new ArgumentNullException(nameof(session));
             _config = AppConfig.Load();
             _roms = new RomService(_config, RomDatabase.Load());
             _emu = new EmulatorService(_config);
 
             UpdateHeader();
             ShowLibrary();
+
+            // Straight into the lobby with the account's name. Nobody logs in
+            // twice to get to the same place.
+            Loaded += async (s, e) => await ConnectToLobby();
         }
+
 
         // ---- navigation ---------------------------------------------------
         public void ShowLibrary()
@@ -68,13 +79,19 @@ namespace RbfLauncher
                 return;
             }
 
-            var dlg = new ConnectDialog(_config) { Owner = this };
-            if (dlg.ShowDialog() != true) return;
+            await ConnectToLobby(loud: true);
+        }
 
-            _config.PlayerName = dlg.PlayerName;
-            _config.ServerHost = dlg.Host;
-            _config.ServerPort = dlg.Port;
-            _config.Save();
+        /// <summary>Enters the lobby as the logged-in account. There is no name
+        /// to ask for any more - the one the server knows is the one on the
+        /// account, and letting the player type another here would mean two
+        /// identities for the same person.</summary>
+        private async System.Threading.Tasks.Task ConnectToLobby(bool loud = false)
+        {
+            // Loaded can fire more than once, and a connect in flight has no
+            // client yet - without the flag that is two sessions for one player.
+            if (_connecting || (_client != null && _client.LoggedIn)) return;
+            _connecting = true;
 
             var client = new LobbyClient();
             WireClient(client);
@@ -83,20 +100,36 @@ namespace RbfLauncher
             PlayerLabel.Text = "conectando…";
             try
             {
-                await client.ConnectAsync(dlg.Host, dlg.Port, dlg.PlayerName, TimeSpan.FromSeconds(8));
+                await client.ConnectAsync(_config.ServerHost, _config.ServerPort,
+                                          _session.Username, TimeSpan.FromSeconds(8));
                 _client = client;
             }
             catch (Exception ex)
             {
                 client.Dispose();
-                MessageBox.Show("Não foi possível conectar:\n" + ex.Message, "RBF",
-                                MessageBoxButton.OK, MessageBoxImage.Warning);
+                // On the automatic attempt at startup, a dialog in the player's
+                // face before they have seen the library is noise: the header
+                // already says "offline" and Conectar is right there. Say it
+                // out loud only when they asked for it.
+                if (loud)
+                    MessageBox.Show("Não foi possível conectar ao lobby:\n" + ex.Message, "Frame Perfect",
+                                    MessageBoxButton.OK, MessageBoxImage.Warning);
                 UpdateHeader();
             }
             finally
             {
+                _connecting = false;
                 ConnectButton.IsEnabled = true;
             }
+        }
+
+        private void LogoutButton_Click(object sender, RoutedEventArgs e)
+        {
+            Disconnect("saiu da conta");
+            UserSession.Clear();
+            _loggingOut = true;
+            Close();
+            (Application.Current as App)?.ShowLogin();
         }
 
         private void WireClient(LobbyClient c)
@@ -179,10 +212,16 @@ namespace RbfLauncher
         private void UpdateHeader()
         {
             bool on = _client != null && _client.LoggedIn;
-            PlayerLabel.Text = on ? "● " + _client.Username : _config.PlayerName + " · offline";
-            PlayerLabel.ToolTip = on && !string.IsNullOrEmpty(_client.LanIp)
-                ? "meu IP na rede: " + _client.LanIp
-                : null;
+
+            // The account is who you are; the lobby connection is just whether
+            // you are reachable right now. So the name never changes here - only
+            // the dot in front of it, and the word after the rank.
+            string who = _session.DisplayName + "  ·  rank " + _session.Ranking;
+            PlayerLabel.Text = on ? "● " + who : who + " · offline";
+            var tip = new List<string>();
+            if (_session.DisplayName != _session.Username) tip.Add("conta: " + _session.Username);
+            if (on && !string.IsNullOrEmpty(_client.LanIp)) tip.Add("meu IP na rede: " + _client.LanIp);
+            PlayerLabel.ToolTip = tip.Count > 0 ? string.Join("\n", tip) : null;
             ConnectButton.Content = on ? "Desconectar" : "Conectar";
 
             // Label the button by what the panel actually is right now, not by
@@ -410,6 +449,10 @@ namespace RbfLauncher
         {
             _client?.Dispose();
             base.OnClosed(e);
+
+            // ShutdownMode is explicit (see App), so closing the window has to
+            // say so - except when we are on our way back to the login screen.
+            if (!_loggingOut) Application.Current?.Shutdown();
         }
     }
 }

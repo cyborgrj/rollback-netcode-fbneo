@@ -68,7 +68,7 @@ namespace Rbf.Server
             }
         }
 
-        public static void Write(Match m, MatchResult r, string secondReporterId, bool divergent)
+        public static void Write(Match m, MatchResult r, string reporterId)
         {
             if (m == null || r == null) return;
 
@@ -96,12 +96,9 @@ namespace Rbf.Server
                 ["winner"]    = r.P1Games > r.P2Games ? 1 : r.P2Games > r.P1Games ? 2 : 0,
                 ["games_played"]    = r.GamesPlayed.Select(g => Row(r.Game ?? m.Game, g)).ToList(),
                 ["games_truncated"] = r.GamesTruncated,
-                // Who said so. Two independent readings that agree is the only
-                // reason to believe a result at all, so it is part of the record.
-                ["reported_by"] = new[] { nameOf(m.ResultFromId), secondReporterId == null ? null : nameOf(secondReporterId) }
-                                  .Where(x => x != null).ToList(),
-                ["confirmed"]   = secondReporterId != null && !divergent,
-                ["divergent"]   = divergent,
+                // Whose emulator read it. Part of the record because a result is
+                // one machine's reading, not a fact from nowhere.
+                ["reported_by"] = nameOf(reporterId) ?? "",
             };
 
             // A game that was cut off mid-way is not a result, but the characters

@@ -111,10 +111,12 @@ não deu para ler não inventa número: o campo simplesmente não aparece.
 `Phase.Ended`** — o `Ended` aposenta a partida no servidor, e resultado de
 partida aposentada era resultado no lixo.
 
-**4. O servidor** aceita o resultado só de quem jogou aquela partida, guarda a
-primeira leitura e compara a segunda com ela. Duas leituras da mesma partida
-que discordam é dessync ou cliente adulterado, e as duas coisas valem saber. No
-console:
+**4. O servidor** aceita o resultado só de quem jogou aquela partida. A
+**primeira leitura que chegar é gravada** e pronto — não se espera confirmação
+do outro lado, porque um launcher que travou não pode custar o registro de uma
+sessão que aconteceu. A segunda leitura só é comparada: se discordar, sai um
+aviso no log (dessync ou cliente adulterado valem saber), mas o que ficou
+gravado fica. No console:
 
 ```
 # resultado 7f3a91c204bb sf2ce: cyborgrj 3 x 2 fulano (5 partidas, limit, FT3)  [de cyborgrj]
@@ -123,7 +125,6 @@ console:
      3. Dhalsim        0 x 2 Chun Li        -> fulano
      4. M. Bison       1 x 2 Chun Li        -> fulano
      5. Ryu            2 x 0 Ken            -> cyborgrj
-# 7f3a91c204bb confirmado por fulano
 ```
 
 O **id** do personagem é o que fica gravado; o nome é enfeite de leitura
@@ -131,9 +132,7 @@ O **id** do personagem é o que fica gravado; o nome é enfeite de leitura
 partidas antigas legíveis sem mexer em nenhuma linha já gravada.
 
 **5. O disco.** `--results <arquivo>` (padrão `resultados.jsonl`, `-` desliga).
-Um objeto JSON por linha, gravado quando o segundo jogador confirma — ou 20
-segundos depois, se ele não confirmar, porque um launcher que travou não deve
-custar o registro de uma partida que aconteceu.
+Um objeto JSON por linha, gravado na hora em que a primeira leitura chega.
 
 ```json
 {"v":1,"match_id":"7f3a91c204bb","game":"sf2ce","started":"…","ended":"…",
@@ -141,7 +140,7 @@ custar o registro de uma partida que aconteceu.
  "p2":{"user_id":"…","username":"fulano"},"p1_games":3,"p2_games":2,"games":5,
  "winner":1,"games_played":[{"index":1,"p1_chars":[4],"p1_names":["Ryu"],
  "p2_chars":[9],"p2_names":["Rose"],"p1_rounds":2,"p2_rounds":1,"winner":1,
- "frames":4210,"seconds":70}],"confirmed":true,"divergent":false}
+ "frames":4210,"seconds":70}],"reported_by":"cyborgrj"}
 ```
 
 Uma linha é um registro completo: importar isso para o Postgres depois é um

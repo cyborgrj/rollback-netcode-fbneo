@@ -304,7 +304,7 @@ namespace Rbf.ProtoTest
                 b.Send(new ClientMsg { MatchStatus = new MatchStatus { MatchId = matchId, Phase = Phase.Ended } });
                 Thread.Sleep(200);
                 a.Send(new ClientMsg { MatchResult = res });
-                b.Send(new ClientMsg { MatchResult = res });   // the confirmation flushes it
+                b.Send(new ClientMsg { MatchResult = res });   // the second reading only gets compared
                 Thread.Sleep(600);
             }
 
@@ -325,8 +325,8 @@ namespace Rbf.ProtoTest
                 var root = doc.RootElement;
                 Check(root.GetProperty("p1_games").GetInt32() == 2 &&
                       root.GetProperty("p2_games").GetInt32() == 1, "o placar da sessao chegou inteiro");
-                Check(root.GetProperty("confirmed").GetBoolean(), "os dois lados confirmaram");
-                Check(root.GetProperty("divergent").GetBoolean() == false, "sem divergencia entre as leituras");
+                Check(root.GetProperty("reported_by").GetString().Length > 0,
+                      "a gravacao diz de quem foi a leitura");
 
                 var played = root.GetProperty("games_played");
                 Check(played.GetArrayLength() == wanted.Length,

@@ -69,6 +69,22 @@ namespace RbfLauncher.Core
         [JsonPropertyName("serverPort")]
         public int ServerPort { get; set; } = 50051;
 
+        /// <summary>Where the account API (Django REST) lives — login, perfil,
+        /// ranking. Separate from the lobby on purpose: the lobby is a gRPC
+        /// stream on its own port and the two will not always live on the same
+        /// machine. Editável em Configurações e em `rbf-launcher.json`, porque
+        /// vai apontar para localhost em desenvolvimento e para o domínio em
+        /// produção sem recompilar nada.</summary>
+        [JsonPropertyName("apiBaseUrl")]
+        public string ApiBaseUrl { get; set; } = DefaultApiBaseUrl;
+
+        public const string DefaultApiBaseUrl = "http://localhost:8000";
+
+        /// <summary>Sem barra no fim, que é como o AuthApi monta as URLs.</summary>
+        public string ResolvedApiBaseUrl =>
+            string.IsNullOrWhiteSpace(ApiBaseUrl)
+                ? DefaultApiBaseUrl : ApiBaseUrl.Trim().TrimEnd('/');
+
         private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions { WriteIndented = true };
 
         public static string ConfigPath => Path.Combine(AppContext.BaseDirectory, "rbf-launcher.json");

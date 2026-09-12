@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Drives RbfLauncher's AuthApi against a stub server. net48 like the launcher,
+    so what is tested is what ships - a login flow that compiles under one
+    framework and runs under another is not the same code.
+
+        dotnet run (a partir da pasta launcher, apontando para AuthTest)
+
+    The auth sources are LINKED, not referenced: RbfLauncher is a WPF exe, and
+    a console test should not have to drag WPF in to check an HTTP call. It
+    also keeps the pressure where it belongs. The moment AuthApi.cs needs
+    something from WPF, this project stops compiling and says so.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>RbfLauncher.AuthTest</RootNamespace>
+    <AssemblyName>AuthTest</AssemblyName>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\RbfLauncher\Core\AuthApi.cs" Link="AuthApi.cs" />
+    <Compile Include="..\RbfLauncher\Core\UserSession.cs" Link="UserSession.cs" />
+  </ItemGroup>
+
+</Project>
