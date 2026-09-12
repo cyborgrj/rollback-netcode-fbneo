@@ -355,11 +355,10 @@ int OverlayGetLine(OverlayLine* out)
 	out->rgbBar    = OV_BAR;
 	out->nBarAlpha = OV_BAR_A;
 
-	MatchScoreData d;
-	if (MatchScoreGet(&d)) {
-		snprintf(out->szS1, sizeof(out->szS1), "%d", d.nP1Games);
-		snprintf(out->szS2, sizeof(out->szS2), "%d", d.nP2Games);
-	}
+	int nP1 = 0, nP2 = 0;
+	MatchScoreGames(&nP1, &nP2);
+	snprintf(out->szS1, sizeof(out->szS1), "%d", nP1);
+	snprintf(out->szS2, sizeof(out->szS2), "%d", nP2);
 	if (g_ft) snprintf(out->szFt, sizeof(out->szFt), "FT%d", g_ft);
 
 	strncpy(out->szP1, g_p1[0] ? g_p1 : "P1", sizeof(out->szP1) - 1);

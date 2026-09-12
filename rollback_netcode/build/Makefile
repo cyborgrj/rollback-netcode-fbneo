@@ -105,3 +105,19 @@ $(OBJDIR):
 
 clean:
 	@rm -rf $(OBJDIR) $(LIB)
+
+# ---------------------------------------------------------------------------
+# Header dependencies.
+#
+# Without these, editing a .h rebuilds NOTHING, and the .a ends up holding
+# objects compiled against different versions of the same struct. That is not a
+# stale-build annoyance, it is memory corruption: on 12/09 MatchScoreData grew
+# from ~100 bytes to ~4.5 KB, fbneo_host.o kept the old layout, and every frame
+# of a live match wrote 4.4 KB past a stack variable. The emulator crashed with
+# BEX64 seconds into a session, with nothing in any log - and the object file
+# was a day older than the header, which is the only place it showed.
+#
+# -MMD writes a .d next to each .o listing the headers it read; -MP adds a
+# phony target for each so a DELETED header does not wedge the build.
+COMMON += -MMD -MP
+-include $(OBJ:.o=.d)

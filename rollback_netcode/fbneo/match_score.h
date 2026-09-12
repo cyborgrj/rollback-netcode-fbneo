@@ -117,7 +117,16 @@ int  MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*));
 void MatchScoreFrame(void);
 
 // Copy out what has been read so far. Returns 1 when a fight was seen.
+//
+// This struct is several kilobytes - it carries every game of the session. Do
+// NOT call this once per frame just to read one number: use the two accessors
+// below. Copying it sixty times a second is waste, and a caller that gets the
+// struct size wrong (a stale object file, say) corrupts its own stack doing it.
 int  MatchScoreGet(MatchScoreData* out);
+
+// The two things somebody needs every frame, without the copy.
+int  MatchScoreLimitReached(void);            // the agreed number of games was reached
+void MatchScoreGames(int* pP1, int* pP2);     // games won so far; either pointer may be NULL
 
 // Log the result and disarm. Safe to call unconditionally.
 void MatchScoreStop(void (*pfnLog)(const char*));

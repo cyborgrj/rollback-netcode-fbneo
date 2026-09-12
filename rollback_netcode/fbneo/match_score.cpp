@@ -270,6 +270,14 @@ int MatchScoreGet(MatchScoreData* out)
 	return g_d.bEverStarted ? 1 : 0;
 }
 
+int MatchScoreLimitReached(void) { return g_d.bLimitReached; }
+
+void MatchScoreGames(int* pP1, int* pP2)
+{
+	if (pP1) *pP1 = g_d.nP1Games;
+	if (pP2) *pP2 = g_d.nP2Games;
+}
+
 void MatchScoreStop(void (*pfnLog)(const char*))
 {
 	if (!g_map) return;

@@ -701,8 +701,7 @@ int FbnHostRunFrame(int bDraw)
 
 	// The agreed number of games is up. Ending it here rather than trusting
 	// both players to stop is the whole point of agreeing on a number.
-	MatchScoreData sc;
-	if (MatchScoreGet(&sc) && sc.bLimitReached) {
+	if (MatchScoreLimitReached()) {
 		g_endReason = "limit";
 		RbfLog("first to %d reached - ending the session.", g_cfg.nFirstTo);
 		return -1;
