@@ -301,8 +301,15 @@ namespace RbfLauncher
                     proc.EnableRaisingEvents = true;
                     proc.Exited += (s, e) => Dispatcher.BeginInvoke((Action)(() =>
                     {
-                        _client?.ReportMatch(ms.MatchId, Phase.Ended);
+                        // The result goes FIRST. Phase.Ended retires the match
+                        // on the server, and a result for a match the server
+                        // has already forgotten is a result thrown away. The
+                        // server keeps recently ended matches for exactly this
+                        // reason - the other player's Ended can arrive before
+                        // our result whatever we do here - but there is no
+                        // reason to lean on that for our own two messages.
                         SendResultIfAny(ms.MatchId);
+                        _client?.ReportMatch(ms.MatchId, Phase.Ended);
                     }));
                 }
                 catch { /* process may already have exited */ }
@@ -336,9 +343,26 @@ namespace RbfLauncher
                     Games   = r.Games,
                     FirstTo = r.FirstTo,
                     Reason  = r.Reason,
+                    GamesTruncated = r.Truncated,
                 };
                 msg.P1Chars.AddRange(r.P1Chars);
                 msg.P2Chars.AddRange(r.P2Chars);
+
+                foreach (var g in r.Played)
+                {
+                    var pg = new MatchGame
+                    {
+                        Index    = g.Index,
+                        P1Rounds = g.P1Rounds,
+                        P2Rounds = g.P2Rounds,
+                        Winner   = g.Winner,
+                        Frames   = g.Frames,
+                    };
+                    pg.P1Chars.AddRange(g.P1Chars);
+                    pg.P2Chars.AddRange(g.P2Chars);
+                    msg.GamesPlayed.Add(pg);
+                }
+
                 _client.SendMatchResult(msg);
             }
             catch { /* a result that cannot be sent must not take the launcher with it */ }

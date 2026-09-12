@@ -47,6 +47,11 @@ namespace Rbf.Server
         public string Game;
         public string P1Id;
         public string P2Id;
+        // Copied at creation, not looked up later. A result can arrive after
+        // the player who reported it has gone, and the archived record has to
+        // say who played rather than "?".
+        public string P1Name;
+        public string P2Name;
         public int Port;
         public int FrameDelay;
         public int FirstTo;         // games that end the session; 0 = free play
@@ -58,6 +63,7 @@ namespace Rbf.Server
         // it - see ReportResult.
         public MatchResult Result;
         public string ResultFromId;
+        public bool Archived;       // written to the archive; write it once
     }
 
     /// <summary>Last N chat lines for one scope. Bounded on purpose: the lobby
@@ -90,6 +96,23 @@ namespace Rbf.Server
         private readonly Dictionary<string, Session> _sessions = new();
         private readonly Dictionary<string, Challenge> _challenges = new();
         private readonly Dictionary<string, Match> _matches = new();
+
+        // Matches that have ended but can still be spoken about.
+        //
+        // This is not a nicety. The launcher sends Phase.Ended when the
+        // emulator closes and the result right after it, and the OTHER player
+        // closing their emulator sends an Ended for the same match - so by the
+        // time a result arrives the match has usually been retired already,
+        // whatever order one client uses. Without this, results were being
+        // answered with "partida desconhecida" and dropped on the floor.
+        private readonly Dictionary<string, Match> _recent = new();
+        private readonly Queue<string> _recentOrder = new Queue<string>();
+        private const int RecentCap = 128;
+
+        // How long to wait for the second player's reading before archiving
+        // what we have. Both emulators close within seconds of each other in
+        // the normal case; this is the ceiling for the case where one does not.
+        private const int ResultGraceMs = 20000;
         private readonly ChatRing _globalChat = new ChatRing(ChatBacklog);
         private readonly Dictionary<string, ChatRing> _roomChat = new();
 
@@ -317,6 +340,8 @@ namespace Rbf.Server
                     Game = c.Game,
                     P1Id = from.UserId,
                     P2Id = to.UserId,
+                    P1Name = from.Username,
+                    P2Name = to.Username,
                     Port = AllocPortLocked(),
                     // meet in the middle, rounding up. Both zero means neither
                     // side expressed a preference (old client) -> server default.
@@ -390,7 +415,7 @@ namespace Rbf.Server
                 if (!_matches.TryGetValue(matchId ?? "", out var m)) return;
                 if (phase != Phase.Ended && phase != Phase.Failed) return;
 
-                _matches.Remove(m.Id);
+                RetireMatchLocked(m);
                 foreach (var id in new[] { m.P1Id, m.P2Id })
                 {
                     if (!_sessions.TryGetValue(id, out var p)) continue;
@@ -416,16 +441,45 @@ namespace Rbf.Server
             }
         }
 
-        // ---- chat ---------------------------------------------------
+        /// <summary>Move an ended match out of the live table but keep it
+        /// reachable. See _recent for why.</summary>
+        private void RetireMatchLocked(Match m)
+        {
+            _matches.Remove(m.Id);
+            if (_recent.ContainsKey(m.Id)) return;
+
+            _recent[m.Id] = m;
+            _recentOrder.Enqueue(m.Id);
+            while (_recentOrder.Count > RecentCap)
+            {
+                var old = _recentOrder.Dequeue();
+                if (_recent.TryGetValue(old, out var dropped))
+                {
+                    // Falling out of the window with a result nobody confirmed
+                    // is still a result. Better an unconfirmed row than none.
+                    FlushResultLocked(dropped, null, false);
+                    _recent.Remove(old);
+                }
+            }
+        }
+
+        private Match FindMatchLocked(string id) =>
+            _matches.TryGetValue(id ?? "", out var live) ? live
+            : _recent.TryGetValue(id ?? "", out var done) ? done
+            : null;
+
+        // ---- results ------------------------------------------------
         /// <summary>A player reporting what their emulator read out of the game
-        /// at the end of the session. Both players report the same match.</summary>
+        /// at the end of the session. Both players report the same match: the
+        /// first reading is kept, the second confirms it or contradicts it.</summary>
         public void ReportResult(Session s, MatchResult r)
         {
             if (s == null || r == null || string.IsNullOrEmpty(r.MatchId)) return;
 
             lock (_gate)
             {
-                if (!_matches.TryGetValue(r.MatchId, out var m))
+                var m = FindMatchLocked(r.MatchId);
+                if (m == null)
                 {
                     Console.WriteLine($"! resultado de {s.Username} para partida desconhecida {r.MatchId}");
                     return;
@@ -443,11 +497,17 @@ namespace Rbf.Server
                 {
                     m.Result = r;
                     m.ResultFromId = s.UserId;
-                    Console.WriteLine($"# resultado {m.Id} {r.Game}: {r.P1Games} x {r.P2Games} " +
-                                      $"({r.Games} partidas, {r.Reason}" +
-                                      (r.FirstTo > 0 ? $", FT{r.FirstTo}" : ", livre") + ")" +
-                                      Chars(" p1:", r.P1Chars) + Chars(" p2:", r.P2Chars) +
-                                      $"  [de {s.Username}]");
+                    PrintResult(m, r, s.Username);
+
+                    // Give the other side a chance to confirm it, then write it
+                    // down whether or not they did. Somebody whose launcher
+                    // crashed should not cost the record of a match that was
+                    // played.
+                    var pending = m;
+                    _ = Task.Delay(ResultGraceMs).ContinueWith(_ =>
+                    {
+                        lock (_gate) FlushResultLocked(pending, null, false);
+                    });
                     return;
                 }
 
@@ -455,20 +515,55 @@ namespace Rbf.Server
 
                 // Two readings of one match that disagree means a desync or a
                 // client that was changed. Neither is something to swallow.
-                if (m.Result.P1Games != r.P1Games || m.Result.P2Games != r.P2Games)
+                bool divergent = m.Result.P1Games != r.P1Games || m.Result.P2Games != r.P2Games;
+                if (divergent)
                 {
                     Console.WriteLine($"!! resultados divergentes em {m.Id}: " +
                                       $"{m.Result.P1Games}x{m.Result.P2Games} vs {r.P1Games}x{r.P2Games} " +
                                       $"(de {s.Username})");
                 }
+                else
+                {
+                    Console.WriteLine($"# {m.Id} confirmado por {s.Username}");
+                }
+
+                FlushResultLocked(m, s.UserId, divergent);
             }
         }
 
-        private static string Chars(string prefix, IEnumerable<int> ids)
+        /// <summary>Write the match down, once. Called from both the
+        /// confirmation path and the grace timer, so it has to be idempotent.</summary>
+        private void FlushResultLocked(Match m, string secondReporterId, bool divergent)
         {
-            if (ids == null) return "";
-            var s = string.Join("/", ids);
-            return s.Length == 0 ? "" : prefix + s;
+            if (m == null || m.Archived || m.Result == null) return;
+            m.Archived = true;
+            MatchArchive.Write(m, m.Result, secondReporterId, divergent);
+        }
+
+        /// <summary>The session as a person would read it: the totals, then one
+        /// line per game with the characters that game was actually played
+        /// with. Totals alone cannot say that, because both sides pick again
+        /// between games.</summary>
+        private static void PrintResult(Match m, MatchResult r, string reporter)
+        {
+            string game = r.Game ?? m.Game;
+            Console.WriteLine($"# resultado {m.Id} {game}: " +
+                              $"{m.P1Name} {r.P1Games} x {r.P2Games} {m.P2Name} " +
+                              $"({r.Games} partidas, {r.Reason}" +
+                              (r.FirstTo > 0 ? $", FT{r.FirstTo}" : ", livre") + ")" +
+                              $"  [de {reporter}]");
+
+            foreach (var g in r.GamesPlayed)
+            {
+                string p1 = Characters.Describe(game, g.P1Chars);
+                string p2 = Characters.Describe(game, g.P2Chars);
+                string who = g.Winner == 1 ? m.P1Name : g.Winner == 2 ? m.P2Name : "empate";
+                Console.WriteLine($"    {g.Index,2}. {p1,-14} {g.P1Rounds} x {g.P2Rounds} {p2,-14} -> {who}");
+            }
+            if (r.GamesTruncated)
+                Console.WriteLine("    (sessao longa: o detalhe para nas primeiras partidas)");
+            if (r.GamesPlayed.Count == 0 && r.Games > 0)
+                Console.WriteLine("    (sem detalhe por partida: emulador antigo?)");
         }
 
         public void Chat(Session s, ChatScope scope, string text)
@@ -586,7 +681,7 @@ namespace Rbf.Server
         {
             foreach (var m in _matches.Values.Where(x => x.P1Id == userId || x.P2Id == userId).ToList())
             {
-                _matches.Remove(m.Id);
+                RetireMatchLocked(m);
                 string other = m.P1Id == userId ? m.P2Id : m.P1Id;
                 if (_sessions.TryGetValue(other, out var p))
                 {

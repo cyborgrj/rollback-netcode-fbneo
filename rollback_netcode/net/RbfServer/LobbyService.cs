@@ -107,7 +107,8 @@ namespace Rbf.Server
                     Req(s, $"match_status {m.MatchStatus.Phase}{(m.MatchStatus.Detail.Length > 0 ? " - " + Short(m.MatchStatus.Detail) : "")}");
                     _hub.MatchStatus(s, m.MatchStatus.MatchId, m.MatchStatus.Phase, m.MatchStatus.Detail); break;
                 case ClientMsg.KindOneofCase.MatchResult:
-                    Req(s, $"match_result {m.MatchResult.Game} {m.MatchResult.P1Games}x{m.MatchResult.P2Games} ({m.MatchResult.Reason})");
+                    Req(s, $"match_result {m.MatchResult.Game} {m.MatchResult.P1Games}x{m.MatchResult.P2Games} " +
+                           $"({m.MatchResult.Reason}, {m.MatchResult.GamesPlayed.Count} detalhadas)");
                     _hub.ReportResult(s, m.MatchResult); break;
                 case ClientMsg.KindOneofCase.Ping:
                     _hub.Pong(s, m.Ping.T, m.Ping.RttMs); break;

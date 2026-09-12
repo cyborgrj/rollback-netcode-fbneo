@@ -49,23 +49,47 @@ static int  g_p1Down = 0, g_p2Down = 0;   // already counted this knockout
 static int  g_p1Low  = 0x7FFFFFFF;
 static int  g_p2Low  = 0x7FFFFFFF;
 static long long g_frame = 0;
+static long long g_gameStart = 0;   // live frame the current game began on
 static int  g_matchHold = 0;   // consecutive live frames with both words cleared
 static int  g_matchOver = 0;   // this clearing has already been counted
 static int  g_firstTo   = 0;   // games that end the session; 0 = free play
 
-// Hand the finished game to whoever won more rounds of it, then start the
-// round count over. A drawn game - a double KO at match point, most often -
+// vsav has no rounds: the score of a game is how many of the two bars each
+// side lost. Two when the gauge went negative, one when they finished at half
+// or less, none above that.
+static void barsOf(int* pP1, int* pP2)
+{
+	*pP1 = g_p2Down ? 2 : ((g_p2Low <= g_map->nFull / 2) ? 1 : 0);
+	*pP2 = g_p1Down ? 2 : ((g_p1Low <= g_map->nFull / 2) ? 1 : 0);
+}
+
+// Hand the finished game to whoever won more rounds of it, write down what it
+// was, then start over. A drawn game - a double KO at match point, most often -
 // counts for neither side, which is what happens on the machine too.
 static void awardGame(void)
 {
-	if (g_map && g_map->bBars) {
-		const int p1Bars = g_p2Down ? 2 : ((g_p2Low <= g_map->nFull / 2) ? 1 : 0);
-		const int p2Bars = g_p1Down ? 2 : ((g_p1Low <= g_map->nFull / 2) ? 1 : 0);
-		if (p1Bars > p2Bars)      g_d.nP1Games++;
-		else if (p2Bars > p1Bars) g_d.nP2Games++;
+	int p1 = g_d.nP1Rounds, p2 = g_d.nP2Rounds;
+	if (g_map && g_map->bBars) barsOf(&p1, &p2);
+
+	const int nWinner = (p1 > p2) ? 1 : (p2 > p1) ? 2 : 0;
+	if (nWinner == 1)      g_d.nP1Games++;
+	else if (nWinner == 2) g_d.nP2Games++;
+
+	// The row is the point of all this: totals cannot say who used what, and
+	// the characters change between games.
+	if (g_d.nGameRows < MATCH_SCORE_MAX_GAMES) {
+		MatchGameRow* row = &g_d.aGames[g_d.nGameRows++];
+		memset(row, 0, sizeof(*row));
+		memcpy(row->nP1Char, g_d.nP1Char, sizeof(row->nP1Char));
+		memcpy(row->nP2Char, g_d.nP2Char, sizeof(row->nP2Char));
+		row->bHaveP1Char = g_d.bHaveP1Char;
+		row->bHaveP2Char = g_d.bHaveP2Char;
+		row->nP1Rounds   = p1;
+		row->nP2Rounds   = p2;
+		row->nWinner     = nWinner;
+		row->nFrames     = g_gameStart ? (int)(g_frame - g_gameStart) : 0;
 	} else {
-		if (g_d.nP1Rounds > g_d.nP2Rounds)      g_d.nP1Games++;
-		else if (g_d.nP2Rounds > g_d.nP1Rounds) g_d.nP2Games++;
+		g_d.bGamesTruncated = 1;
 	}
 
 	g_d.nGames++;
@@ -77,6 +101,12 @@ static void awardGame(void)
 	g_p1Low = g_p2Low = 0x7FFFFFFF;
 	g_p1Down = g_p2Down = 0;
 	g_p1Hold = g_p2Hold = 0;
+	g_gameStart = 0;
+	// Forget the characters. Both sides pick again between games, and a game
+	// we failed to read has to report nothing rather than repeat the last one.
+	memset(g_d.nP1Char, 0, sizeof(g_d.nP1Char));
+	memset(g_d.nP2Char, 0, sizeof(g_d.nP2Char));
+	g_d.bHaveP1Char = g_d.bHaveP2Char = 0;
 	g_d.bStarted = 0;      // the next fight has to announce itself the same way
 }
 
@@ -108,6 +138,15 @@ static void readChars(unsigned int nAddr, int* pOut, int nCount, int* pbHave)
 	*pbHave = 1;
 }
 
+// "4" for a single character, "0/1/2" for a KOF team, "?" when unread.
+static void charsToText(char* szOut, size_t nOut, const int* pChars, int nCount, int bHave)
+{
+	if (!bHave || nCount <= 0) { snprintf(szOut, nOut, "?"); return; }
+	int n = snprintf(szOut, nOut, "%d", pChars[0]);
+	for (int i = 1; i < nCount && n > 0 && n < (int)nOut; i++)
+		n += snprintf(szOut + n, nOut - n, "/%d", pChars[i]);
+}
+
 int MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*))
 {
 	g_map = NULL;
@@ -117,6 +156,7 @@ int MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*))
 	g_p1Down = g_p2Down = 0;
 	g_p1Low = g_p2Low = 0x7FFFFFFF;
 	g_frame = 0;
+	g_gameStart = 0;
 
 	if (RamProbeAttach(pfnLog) != RAM_PROBE_OK)
 		return MATCH_SCORE_ERR_NO_RAM;
@@ -159,6 +199,7 @@ void MatchScoreFrame(void)
 		if (l1 != g_map->nFull || l2 != g_map->nFull) return;
 		g_d.bStarted     = 1;
 		g_d.bEverStarted = 1;
+		if (!g_gameStart)     g_gameStart     = g_frame;
 		if (!g_d.nStartFrame) g_d.nStartFrame = g_frame;
 	}
 
@@ -223,8 +264,7 @@ int MatchScoreGet(MatchScoreData* out)
 	if (g_map && g_map->bBars) {
 		// Losing the gauge is losing both bars at once; getting through it
 		// with less than half left is one bar gone.
-		out->nP1Rounds = g_p2Down ? 2 : ((g_p2Low <= g_map->nFull / 2) ? 1 : 0);
-		out->nP2Rounds = g_p1Down ? 2 : ((g_p1Low <= g_map->nFull / 2) ? 1 : 0);
+		barsOf(&out->nP1Rounds, &out->nP2Rounds);
 	}
 
 	return g_d.bEverStarted ? 1 : 0;
@@ -236,23 +276,28 @@ void MatchScoreStop(void (*pfnLog)(const char*))
 
 	MatchScoreData d;
 	if (MatchScoreGet(&d)) {
-		char szP1[64] = "?", szP2[64] = "?";
-		if (d.bHaveP1Char) {
-			int n = snprintf(szP1, sizeof(szP1), "%d", d.nP1Char[0]);
-			for (int i = 1; i < d.nCharCount && n > 0 && n < (int)sizeof(szP1); i++)
-				n += snprintf(szP1 + n, sizeof(szP1) - n, "/%d", d.nP1Char[i]);
-		}
-		if (d.bHaveP2Char) {
-			int n = snprintf(szP2, sizeof(szP2), "%d", d.nP2Char[0]);
-			for (int i = 1; i < d.nCharCount && n > 0 && n < (int)sizeof(szP2); i++)
-				n += snprintf(szP2 + n, sizeof(szP2) - n, "/%d", d.nP2Char[i]);
-		}
-		score_log(pfnLog, "score: %s  P1[%s] %d x %d P2[%s]  (%d partidas, %s)"
-		                  "  rounds em andamento: %d x %d",
-		          d.szGame, szP1, d.nP1Games, d.nP2Games, szP2, d.nGames,
+		score_log(pfnLog, "score: %s  %d x %d  (%d partidas, %s)",
+		          d.szGame, d.nP1Games, d.nP2Games, d.nGames,
 		          d.nP1Games > d.nP2Games ? "P1 venceu"
-		          : d.nP2Games > d.nP1Games ? "P2 venceu" : "empate",
-		          d.nP1Rounds, d.nP2Rounds);
+		          : d.nP2Games > d.nP1Games ? "P2 venceu" : "empate");
+
+		// One line per game, which is the whole reason the rows exist.
+		for (int i = 0; i < d.nGameRows; i++) {
+			const MatchGameRow* g = &d.aGames[i];
+			char szP1[64], szP2[64];
+			charsToText(szP1, sizeof(szP1), g->nP1Char, d.nCharCount, g->bHaveP1Char);
+			charsToText(szP2, sizeof(szP2), g->nP2Char, d.nCharCount, g->bHaveP2Char);
+			score_log(pfnLog, "score:   %d. P1[%s] %d x %d P2[%s]  %s",
+			          i + 1, szP1, g->nP1Rounds, g->nP2Rounds, szP2,
+			          g->nWinner == 1 ? "P1 venceu" :
+			          g->nWinner == 2 ? "P2 venceu" : "empate");
+		}
+		if (d.bGamesTruncated)
+			score_log(pfnLog, "score:   (sessao longa: so as primeiras %d partidas "
+			                  "foram detalhadas)", MATCH_SCORE_MAX_GAMES);
+		if (d.nP1Rounds || d.nP2Rounds)
+			score_log(pfnLog, "score:   partida interrompida no meio: %d x %d rounds",
+			          d.nP1Rounds, d.nP2Rounds);
 	} else {
 		score_log(pfnLog, "score: no fight started, nothing to report");
 	}
@@ -268,6 +313,33 @@ static void writeChars(FILE* f, const char* szKey, const int* pChars, int nCount
 	fprintf(f, "%s=", szKey);
 	for (int i = 0; i < nCount; i++) fprintf(f, i ? ",%d" : "%d", pChars[i]);
 	fputc('\n', f);
+}
+
+// One finished game as a single value, readable by a person and trivial to
+// parse:
+//
+//   partida3=p1chars=15 p2chars=0 rounds=0-2 vencedor=p2 frames=4210
+//
+// Fields are separated by spaces and never contain one; a team is a comma
+// list, the same as the top-level p1chars=. A side we could not read leaves
+// its field out entirely rather than inventing a number.
+static void writeGameRow(FILE* f, int nIndex, const MatchGameRow* g, int nCharCount)
+{
+	fprintf(f, "partida%d=", nIndex);
+	if (g->bHaveP1Char) {
+		fprintf(f, "p1chars=");
+		for (int i = 0; i < nCharCount; i++) fprintf(f, i ? ",%d" : "%d", g->nP1Char[i]);
+		fputc(' ', f);
+	}
+	if (g->bHaveP2Char) {
+		fprintf(f, "p2chars=");
+		for (int i = 0; i < nCharCount; i++) fprintf(f, i ? ",%d" : "%d", g->nP2Char[i]);
+		fputc(' ', f);
+	}
+	fprintf(f, "rounds=%d-%d vencedor=%s frames=%d\n",
+	        g->nP1Rounds, g->nP2Rounds,
+	        g->nWinner == 1 ? "p1" : g->nWinner == 2 ? "p2" : "empate",
+	        g->nFrames);
 }
 
 int MatchScoreWriteResult(const char* szMatchId, int nFirstTo, const char* szReason,
@@ -312,11 +384,26 @@ int MatchScoreWriteResult(const char* szMatchId, int nFirstTo, const char* szRea
 	fprintf(f, "games=%d\n",   d.nGames);
 	fprintf(f, "firstto=%d\n", nFirstTo);
 	fprintf(f, "reason=%s\n",  szReason ? szReason : "closed");
+	fprintf(f, "chars=%d\n",   d.nCharCount);
+	// The characters of the game still in progress, when there is one. The
+	// partidaN lines below are what a scoreboard should read - these are here
+	// so a session cut short mid-game still says what was being played.
 	writeChars(f, "p1chars", d.nP1Char, d.nCharCount, d.bHaveP1Char);
 	writeChars(f, "p2chars", d.nP2Char, d.nCharCount, d.bHaveP2Char);
+
+	for (int i = 0; i < d.nGameRows; i++)
+		writeGameRow(f, i + 1, &d.aGames[i], d.nCharCount);
+	if (d.bGamesTruncated)
+		fprintf(f, "truncado=1\n");
+	// A game that was under way when the session ended is not a result, but
+	// saying how far it had got is cheap, and it explains a session whose
+	// games do not account for the time it lasted.
+	if (d.nP1Rounds || d.nP2Rounds)
+		fprintf(f, "parcial=rounds=%d-%d\n", d.nP1Rounds, d.nP2Rounds);
 	fclose(f);
 
-	score_log(pfnLog, "result: %s escrito (%d x %d, %s)",
-	          szPath, d.nP1Games, d.nP2Games, szReason ? szReason : "closed");
+	score_log(pfnLog, "result: %s escrito (%d x %d, %d partidas detalhadas, %s)",
+	          szPath, d.nP1Games, d.nP2Games, d.nGameRows,
+	          szReason ? szReason : "closed");
 	return 0;
 }

@@ -37,3 +37,6 @@ rbf-launcher.json
 *~
 .DS_Store
 Thumbs.db
+
+# lixo que o build do WPF deixa para tras
+*_wpftmp.csproj

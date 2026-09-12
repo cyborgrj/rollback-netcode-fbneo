@@ -691,6 +691,34 @@ internal static class Program
         bool started = false;
         uint startFrame = 0, endFrame = 0;
 
+        // A recording can hold a whole session, and a session is a series of
+        // games with the characters picked again between them. So the rounds
+        // above belong to the CURRENT game, and each finished one is closed off
+        // into this list - the same split match_score.cpp makes, which is the
+        // point of keeping this tool in step with it.
+        var games = new List<(string C1, string C2, int R1, int R2, uint From, uint To)>();
+        int p1Games = 0, p2Games = 0;
+        bool matchOver = false;
+
+        void CloseGame(uint frame)
+        {
+            int r1 = p1Won, r2 = p2Won;
+            if (m.Bars)
+            {
+                r1 = p2Down ? 2 : (p2Low <= m.Full / 2 ? 1 : 0);
+                r2 = p1Down ? 2 : (p1Low <= m.Full / 2 ? 1 : 0);
+            }
+            if (r1 > r2) p1Games++; else if (r2 > r1) p2Games++;
+            games.Add((c1, c2, r1, r2, startFrame, frame));
+
+            p1Won = p2Won = 0;
+            p1Down = p2Down = false;
+            p1Low = p2Low = int.MaxValue;
+            c1 = c2 = "?";           // both sides pick again
+            started = false;
+            startFrame = endFrame = 0;
+        }
+
         Walk(path, (sample, frame, ram) =>
         {
             int l1 = Life(h, ram, m.LifeP1);
@@ -730,26 +758,39 @@ internal static class Program
 
             if (l2 < 0) { if (!p2Down) { p2Down = true; p1Won++; endFrame = frame; } }
             else if (l2 > 0) p2Down = false;
+
+            // Both words cleared is the match being over, which is a different
+            // event from a round ending - there the loser goes negative and
+            // then refills. This is where a GAME is awarded, and it is why the
+            // rule is not "first to two": a double KO can take a match past two
+            // rounds, and five matches each won by a single round would
+            // otherwise read as two games won.
+            if (l1 == 0 && l2 == 0)
+            {
+                if (!matchOver) { matchOver = true; CloseGame(frame); }
+            }
+            else matchOver = false;
         });
 
-        if (!started)
+        // A recording that stops mid-game still has a game worth reporting.
+        if (started && (p1Won > 0 || p2Won > 0)) CloseGame(endFrame);
+
+        if (games.Count == 0)
         {
             Console.WriteLine($"{Path.GetFileName(path)} ({h.Game}): no fight in this recording.");
             return;
         }
 
-        if (m.Bars)
-        {
-            // Losing the gauge is losing both bars at once; getting through it
-            // with less than half left is one bar gone.
-            p1Won = p2Down ? 2 : (p2Low <= m.Full / 2 ? 1 : 0);
-            p2Won = p1Down ? 2 : (p1Low <= m.Full / 2 ? 1 : 0);
-        }
-
-        string verdict = p1Won > p2Won ? "P1 venceu" : p2Won > p1Won ? "P2 venceu" : "empate";
+        string verdict = p1Games > p2Games ? "P1 venceu" : p2Games > p1Games ? "P2 venceu" : "empate";
         Console.WriteLine($"{Path.GetFileName(path),-42} {h.Game,-6} " +
-                          $"P1[{c1}] {p1Won} x {p2Won} P2[{c2}]   {verdict}" +
-                          $"   (luta f{startFrame}..f{endFrame})");
+                          $"{p1Games} x {p2Games}   {verdict}   ({games.Count} partida(s))");
+        for (int i = 0; i < games.Count; i++)
+        {
+            var g = games[i];
+            string w = g.R1 > g.R2 ? "P1" : g.R2 > g.R1 ? "P2" : "empate";
+            Console.WriteLine($"    {i + 1,2}. P1[{g.C1}] {g.R1} x {g.R2} P2[{g.C2}]   {w,-6} " +
+                              $"(f{g.From}..f{g.To})");
+        }
     }
 
     private static void Activity(string path)

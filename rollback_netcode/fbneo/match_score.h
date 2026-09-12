@@ -18,10 +18,24 @@
 // break. There the score is how many bars each side lost - two if the gauge
 // ran out, one if they finished under half, none otherwise.
 //
+// WHAT A SESSION LOOKS LIKE. A session is a series of games, each of which is
+// a best-of-three on the machine. Totals alone throw away most of what
+// happened: five games at 3x2 is one line, but what a scoreboard needs is
+//
+//   1  Ryu      2 x 1  Blanka
+//   2  Ryu      2 x 1  Sagat
+//   3  Dhalsim  0 x 2  Ryu
+//
+// - the characters CHANGE between games, so a single pair of character ids
+// describes the last game and misdescribes every other one. That is why each
+// finished game is appended to aGames with its own characters and its own
+// round count, and why the character reading is forgotten when a game ends: a
+// game nobody could read has to say so instead of inheriting the one before.
+//
 // Characters are read on every frame where both sides are alive, keeping the
-// last such reading. Reading once at the start is wrong twice over: sf2ce
-// fills the field a moment after the bars go full, and the arcade writes the
-// NEXT opponent into it the instant the match ends.
+// last such reading of the CURRENT game. Reading once at the start is wrong
+// twice over: sf2ce fills the field a moment after the bars go full, and the
+// arcade writes the NEXT opponent into it the instant the match ends.
 //
 // Rollback safety: a knockout has to hold for SCORE_HOLD_FRAMES consecutive
 // live frames before it counts. libggpo never predicts more than 8 frames
@@ -39,11 +53,29 @@ extern "C" {
 
 #define MATCH_SCORE_MAX_CHARS 3      // a KOF team
 
+// Games kept in full detail. A "Livre" session has no limit, so this has a
+// ceiling - past it the totals keep counting and bGamesTruncated says the
+// detail is incomplete, which is better than either growing without bound or
+// quietly losing rows.
+#define MATCH_SCORE_MAX_GAMES 64
+
 enum MatchScoreResult {
 	MATCH_SCORE_OK           =  0,
 	MATCH_SCORE_ERR_NO_RAM   = -1,   // could not attach to the work RAM
 	MATCH_SCORE_ERR_NO_MAP   = -2    // this driver is not one we can read
 };
+
+// One finished game: who used what, and how many rounds each side took.
+typedef struct MatchGameRow {
+	int nP1Char[MATCH_SCORE_MAX_CHARS];
+	int nP2Char[MATCH_SCORE_MAX_CHARS];
+	int bHaveP1Char;
+	int bHaveP2Char;
+	int nP1Rounds;
+	int nP2Rounds;
+	int nWinner;      // 1 = P1, 2 = P2, 0 = draw (a double KO at match point)
+	int nFrames;      // how long it took, in emulated frames - 3600 is a minute
+} MatchGameRow;
 
 typedef struct MatchScoreData {
 	char      szGame[32];
@@ -60,10 +92,15 @@ typedef struct MatchScoreData {
 	int       nP1Rounds;
 	int       nP2Rounds;
 	int       nCharCount;    // 1, or 3 for a team game
+	// Characters of the game being played right now. Cleared when it ends.
 	int       nP1Char[MATCH_SCORE_MAX_CHARS];
 	int       nP2Char[MATCH_SCORE_MAX_CHARS];
 	int       bHaveP1Char;
 	int       bHaveP2Char;   // vsav cannot read the opponent side yet
+	// Every finished game, in the order they were played.
+	int          nGameRows;
+	int          bGamesTruncated;
+	MatchGameRow aGames[MATCH_SCORE_MAX_GAMES];
 	// Somebody reached the agreed number of games. The session should end.
 	int       bLimitReached;
 	long long nStartFrame;
@@ -88,7 +125,8 @@ void MatchScoreStop(void (*pfnLog)(const char*));
 int  MatchScoreIsActive(void);
 
 // Write the result where the launcher can find it: rbf-result-<matchId>.txt in
-// the emulator folder, one key=value per line.
+// the emulator folder, one key=value per line, plus one partidaN= line per
+// finished game.
 //
 // A file, rather than talking to the launcher directly, because the two are
 // separate processes and this has to survive the interesting cases - the

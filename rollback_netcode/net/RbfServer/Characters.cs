@@ -1,0 +1,74 @@
+using System.Collections.Generic;
+
+namespace Rbf.Server
+{
+    /// <summary>Character id to name, per game.
+    ///
+    /// The id is what the emulator reads out of the game and the id is what
+    /// gets stored - this table only decorates it. That order matters: a
+    /// roster filled in later makes old matches readable without touching a
+    /// single stored row, and an id we cannot name yet is still a perfectly
+    /// good record of who played whom.
+    ///
+    /// Where these came from is in tools/README.md. sfa2 is complete (the byte
+    /// follows the cursor on the select screen, so three walks over the grid
+    /// covered all 18 with no gap and no repeat); the others are what has been
+    /// seen so far and will fill in as matches are played.</summary>
+    internal static class Characters
+    {
+        private static readonly Dictionary<string, Dictionary<int, string>> Table =
+            new Dictionary<string, Dictionary<int, string>>
+        {
+            ["sfa2"] = new Dictionary<int, string>
+            {
+                [0] = "Ryu",      [1] = "Ken",     [2] = "Akuma",
+                [3] = "Nash",     [4] = "Chun Li", [5] = "Adon",
+                [6] = "Sodom",    [7] = "Guy",     [8] = "Birdie",
+                [9] = "Rose",     [10] = "M. Bison", [11] = "Sagat",
+                [12] = "Dan",     [13] = "Sakura", [14] = "Rolento",
+                [15] = "Dhalsim", [16] = "Zangief", [17] = "Gen",
+            },
+
+            // Incomplete: only the three seen in the recorded matches.
+            ["sf2ce"] = new Dictionary<int, string>
+            {
+                [4] = "Ryu", [5] = "E. Honda", [6] = "Ken",
+            },
+
+            // Incomplete. 19 and 20 came from the order a CPU team entered the
+            // fight, which is weaker evidence than a human picking them.
+            ["kof98"] = new Dictionary<int, string>
+            {
+                [0] = "Kyo", [1] = "Benimaru", [2] = "Daimon",
+                [18] = "Kim", [19] = "Choi", [20] = "Chang",
+                [27] = "Iori", [28] = "Mature", [29] = "Vice",
+            },
+
+            // Incomplete, and P2 cannot be read at all yet - see PENDENCIAS.md.
+            ["vsav"] = new Dictionary<int, string>
+            {
+                [22] = "L. Raptor", [36] = "Jedah",
+            },
+        };
+
+        /// <summary>The name, or null when this id is not known for this game.
+        /// Null rather than a made-up label: a caller that wants to show the
+        /// raw number should be able to tell that is all there is.</summary>
+        public static string Name(string game, int id)
+        {
+            if (game != null && Table.TryGetValue(game, out var roster) &&
+                roster.TryGetValue(id, out var name)) return name;
+            return null;
+        }
+
+        /// <summary>"Ryu" for one, "Kyo/Benimaru/Daimon" for a team, and the
+        /// bare id where the name is unknown: "Ryu/27/Vice".</summary>
+        public static string Describe(string game, IEnumerable<int> ids)
+        {
+            if (ids == null) return "?";
+            var parts = new List<string>();
+            foreach (var id in ids) parts.Add(Name(game, id) ?? id.ToString());
+            return parts.Count == 0 ? "?" : string.Join("/", parts);
+        }
+    }
+}

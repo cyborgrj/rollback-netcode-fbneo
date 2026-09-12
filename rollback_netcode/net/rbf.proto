@@ -168,9 +168,33 @@ message MatchResult {
   int32  first_to = 6;    // 0 = livre
   string reason   = 7;    // "limit" | "disconnect" | "closed"
 
-  // Character ids, in the order they entered. One each, or three for a KOF team.
+  // Character ids of the game that was still in progress when the session
+  // ended, if any. One each, or three for a KOF team. The per-game rows below
+  // are what a scoreboard reads - these only describe an interrupted game.
   repeated int32 p1_chars = 8;
   repeated int32 p2_chars = 9;
+
+  // Every finished game, in the order they were played. This is the part that
+  // cannot be reconstructed from the totals: the characters change between
+  // games, so 3 x 1 with one pair of ids describes the last game and lies
+  // about the other three.
+  repeated MatchGame games_played = 10;
+
+  // The session ran past what the emulator keeps in detail (64 games), so
+  // games_played is the beginning of it, not all of it. The totals are still
+  // complete.
+  bool games_truncated = 11;
+}
+
+// One game inside a session: who used what, and how many rounds each took.
+message MatchGame {
+  int32 index = 1;            // 1-based, in the order played
+  repeated int32 p1_chars = 2;   // empty when that side could not be read
+  repeated int32 p2_chars = 3;
+  int32 p1_rounds = 4;
+  int32 p2_rounds = 5;
+  int32 winner    = 6;        // 1 = p1, 2 = p2, 0 = empate (double KO at match point)
+  int32 frames    = 7;        // emulated frames it lasted; 3600 is a minute
 }
 
 message Pong { int64 t = 1; }

@@ -67,8 +67,45 @@ ProbeAnalyze --score D:\RBF\rbf-probe-*.rbfp
 
 São oito partidas cujo resultado era conhecido de antemão, e as oito batem.
 
+Desde 12/09 o `--score` separa **partida** de **round**, igual ao emulador: uma
+gravação com uma sessão inteira sai assim, uma linha por partida, com os
+personagens daquela partida —
+
+```
+rbf-probe-sf2ce-...rbfp      sf2ce  2 x 1   P1 venceu   (3 partida(s))
+     1. P1[4] 2 x 1 P2[5]   P1     (f901..f7771)
+     2. P1[6] 2 x 0 P2[5]   P1     (f7950..f11020)
+     3. P1[4] 0 x 2 P2[6]   P2     (f11300..f15880)
+```
+
+O corte entre uma partida e a seguinte é o **struct de vida sendo zerado**, que
+é um evento diferente do fim de round (lá o perdedor fica negativo e recarrega).
+Nas gravações antigas, de uma partida cada, isso aparece no último sample:
+`00 00 00 00` no `0xFF83E8`.
+
 Os endereços são endereços de CPU — `0xFF8xxx` no CPS1/CPS2, `0x10xxxx` no
 Neo Geo — os mesmos que apareceriam num arquivo de cheat ou num disassembly.
+
+### `ScoreSelfTest` — o leitor sem o jogo
+
+O `--score` confere a **regra** contra gravações reais. O `ScoreSelfTest`
+confere o **código que roda dentro do emulador**, alimentando
+`match_score.cpp` com uma luta escrita à mão: sem ROM, sem emulador, sem
+ninguém jogando. Ele troca só o `RamProbeRead8`; tudo acima disso é o código
+que vai para o executável.
+
+```bash
+# no shell mingw64 do MSYS2, dentro de tools/ScoreSelfTest
+g++ -std=c++11 -I. -I../../fbneo -o score_selftest.exe \
+    score_selftest.cpp ../../fbneo/match_score.cpp
+./score_selftest.exe
+```
+
+Ele roda uma sessão de três partidas com personagens diferentes em cada uma e
+confere as três linhas, o total, e o arquivo `rbf-result-*.txt` que o launcher
+vai ler. A checagem que mais vale é a chata: que o personagem da partida 1 não
+virou o da partida 3 — o erro que um placar só de totais não consegue nem
+notar.
 
 ### 3. O caminho que funcionou de verdade
 

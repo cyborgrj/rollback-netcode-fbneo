@@ -18,6 +18,19 @@ namespace RbfLauncher.Core
     /// Whoever reads it deletes it.</summary>
     public sealed class MatchResultFile
     {
+        /// <summary>One finished game: who used what and how many rounds each
+        /// side took. Read from a partidaN= line.</summary>
+        public sealed class PlayedGame
+        {
+            public int Index;
+            public List<int> P1Chars = new List<int>();
+            public List<int> P2Chars = new List<int>();
+            public int P1Rounds;
+            public int P2Rounds;
+            public int Winner;   // 1 = p1, 2 = p2, 0 = empate
+            public int Frames;
+        }
+
         public string MatchId  = "";
         public string Game     = "";
         public int    P1Games;
@@ -27,6 +40,8 @@ namespace RbfLauncher.Core
         public string Reason   = "closed";
         public List<int> P1Chars = new List<int>();
         public List<int> P2Chars = new List<int>();
+        public List<PlayedGame> Played = new List<PlayedGame>();
+        public bool   Truncated;
 
         public static string PathFor(string emulatorDir, string matchId) =>
             Path.Combine(emulatorDir ?? "", "rbf-result-" + matchId + ".txt");
@@ -65,14 +80,64 @@ namespace RbfLauncher.Core
                     case "reason":  r.Reason = v; break;
                     case "p1chars": r.P1Chars = Ints(v); break;
                     case "p2chars": r.P2Chars = Ints(v); break;
+                    case "truncado": r.Truncated = v == "1"; break;
+                    default:
+                        if (k.StartsWith("partida"))
+                        {
+                            var g = ParseGame(k.Substring("partida".Length), v);
+                            if (g != null) r.Played.Add(g);
+                        }
+                        break;
                 }
             }
+
+            // The emulator writes them in order, but sorting costs nothing and
+            // means the order is a property of the data instead of a habit.
+            r.Played.Sort((x, y) => x.Index.CompareTo(y.Index));
 
             // Deleted whether or not it parsed. A file we cannot read will not
             // read better next time, and leaving it would report it forever.
             try { File.Delete(path); } catch { }
 
             return string.IsNullOrEmpty(r.MatchId) ? null : r;
+        }
+
+        /// <summary>partida3=p1chars=15 p2chars=0 rounds=0-2 vencedor=p2 frames=4210
+        ///
+        /// Space-separated fields, each key=value; a character list is a comma
+        /// list. A field that is missing means that side could not be read -
+        /// which is different from reading a zero, and has to stay different.</summary>
+        private static PlayedGame ParseGame(string indexText, string value)
+        {
+            if (!int.TryParse(indexText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int index))
+                return null;
+
+            var g = new PlayedGame { Index = index };
+            foreach (var field in value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                int eq = field.IndexOf('=');
+                if (eq <= 0) continue;
+                string k = field.Substring(0, eq);
+                string v = field.Substring(eq + 1);
+
+                switch (k)
+                {
+                    case "p1chars": g.P1Chars = Ints(v); break;
+                    case "p2chars": g.P2Chars = Ints(v); break;
+                    case "frames":  g.Frames = Int(v); break;
+                    case "vencedor":
+                        g.Winner = v == "p1" ? 1 : v == "p2" ? 2 : 0; break;
+                    case "rounds":
+                        int dash = v.IndexOf('-');
+                        if (dash > 0)
+                        {
+                            g.P1Rounds = Int(v.Substring(0, dash));
+                            g.P2Rounds = Int(v.Substring(dash + 1));
+                        }
+                        break;
+                }
+            }
+            return g;
         }
 
         private static int Int(string s) =>

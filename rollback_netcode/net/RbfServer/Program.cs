@@ -15,6 +15,10 @@ namespace Rbf.Server
             int gamePort  = 0;          // 0 => port + 3  (udp, relayed matches)
             int frameDelay = 2;
             string bind = "0.0.0.0";
+            // Where finished sessions are written, one JSON object per line.
+            // "-" turns it off. Relative to the working directory, which for
+            // the systemd unit is the folder the binary was published into.
+            string results = "resultados.jsonl";
 
             for (int i = 0; i + 1 < args.Length; i++)
             {
@@ -24,6 +28,7 @@ namespace Rbf.Server
                 else if (args[i] == "--game-relay-port") int.TryParse(args[i + 1], out gamePort);
                 else if (args[i] == "--frame-delay") int.TryParse(args[i + 1], out frameDelay);
                 else if (args[i] == "--bind") bind = args[i + 1];
+                else if (args[i] == "--results") results = args[i + 1];
             }
             // --quiet keeps the per-request lines out of the journal; the lifecycle
             // lines (login, match, relay) are always printed.
@@ -33,6 +38,9 @@ namespace Rbf.Server
             if (gamePort  <= 0) gamePort  = port + 3;
 
             if (frameDelay < 0 || frameDelay > 10) frameDelay = 2;
+
+            MatchArchive.Open(results == "-" ? null : results);
+
             var hub = new Hub
             {
                 PunchPort = punchPort, RelayPort = relayPort,

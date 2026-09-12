@@ -75,3 +75,26 @@ pé e se a porta continua aberta no painel do Lightsail.
 (9 de ~38) e `vsav`. O banco guarda o **id numérico** desde o começo, então os
 nomes podem ser preenchidos depois e as partidas antigas passam a mostrá-los.
 Cada partida de `kof98` entrega seis ids de uma vez.
+
+## Banco: o próximo elo
+
+O servidor já recebe a sessão inteira, partida a partida, e grava em
+`resultados.jsonl` (ver [net/README.md](rollback_netcode/net/README.md)). O que
+falta é o banco lendo esse arquivo — ou o servidor escrevendo direto nele.
+
+Duas formas, e a escolha não é óbvia:
+
+1. **O servidor escreve no Postgres.** Menos peças. Mas o lobby passa a
+   depender do banco estar de pé para terminar uma partida.
+2. **Um importador lê o `.jsonl`.** O lobby nunca fica de mãos atadas, o
+   arquivo continua sendo o que se lê quando a importação parece errada, e dá
+   para reimportar. Custa um processo a mais.
+
+Enquanto não decidir, o `.jsonl` é o banco. Uma linha é um registro completo.
+
+## Servidor no Lightsail está atrás do repositório
+
+O `rbfserver` de lá precisa de `git pull` + `dotnet publish` + restart para
+receber as partidas detalhadas. Um servidor antigo aceita o `MatchResult` e
+ignora os campos que não conhece: o placar total chega, o detalhe por partida
+não. Nada quebra, mas o `resultados.jsonl` fica sem o que interessa.

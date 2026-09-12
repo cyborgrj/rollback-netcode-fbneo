@@ -18,7 +18,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
@@ -100,13 +102,21 @@ namespace Rbf.ProtoTest
         private static int Main(string[] args)
         {
             string host = args.Length > 0 ? args[0] : "127.0.0.1:50061";
+            // Optional: the file the server was started with (--results). Given
+            // it, the test reads back what was written and checks the session
+            // arrived whole - which is the only way to prove the data is
+            // legible at the far end rather than merely sent.
+            string archive = args.Length > 1 ? args[1] : null;
+
             Console.WriteLine("RbfProtoTest -> " + host);
+            if (archive != null) Console.WriteLine("arquivo de resultados: " + archive);
             Console.WriteLine();
 
             try
             {
                 FirstToSurvivesTheRoundTrip(host, 5);
                 FirstToSurvivesTheRoundTrip(host, 0);   // "Livre" is a value, not an absence
+                SessionDetailReachesTheArchive(host, archive);
             }
             catch (Exception ex)
             {
@@ -222,6 +232,158 @@ namespace Rbf.ProtoTest
             }
 
             Console.WriteLine();
+        }
+
+        // The five games of a session, with the characters each was played
+        // with, from one emulator to the server's archive.
+        //
+        // Two things are being checked that inspection could not settle. One:
+        // a result sent AFTER Phase.Ended still lands - it used to be answered
+        // with "partida desconhecida" and dropped, because Ended retires the
+        // match and the other player's Ended arrives whenever it arrives. Two:
+        // the per-game detail survives the whole trip, which is the part the
+        // totals cannot carry, since both sides pick again between games.
+        private static void SessionDetailReachesTheArchive(string host, string archivePath)
+        {
+            Console.WriteLine("-- sessao detalhada, depois do fim da partida");
+
+            // P1 Ryu vs P2 E.Honda 2-1, then Ken vs E.Honda 2-0, then Ryu
+            // losing 0-2: three games, two different characters on one side.
+            var wanted = new[]
+            {
+                new { P1 = 4, P2 = 5, R1 = 2, R2 = 1, W = 1 },
+                new { P1 = 6, P2 = 5, R1 = 2, R2 = 0, W = 1 },
+                new { P1 = 4, P2 = 6, R1 = 0, R2 = 2, W = 2 },
+            };
+
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 4);
+            string matchId = null;
+
+            using (var a = new Peer(host, "p" + suffix))
+            using (var b = new Peer(host, "q" + suffix))
+            {
+                a.Send(new ClientMsg { Hello = new Hello { Username = a.Name, ClientVer = "test", LanIp = "192.168.1.10" } });
+                b.Send(new ClientMsg { Hello = new Hello { Username = b.Name, ClientVer = "test", LanIp = "192.168.1.11" } });
+                if (a.Await(ServerMsg.KindOneofCase.Welcome) == null ||
+                    b.Await(ServerMsg.KindOneofCase.Welcome) == null) { Check(false, "os dois entraram"); return; }
+
+                a.Send(new ClientMsg { JoinRoom = new JoinRoom { Game = "sf2ce" } });
+                b.Send(new ClientMsg { JoinRoom = new JoinRoom { Game = "sf2ce" } });
+                if (a.Await(ServerMsg.KindOneofCase.Roster, m => m.Roster.Players.Any(p => p.Username == b.Name)) == null)
+                { Check(false, "a enxerga b na sala"); return; }
+
+                a.Send(new ClientMsg { Challenge = new Challenge { TargetUserId = b.UserId, FrameDelay = 2, FirstTo = 3 } });
+                var inc = b.Await(ServerMsg.KindOneofCase.ChallengeIn);
+                if (inc == null) { Check(false, "b recebeu o desafio"); return; }
+                b.Send(new ClientMsg { ChallengeReply = new ChallengeReply
+                                       { ChallengeId = inc.ChallengeIn.ChallengeId, Accept = true, FrameDelay = 2 } });
+
+                var msA = a.Await(ServerMsg.KindOneofCase.MatchStart);
+                if (msA == null) { Check(false, "a recebeu MatchStart"); return; }
+                matchId = msA.MatchStart.MatchId;
+
+                var res = new MatchResult
+                {
+                    MatchId = matchId, Game = "sf2ce",
+                    P1Games = 2, P2Games = 1, Games = 3, FirstTo = 3, Reason = "limit",
+                };
+                for (int i = 0; i < wanted.Length; i++)
+                {
+                    var g = new MatchGame
+                    {
+                        Index = i + 1, P1Rounds = wanted[i].R1, P2Rounds = wanted[i].R2,
+                        Winner = wanted[i].W, Frames = 3600 + i,
+                    };
+                    g.P1Chars.Add(wanted[i].P1);
+                    g.P2Chars.Add(wanted[i].P2);
+                    res.GamesPlayed.Add(g);
+                }
+
+                // The regression, in order: the match is retired first.
+                a.Send(new ClientMsg { MatchStatus = new MatchStatus { MatchId = matchId, Phase = Phase.Ended } });
+                b.Send(new ClientMsg { MatchStatus = new MatchStatus { MatchId = matchId, Phase = Phase.Ended } });
+                Thread.Sleep(200);
+                a.Send(new ClientMsg { MatchResult = res });
+                b.Send(new ClientMsg { MatchResult = res });   // the confirmation flushes it
+                Thread.Sleep(600);
+            }
+
+            if (archivePath == null)
+            {
+                Console.WriteLine("  (sem arquivo de resultados: passe o caminho como 2o argumento");
+                Console.WriteLine("   para conferir o que o servidor gravou)");
+                Console.WriteLine();
+                return;
+            }
+
+            string line = FindArchiveLine(archivePath, matchId);
+            Check(line != null, "a sessao foi gravada mesmo tendo sido reportada depois do fim");
+            if (line == null) { Console.WriteLine(); return; }
+
+            using (var doc = JsonDocument.Parse(line))
+            {
+                var root = doc.RootElement;
+                Check(root.GetProperty("p1_games").GetInt32() == 2 &&
+                      root.GetProperty("p2_games").GetInt32() == 1, "o placar da sessao chegou inteiro");
+                Check(root.GetProperty("confirmed").GetBoolean(), "os dois lados confirmaram");
+                Check(root.GetProperty("divergent").GetBoolean() == false, "sem divergencia entre as leituras");
+
+                var played = root.GetProperty("games_played");
+                Check(played.GetArrayLength() == wanted.Length,
+                      $"{played.GetArrayLength()} partidas detalhadas (esperado {wanted.Length})");
+
+                bool allOk = played.GetArrayLength() == wanted.Length;
+                for (int i = 0; allOk && i < wanted.Length; i++)
+                {
+                    var g = played[i];
+                    allOk &= g.GetProperty("index").GetInt32() == i + 1
+                          && g.GetProperty("p1_chars")[0].GetInt32() == wanted[i].P1
+                          && g.GetProperty("p2_chars")[0].GetInt32() == wanted[i].P2
+                          && g.GetProperty("p1_rounds").GetInt32() == wanted[i].R1
+                          && g.GetProperty("p2_rounds").GetInt32() == wanted[i].R2
+                          && g.GetProperty("winner").GetInt32() == wanted[i].W;
+                }
+                Check(allOk, "cada partida com seus personagens e seu placar");
+
+                // The point of the whole exercise: game 1 and game 2 must not
+                // have the same P1 character. A pipeline that carried only the
+                // totals would give them both the last one.
+                Check(played.GetArrayLength() > 1 &&
+                      played[0].GetProperty("p1_chars")[0].GetInt32() !=
+                      played[1].GetProperty("p1_chars")[0].GetInt32(),
+                      "o personagem muda de uma partida para a outra");
+
+                Check(played.GetArrayLength() > 0 &&
+                      played[0].GetProperty("p1_names")[0].GetString() == "Ryu",
+                      "o id virou nome na gravacao");
+            }
+
+            Console.WriteLine();
+        }
+
+        /// <summary>The archived line for this match, waiting a moment for it:
+        /// the server flushes on the second report, which is a different thread
+        /// from the one that took it.</summary>
+        private static string FindArchiveLine(string path, string matchId)
+        {
+            var until = DateTime.UtcNow.AddSeconds(4);
+            while (DateTime.UtcNow < until)
+            {
+                try
+                {
+                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using (var sr = new StreamReader(fs))
+                    {
+                        string hit = null, line;
+                        while ((line = sr.ReadLine()) != null)
+                            if (line.Contains(matchId)) hit = line;
+                        if (hit != null) return hit;
+                    }
+                }
+                catch { /* the server may be writing it right now */ }
+                Thread.Sleep(150);
+            }
+            return null;
         }
     }
 }
