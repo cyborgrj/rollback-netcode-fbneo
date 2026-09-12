@@ -71,6 +71,28 @@ static void awardGame(void)
 	int p1 = g_d.nP1Rounds, p2 = g_d.nP2Rounds;
 	if (g_map && g_map->bBars) barsOf(&p1, &p2);
 
+	// Nobody won a round, so nobody fought. The life words clearing is how a
+	// game ends, but it is ALSO what happens when somebody quits out to the
+	// select screen or resets - and that produced a seven-second "game" scored
+	// 0 x 0, counted as a draw, which then shifted the numbering of every real
+	// game after it and reached the database as a drawn match.
+	//
+	// There is no legitimate 0 x 0: even a double KO gives a round to both
+	// sides. So this clearing was not a game, and the round count starts over
+	// without anything being recorded.
+	if (p1 == 0 && p2 == 0) {
+		g_d.nP1Rounds = g_d.nP2Rounds = 0;
+		g_p1Low = g_p2Low = 0x7FFFFFFF;
+		g_p1Down = g_p2Down = 0;
+		g_p1Hold = g_p2Hold = 0;
+		g_gameStart = 0;
+		memset(g_d.nP1Char, 0, sizeof(g_d.nP1Char));
+		memset(g_d.nP2Char, 0, sizeof(g_d.nP2Char));
+		g_d.bHaveP1Char = g_d.bHaveP2Char = 0;
+		g_d.bStarted = 0;
+		return;
+	}
+
 	const int nWinner = (p1 > p2) ? 1 : (p2 > p1) ? 2 : 0;
 	if (nWinner == 1)      g_d.nP1Games++;
 	else if (nWinner == 2) g_d.nP2Games++;

@@ -166,7 +166,11 @@ Dois jogos fogem do formato "melhor de três":
 
 Personagens confirmados:
 
-- `sf2ce`: 4 = Ryu, 5 = E.Honda, 6 = Ken.
+- `sf2ce`: 4 = Ryu, 6 = Ken. ⚠️ **O resto do elenco nao esta mapeado.** O 5
+  foi dado como E.Honda a partir de uma gravacao contra a CPU e, em 12/09, uma
+  partida entre humanos leu 5 para o Guile. Nenhuma ordenacao continua encaixa
+  4=Ryu, 6=Ken com Honda E Guile no 5 - entao o elenco inteiro daqui e suspeito,
+  nao so incompleto. Refazer com o passeio pela tela de selecao, igual ao sfa2.
 - `sfa2`: **elenco completo.** Esse byte acompanha o cursor **ao vivo** na tela de
   seleção, então três passeios pelo grid bastaram.
 

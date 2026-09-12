@@ -29,10 +29,21 @@ namespace Rbf.Server
                 [15] = "Dhalsim", [16] = "Zangief", [17] = "Gen",
             },
 
-            // Incomplete: only the three seen in the recorded matches.
+            // Only what a HUMAN match confirmed: P1 Ryu read 4, P2 Ken read 6.
+            //
+            // 5 was "E. Honda" until 12/09, from a recording against the CPU -
+            // and then a human match read 5 for Guile. Both cannot be right,
+            // and no contiguous ordering fits 4=Ryu, 6=Ken with Honda AND
+            // Guile at 5, so the whole roster here is suspect rather than
+            // merely incomplete. Removed instead of guessed: an id with no name
+            // reports as its number, which is honest; a wrong name is a lie
+            // that reads as data.
+            //
+            // The fix is the walk that mapped sfa2 in one go - see
+            // tools/README.md. Until then, sf2ce reports numbers.
             ["sf2ce"] = new Dictionary<int, string>
             {
-                [4] = "Ryu", [5] = "E. Honda", [6] = "Ken",
+                [4] = "Ryu", [6] = "Ken",
             },
 
             // Incomplete. 19 and 20 came from the order a CPU team entered the

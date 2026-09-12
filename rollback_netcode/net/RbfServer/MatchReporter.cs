@@ -20,6 +20,13 @@ namespace Rbf.Server
         public int    P2AccountId;
         public string P1Character = "";
         public string P2Character = "";
+        /// <summary>The raw byte the emulator read. Goes alongside the name
+        /// because the name comes from a roster we are still filling in, and a
+        /// roster entry can be WRONG - sf2ce had E. Honda and Guile both
+        /// mapped to 5. The id is what the game itself said, so a corrected
+        /// roster can fix old rows; without it, a bad name is permanent.</summary>
+        public int P1CharacterId = -1;
+        public int P2CharacterId = -1;
         /// <summary>A KOF team, in the order they entered. Null for the games
         /// with one character a side - those send exactly the agreed shape.</summary>
         public string[] P1Team;
@@ -94,6 +101,10 @@ namespace Rbf.Server
                 ["winner_id"]          = r.WinnerId,     // null = empate
                 ["duration_seconds"]   = r.DurationSeconds,
             };
+
+            // The raw bytes, next to the names. See MatchReport.P1CharacterId.
+            if (r.P1CharacterId >= 0) payload["player1_character_id"] = r.P1CharacterId;
+            if (r.P2CharacterId >= 0) payload["player2_character_id"] = r.P2CharacterId;
 
             // Only for the 3v3 games, so every other report is exactly the
             // shape that was agreed. player1_character still carries the point

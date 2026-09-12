@@ -116,6 +116,14 @@ int main(void)
 	round_(2);
 	endOfGame();
 
+	// Somebody quits out to the select screen: the fight starts, the life
+	// words clear a few seconds later, and nobody won a round. This is not a
+	// game. It happened for real on 12/09 and reached the database as a drawn
+	// match, shifting the numbering of every game after it.
+	pick(9, 9);
+	live(FULL, FULL, 30);
+	endOfGame();
+
 	// 2. Ken vs E.Honda, 2 x 0.
 	pick(6, 5);
 	round_(2);
@@ -132,6 +140,9 @@ int main(void)
 	check(MatchScoreGet(&d) == 1, "houve luta nesta sessao");
 
 	check(d.nGames == 3, "tres partidas terminadas");
+	// A quarta "partida" foi a desistencia, e ela nao entra em nada.
+	check(d.nGameRows == 3 && d.aGames[1].nP1Char[0] == 6,
+	      "a desistencia 0 x 0 nao virou partida nem empurrou a numeracao");
 	check(d.nP1Games == 2 && d.nP2Games == 1, "placar da sessao 2 x 1");
 	check(d.nGameRows == 3, "tres partidas detalhadas");
 

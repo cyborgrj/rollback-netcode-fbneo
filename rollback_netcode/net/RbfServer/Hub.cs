@@ -602,6 +602,8 @@ namespace Rbf.Server
                         P2AccountId = p2Account,
                         P1Character = CharacterCode(game, g.P1Chars),
                         P2Character = CharacterCode(game, g.P2Chars),
+                        P1CharacterId = g.P1Chars.Count > 0 ? g.P1Chars[0] : -1,
+                        P2CharacterId = g.P2Chars.Count > 0 ? g.P2Chars[0] : -1,
                         P1Team = Team(game, g.P1Chars),
                         P2Team = Team(game, g.P2Chars),
                         P1Score = g.P1Rounds,
