@@ -76,6 +76,8 @@ namespace RbfLauncher.AuthTest
             ExpiredTokenIsRenewed();
             RefusedRefreshLogsOut();
             RotatedRefreshTokenIsKept();
+            EstatisticasDoJogador();
+            JogadorSemPartidas();
 
             Console.WriteLine();
             Console.WriteLine(_fail == 0
@@ -304,6 +306,79 @@ namespace RbfLauncher.AuthTest
             Check(s.AccessToken == "acc-9", "trocou o access");
             Check(s.RefreshToken == "ref-9",
                   "trocou tambem o refresh - o antigo morre no uso quando o Simple JWT rotaciona");
+            Console.WriteLine();
+        }
+
+        // ---- estatisticas ----------------------------------------------------
+        // O corpo abaixo e o que o Django de verdade respondeu em 12/09, copiado
+        // como veio. Um teste com JSON inventado prova que sabemos ler o nosso
+        // proprio JSON; este prova que sabemos ler o deles.
+        private const string StatsBody =
+            "{\"player\":{\"id\":1,\"username\":\"cyborgrj\",\"nickname\":\"cyborgrj\",\"global_ranking\":1043}," +
+            "\"total_hours_played\":0.16,\"games\":[" +
+            "{\"game_code\":\"sf2ce\",\"game_name\":\"Street Fighter II': Champion Edition\",\"ranking\":1016," +
+            "\"matches_played\":1,\"matches_won\":1,\"matches_lost\":0,\"matches_drawn\":0,\"win_rate\":100.0," +
+            "\"seconds_played\":185,\"hours_played\":0.05}," +
+            "{\"game_code\":\"sfa2\",\"game_name\":\"Street Fighter Alpha 2\",\"ranking\":1015," +
+            "\"matches_played\":1,\"matches_won\":0,\"matches_lost\":0,\"matches_drawn\":1,\"win_rate\":0.0," +
+            "\"seconds_played\":96,\"hours_played\":0.03}]}";
+
+        private static void EstatisticasDoJogador()
+        {
+            Console.WriteLine("-- estatisticas do jogador");
+
+            var stub = new StubApi { Handler = (req, body) => StubApi.Json(HttpStatusCode.OK, StatsBody) };
+
+            PlayerStats st = null;
+            try
+            {
+                using (var api = new AuthApi(Base, stub))
+                    st = api.GetPlayerStatsAsync("cyborgrj").GetAwaiter().GetResult();
+            }
+            catch (Exception ex) { Console.WriteLine("    (" + ex.Message + ")"); }
+
+            Check(st != null, "leu o perfil");
+            if (st == null) { Console.WriteLine(); return; }
+
+            Check(stub.Seen.Count == 1 && stub.Seen[0] == "GET /api/players/cyborgrj/stats/",
+                  "bateu na rota combinada");
+            Check(stub.AuthHeaders[0] == "",
+                  "rota publica vai SEM Bearer - ela tem que funcionar com sessao vencida");
+
+            Check(st.GlobalRanking == 1043 && st.Games.Count == 2, "ranking geral e os dois jogos");
+            Check(st.Games[0].GameCode == "sf2ce" && st.Games[0].Ranking == 1016 &&
+                  st.Games[0].SecondsPlayed == 185, "o jogo veio inteiro");
+
+            // Os totais sao somados aqui, nao vem prontos.
+            Check(st.TotalMatches == 2 && st.TotalWon == 1 && st.TotalDrawn == 1,
+                  "somou partidas, vitorias e empates dos dois jogos");
+            Check(Math.Abs(st.TotalWinRate - 50.0) < 0.01, "aproveitamento geral calculado");
+
+            // 185s nao e "0,05h" na tela de ninguem.
+            Check(st.Games[0].PlayedText == "3 min", "segundos viram minutos legiveis");
+            Console.WriteLine();
+        }
+
+        private static void JogadorSemPartidas()
+        {
+            Console.WriteLine("-- jogador que ainda nao jogou");
+
+            var stub = new StubApi
+            {
+                Handler = (req, body) => StubApi.Json(HttpStatusCode.NotFound, "{\"detail\":\"nao encontrado\"}")
+            };
+
+            PlayerStats st = null;
+            bool threw = false;
+            try
+            {
+                using (var api = new AuthApi(Base, stub))
+                    st = api.GetPlayerStatsAsync("novato").GetAwaiter().GetResult();
+            }
+            catch { threw = true; }
+
+            Check(!threw, "404 nao vira excecao - conta nova e o caso normal, nao um erro");
+            Check(st == null, "devolve nulo para a tela dizer que nao ha partidas");
             Console.WriteLine();
         }
 

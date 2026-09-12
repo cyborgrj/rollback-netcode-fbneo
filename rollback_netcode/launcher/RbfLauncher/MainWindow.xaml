@@ -17,7 +17,8 @@
           <TextBlock Text="FinalBurn Neo" FontSize="16" Margin="8,0,0,0" Foreground="{StaticResource TextDim}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-          <TextBlock x:Name="PlayerLabel" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0" />
+          <TextBlock x:Name="PlayerLabel" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0"
+                     Cursor="Hand" MouseLeftButtonUp="PlayerLabel_Click" />
           <!-- MinWidth so the neighbouring buttons do not shift when the label swaps -->
           <Button x:Name="ChatToggle" Style="{StaticResource Btn}" Padding="10,6" Margin="0,0,8,0"
                   MinWidth="108" Click="ChatToggle_Click" Content="Mostrar Chat" />

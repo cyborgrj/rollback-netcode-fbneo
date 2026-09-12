@@ -272,6 +272,17 @@ mesmo trabalho que os quatro atuais (ver `tools/README.md`).
 dotnet run --project VerifyTest
 ```
 
+Contra o Django **de verdade**, escrevendo no banco dele:
+
+```bash
+dotnet run --project VerifyTest -- --live http://localhost:8000 <INTERNAL_API_KEY> 1 2
+```
+
+Manda quatro partidas pelos ids de jogador dados: uma normal, um empate, um time
+de KOF e um personagem que ainda não tem nome. É o que fecha a questão que
+nenhum stub responde — se o outro lado aceita o que a gente manda. ⚠️ Use num
+banco de desenvolvimento: isso cria partidas e move o ELO de verdade.
+
 42 checagens do `TokenVerifier` e do `MatchReporter` contra um Django de
 mentira: token válido, expirado, `X-API-KEY` errada, Django mudo, um `200` que
 diz `valid:false`, resposta sem `user`, o corpo do report campo a campo, empate

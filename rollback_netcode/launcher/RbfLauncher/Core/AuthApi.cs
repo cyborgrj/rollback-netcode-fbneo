@@ -141,6 +141,50 @@ namespace RbfLauncher.Core
             }
         }
 
+        // ---- public profile -------------------------------------------------
+        /// <summary>GET /api/players/&lt;username&gt;/stats/ - open, no token.
+        ///
+        /// Deliberately not routed through GetAsync: this is the one call that
+        /// should work with a stale session, because looking up who you are
+        /// about to fight is exactly what somebody does after leaving the
+        /// launcher open all afternoon.
+        ///
+        /// Null means the API has no profile for that name yet, which is the
+        /// ordinary state of a fresh account and not an error to shout about.</summary>
+        public async Task<PlayerStats> GetPlayerStatsAsync(string username,
+                                                           CancellationToken ct = default(CancellationToken))
+        {
+            if (string.IsNullOrWhiteSpace(username)) return null;
+
+            HttpResponseMessage resp;
+            try
+            {
+                string path = "/api/players/" + Uri.EscapeDataString(username.Trim()) + "/stats/";
+                using (var req = new HttpRequestMessage(HttpMethod.Get, Url(path)))
+                    resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (!(ex is OperationCanceledException))
+            {
+                throw Unreachable(ex);
+            }
+
+            using (resp)
+            {
+                if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+
+                if (!resp.IsSuccessStatusCode)
+                    throw new AuthException(
+                        $"O servidor do Frame Perfect respondeu com erro ({(int)resp.StatusCode}).");
+
+                string text = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
+                try { return PlayerStats.Parse(text); }
+                catch (JsonException ex)
+                {
+                    throw new AuthException("O servidor respondeu algo que não entendi nas estatísticas.", false, ex);
+                }
+            }
+        }
+
         // ---- authenticated requests ----------------------------------------
         /// <summary>A GET with the bearer token, which renews the token once if
         /// the server says it expired and tries again. One retry, never a loop:

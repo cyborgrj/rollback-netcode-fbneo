@@ -101,6 +101,35 @@ se o access já passou de 40 minutos, ele é trocado por um novo.
 ⚠️ **O lobby é h2c, sem TLS.** O token atravessa a rede em claro. Quem estiver no
 caminho consegue se passar pelo jogador até ele expirar — ver `PENDENCIAS.md`.
 
+## Estatísticas do jogador
+
+`GET /api/players/<username>/stats/` — rota pública, sem token. Vale para
+**qualquer** jogador, não só para quem está logado: saber contra quem você vai
+jogar (rank, horas naquele jogo, aproveitamento) é a maior parte do motivo de um
+lobby guardar estatística.
+
+Dois caminhos para abrir:
+
+- **clicar no seu nome** no cabeçalho → o seu perfil;
+- **clicar no nome de alguém** na lista da sala → o perfil dele, antes de
+  desafiar.
+
+A janela mostra o ranking geral, o resumo (partidas, V/D/E, aproveitamento,
+tempo de jogo) e um cartão por jogo com o rank daquele jogo e uma barra de
+aproveitamento — a barra existe porque um número é exato, mas quatro números não
+se comparam de relance e quatro barras sim.
+
+Duas conversões acontecem aqui e não no servidor: **os totais** (o Django manda
+por jogo; somar é nosso) e o **tempo**. `0.05` horas na tela não diz nada a
+ninguém; `3 min` diz.
+
+A chamada vai **sem** o Bearer de propósito. É a única que precisa funcionar com
+a sessão vencida, porque olhar o perfil de alguém é exatamente o que se faz
+depois de deixar o launcher aberto a tarde inteira.
+
+Um `404` significa "essa conta ainda não jogou" — estado normal de conta nova, e
+a tela diz isso em vez de tratar como erro.
+
 ### Testar o fluxo sem Django
 
 ```bash
@@ -108,8 +137,9 @@ cd rollback_netcode/launcher
 dotnet run --project AuthTest
 ```
 
-23 checagens contra uma API de mentira: senha errada, API fora do ar, `500`,
-token expirado no meio da sessão, refresh recusado, refresh rotacionado. São
+33 checagens contra uma API de mentira: senha errada, API fora do ar, `500`,
+token expirado no meio da sessão, refresh recusado, refresh rotacionado, e o
+perfil de estatísticas (com o corpo que o Django de verdade respondeu). São
 justamente os caminhos que só rodam em dia ruim — a pior hora para descobrir
 que nunca estiveram certos.
 

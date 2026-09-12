@@ -63,8 +63,18 @@ namespace Rbf.Server.VerifyTest
             "{\"valid\":true,\"user\":{\"id\":1,\"username\":\"PlayerOne\"," +
             "\"nickname\":\"ArcadeKing\",\"ranking\":1500}}";
 
-        private static int Main()
+        private static int Main(string[] args)
         {
+            // --live <url> <chave> [id1 id2] fala com o Django DE VERDADE. Escreve
+            // no banco dele: uma partida normal, um empate e um time de KOF. Use
+            // num banco de desenvolvimento, nunca em producao.
+            if (args.Length >= 3 && args[0] == "--live")
+            {
+                int p1 = args.Length > 3 ? int.Parse(args[3]) : 1;
+                int p2 = args.Length > 4 ? int.Parse(args[4]) : 2;
+                return Live(args[1], args[2], p1, p2);
+            }
+
             Console.WriteLine("VerifyTest -> Django de mentira, sem rede\n");
 
             TokenValido();
@@ -352,5 +362,67 @@ namespace Rbf.Server.VerifyTest
 
         private static ReportOutcome Report(StubDjango stub, MatchReport r) =>
             new MatchReporter(Api, Key, stub).ReportAsync(r).GetAwaiter().GetResult();
+
+        // ---- contra o Django de verdade --------------------------------------
+        // Os stubs acima provam que o nosso lado manda o que combinamos. Isto
+        // prova que o lado de la aceita - que e uma pergunta diferente, e a
+        // unica que um teste com resposta escrita por nos nao pode responder.
+        private static int Live(string url, string key, int p1, int p2)
+        {
+            Console.WriteLine($"VerifyTest --live -> {url}");
+            Console.WriteLine($"jogadores {p1} e {p2}   (isto ESCREVE no banco)\n");
+
+            var api = new MatchReporter(url, key);
+            if (!api.Enabled) { Console.WriteLine("!! url ou chave vazia"); return 1; }
+
+            var casos = new (string Nome, MatchReport R)[]
+            {
+                ("partida normal", new MatchReport
+                {
+                    GameCode = "sf2ce", P1AccountId = p1, P2AccountId = p2,
+                    P1Character = "ryu", P2Character = "e_honda",
+                    P1Score = 2, P2Score = 1, WinnerId = p1, DurationSeconds = 185,
+                }),
+                ("empate (duplo KO)", new MatchReport
+                {
+                    GameCode = "sfa2", P1AccountId = p1, P2AccountId = p2,
+                    P1Character = "chun_li", P2Character = "m_bison",
+                    P1Score = 1, P2Score = 1, WinnerId = null, DurationSeconds = 96,
+                }),
+                ("time de kof", new MatchReport
+                {
+                    GameCode = "kof98", P1AccountId = p1, P2AccountId = p2,
+                    P1Character = "iori", P2Character = "kim",
+                    P1Team = new[] { "iori", "mature", "vice" },
+                    P2Team = new[] { "kim", "choi", "chang" },
+                    P1Score = 3, P2Score = 2, WinnerId = p1, DurationSeconds = 240,
+                }),
+                ("personagem sem nome ainda", new MatchReport
+                {
+                    GameCode = "vsav", P1AccountId = p1, P2AccountId = p2,
+                    P1Character = "jedah", P2Character = "17",
+                    P1Score = 2, P2Score = 0, WinnerId = p1, DurationSeconds = 71,
+                }),
+            };
+
+            foreach (var c in casos)
+            {
+                var res = api.ReportAsync(c.R).GetAwaiter().GetResult();
+                if (!res.Ok)
+                {
+                    Check(false, c.Nome + ": " + res.Detail);
+                    continue;
+                }
+                Check(true, $"{c.Nome} -> match #{res.MatchId}" +
+                            (res.P1Elo != null ? $"   p1 {res.P1Elo}" : "   (sem elo_update)") +
+                            (res.P2Elo != null ? $"   p2 {res.P2Elo}" : ""));
+            }
+
+            Console.WriteLine();
+            Console.WriteLine(_fail == 0
+                ? $"o Django aceitou os {_pass} casos"
+                : $"{_fail} de {_pass + _fail} casos falharam");
+            return _fail == 0 ? 0 : 1;
+        }
     }
 }

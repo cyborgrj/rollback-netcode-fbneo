@@ -36,6 +36,7 @@
   <ItemGroup>
     <Compile Include="..\RbfLauncher\Core\AuthApi.cs" Link="AuthApi.cs" />
     <Compile Include="..\RbfLauncher\Core\UserSession.cs" Link="UserSession.cs" />
+    <Compile Include="..\RbfLauncher\Core\PlayerStats.cs" Link="PlayerStats.cs" />
   </ItemGroup>
 
 </Project>

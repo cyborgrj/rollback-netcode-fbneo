@@ -1,0 +1,44 @@
+<Window x:Class="RbfLauncher.Views.StatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Estatísticas" Width="620" Height="560"
+        MinWidth="520" MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource Bg}">
+  <DockPanel Margin="0">
+
+    <!-- quem -->
+    <Border DockPanel.Dock="Top" Background="{StaticResource BgPanel}"
+            BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1" Padding="24,18">
+      <Grid>
+        <StackPanel>
+          <TextBlock x:Name="NameText" FontSize="24" FontWeight="Bold"
+                     Foreground="{StaticResource Text}" />
+          <TextBlock x:Name="AccountText" FontSize="12" Margin="0,2,0,0"
+                     Foreground="{StaticResource TextDim}" />
+        </StackPanel>
+        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+          <TextBlock x:Name="RankText" FontSize="26" FontWeight="Bold"
+                     HorizontalAlignment="Right" Foreground="{StaticResource Accent}" />
+          <TextBlock Text="ranking geral" FontSize="11" HorizontalAlignment="Right"
+                     Foreground="{StaticResource TextDim}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- resumo -->
+    <Border DockPanel.Dock="Top" Padding="24,14" BorderBrush="{StaticResource Stroke}"
+            BorderThickness="0,0,0,1">
+      <StackPanel x:Name="SummaryPanel" Orientation="Horizontal" />
+    </Border>
+
+    <!-- estado (carregando / erro / vazio) -->
+    <TextBlock x:Name="StatusText" DockPanel.Dock="Top" Margin="24,20"
+               Foreground="{StaticResource TextDim}" TextWrapping="Wrap" FontSize="13" />
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24,4,24,20">
+      <StackPanel x:Name="GamesPanel" />
+    </ScrollViewer>
+
+  </DockPanel>
+</Window>

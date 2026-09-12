@@ -139,6 +139,11 @@ namespace RbfLauncher
             }
         }
 
+        private void PlayerLabel_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            StatsWindow.Open(_session.Username, _config.ResolvedApiBaseUrl, this);
+        }
+
         private void LogoutButton_Click(object sender, RoutedEventArgs e)
         {
             Disconnect("saiu da conta");

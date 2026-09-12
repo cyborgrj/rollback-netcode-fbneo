@@ -217,12 +217,19 @@ namespace RbfLauncher.Views
 
         private UIElement BuildPlayerRow(RosterEntry p, bool iAmFree)
         {
+            // Clicking the name opens that player's record. Knowing who you are
+            // about to fight - their rank, their hours in this game - is most of
+            // why a lobby keeps statistics at all.
             var name = new TextBlock
             {
                 Text = p.Username,
                 VerticalAlignment = VerticalAlignment.Center,
-                FontSize = 14
+                FontSize = 14,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = "ver as estatísticas de " + p.Username,
             };
+            name.MouseLeftButtonUp += (s, e) =>
+                StatsWindow.Open(p.Username, _config.ResolvedApiBaseUrl, Window.GetWindow(this));
 
             int nBars = Latency.Bars(p.PingMs);
             Brush barOn = nBars >= 3 ? (Brush)FindResource("Ok")
