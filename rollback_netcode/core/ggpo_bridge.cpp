@@ -44,6 +44,14 @@ static GgpoBridgeHost    g_host;
 static GGPOPlayerHandle  g_handle[GGPO_BRIDGE_MAX_PLAYERS];  // index 0..nPlayers-1 => player_num 1..nPlayers
 static GGPOPlayerHandle  g_localHandle = GGPO_INVALID_HANDLE;
 
+// Rollback bookkeeping. The ring is one second of history so the peak can
+// decay on its own instead of needing a timer.
+#define GGPO_BRIDGE_RB_RING 64
+static int g_rollbackThisTick = 0;
+static int g_rollbackLast = 0;
+static int g_rbRing[GGPO_BRIDGE_RB_RING];
+static int g_rbAt = 0;
+
 static int        g_running    = 0;
 static int        g_syncTest   = 0;
 static int        g_lastError  = GGPO_OK;
@@ -204,6 +212,11 @@ static bool __cdecl cb_advance_frame(int /*flags*/)
 {
 	// Rollback re-simulation step. Silent (no draw / no audio) - enforced by
 	// the host honouring bRollback == 1.
+	//
+	// Counting here is what makes the number honest: this callback IS the
+	// rollback. libggpo calls it once per frame it has to run again, whether
+	// the burst started inside ggpo_idle or inside the live advance.
+	g_rollbackThisTick++;
 	stepOnce(/*bRollback=*/1);
 	return true;
 }
@@ -316,6 +329,8 @@ static void resetModuleState(const GgpoBridgeConfig* cfg, const GgpoBridgeHost* 
 	g_frameCount = 0;
 	g_ticksSinceStart = 0;
 	g_everAdvanced = 0;
+	g_rollbackThisTick = g_rollbackLast = g_rbAt = 0;
+	memset(g_rbRing, 0, sizeof(g_rbRing));
 
 	g_ggpoFrame     = 0;
 	g_publishedUpTo = -1;
@@ -403,6 +418,14 @@ int GgpoBridgeIsRunning(void)
 	return g_running;
 }
 
+// End of one live frame: file this frame's rollback burst into the ring.
+static void closeRollbackBurst(void)
+{
+	g_rollbackLast = g_rollbackThisTick;
+	g_rbRing[g_rbAt] = g_rollbackThisTick;
+	g_rbAt = (g_rbAt + 1) & (GGPO_BRIDGE_RB_RING - 1);
+}
+
 // ---- per-rendered-frame driver -------------------------------------------
 int GgpoBridgeTick(void)
 {
@@ -413,6 +436,11 @@ int GgpoBridgeTick(void)
 		g_lastError = GGPO_ERRORCODE_NOT_SYNCHRONIZED;
 		return GGPO_BRIDGE_ERR_GGPO;   // caller: FbnHostRunFrame -> -1 -> FbnHostStop (game runs offline)
 	}
+
+	// Everything libggpo re-simulates from here to the end of this call counts
+	// as one burst, wherever it starts - ggpo_idle and the live advance can
+	// both trigger one.
+	g_rollbackThisTick = 0;
 
 	// 1. Read our own controls FIRST.
 	//
@@ -432,11 +460,13 @@ int GgpoBridgeTick(void)
 	GGPOErrorCode r = ggpo_add_local_input(g_session, g_localHandle, local, g_cfg.nInputBytes);
 	if (!GGPO_SUCCEEDED(r)) {
 		g_lastError = r;
+		closeRollbackBurst();
 		return GGPO_BRIDGE_SKIPPED;   // e.g. GGPO_ERRORCODE_PREDICTION_THRESHOLD
 	}
 
 	// 4. one live step (rollbacks, if any, run synchronously via cb_advance_frame)
 	int rc = stepOnce(/*bRollback=*/0);
+	closeRollbackBurst();
 	if (rc == GGPO_BRIDGE_ERR_GGPO) return GGPO_BRIDGE_SKIPPED; // sync not ready yet
 	return rc;
 }
@@ -466,5 +496,28 @@ int GgpoBridgeGetNetworkStats(int nPlayerHandle, GgpoBridgeNetStats* out)
 	return GGPO_BRIDGE_OK;
 }
 
+int GgpoBridgeGetPeerStats(GgpoBridgeNetStats* out)
+{
+	if (!out) return GGPO_BRIDGE_ERR_ARG;
+	memset(out, 0, sizeof(*out));
+	if (!g_running || !g_session) return GGPO_BRIDGE_ERR_STATE;
+
+	for (int i = 0; i < g_cfg.nPlayers && i < GGPO_BRIDGE_MAX_PLAYERS; i++) {
+		if (g_handle[i] == GGPO_INVALID_HANDLE || g_handle[i] == g_localHandle) continue;
+		if (GgpoBridgeGetNetworkStats(g_handle[i], out) == GGPO_BRIDGE_OK) return GGPO_BRIDGE_OK;
+	}
+	return GGPO_BRIDGE_ERR_STATE;
+}
+
 int       GgpoBridgeLastError(void)  { return g_lastError; }
 long long GgpoBridgeFrameCount(void) { return g_frameCount; }
+int       GgpoBridgeFrameDelay(void) { return g_running ? g_cfg.nFrameDelay : 0; }
+int       GgpoBridgeRollbackFrames(void) { return g_rollbackLast; }
+
+int GgpoBridgeRollbackPeak(void)
+{
+	int peak = 0;
+	for (int i = 0; i < GGPO_BRIDGE_RB_RING; i++)
+		if (g_rbRing[i] > peak) peak = g_rbRing[i];
+	return peak;
+}

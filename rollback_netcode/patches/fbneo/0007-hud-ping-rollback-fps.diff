@@ -1,0 +1,199 @@
+diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
+index 6c91d3a..59a217b 100644
+--- a/src/burner/win32/run.cpp
++++ b/src/burner/win32/run.cpp
+@@ -4,6 +4,7 @@
+ #include "ram_probe.h"		// rollback_netcode: work RAM sampling (-rbfprobe)
+ #include "match_score.h"		// rollback_netcode: reads the score out of the game
+ #include "overlay.h"		// rollback_netcode: names and score over the game
++#include "hud.h"			// rollback_netcode: ping / delay / rollback / fps
+ 
+ int bRunPause = 0;
+ int bAltPause = 0;
+@@ -82,6 +83,18 @@ static void CheckSystemMacros() // These are the Pause / FFWD macros added to th
+ 		bPrevTab = bTab;
+ 	}
+ 
++	// rollback_netcode: Backspace walks the netcode readout through both
++	// lines, the first line alone, and hidden. Same treatment as Tab - read
++	// the key directly so it needs no binding and cannot collide with a game
++	// button, and gate it on focus. Not gated on a session: the fps and the
++	// run-ahead state are worth seeing offline too.
++	{
++		static int bPrevBack = 0;
++		const int bBack = (bHasFocus && (GetAsyncKeyState(VK_BACK) & 0x8000)) ? 1 : 0;
++		if (bBack && !bPrevBack) HudCycle();
++		bPrevBack = bBack;
++	}
++
+ 	// Pause
+ 	if (macroSystemPause && macroSystemPause != prevPause && timeGetTime() > prevPause_debounce+90) {
+ 		if (bHasFocus) {
+@@ -398,6 +411,10 @@ int RunFrame(int bDraw, int bPause)
+ 		// each frame exactly once.
+ 		MatchScoreFrame();
+ 
++		// The readout samples here too, so its fps counts the same frames the
++		// player is actually seeing.
++		HudFrame();
++
+ 		if (kNetGame == 0 && !FbnHostIsActive()) {   // Rewind Implementation
+ 			StateRewindDoFrame(macroSystemRewind || bAppDoRewind, macroSystemRewindCancel, bRunPause);
+ 		}
+diff --git a/src/intf/video/vid_interface.cpp b/src/intf/video/vid_interface.cpp
+index 5aae4b0..fd19fc6 100644
+--- a/src/intf/video/vid_interface.cpp
++++ b/src/intf/video/vid_interface.cpp
+@@ -1,6 +1,7 @@
+ // Video Output - (calls all the Vid Out plugins)
+ #include "burner.h"
+ #include "overlay.h"		// rollback_netcode: names and score over the game
++#include "hud.h"			// rollback_netcode: ping / delay / rollback / fps
+ 
+ #define DEFAULT_IMAGE_WIDTH (304)
+ #define DEFAULT_IMAGE_HEIGHT (224)
+@@ -456,6 +457,7 @@ INT32 VidFrameCallback(bool bRedraw)        // Called from blitter  (VidFrame()
+ 		// image, not over the window, so every blitter shows it the same way
+ 		// and a screenshot carries it too.
+ 		OverlayDraw((unsigned char*)pVidImage, nVidImageWidth, nVidImageHeight, nVidImageBPP, nVidImagePitch);
++		HudDraw((unsigned char*)pVidImage, nVidImageWidth, nVidImageHeight, nVidImageBPP, nVidImagePitch);
+ 	}
+ 
+ 	return 0;
+diff --git a/src/intf/video/win32/vid_directx9.cpp b/src/intf/video/win32/vid_directx9.cpp
+index 6b81ef2..78352f4 100644
+--- a/src/intf/video/win32/vid_directx9.cpp
++++ b/src/intf/video/win32/vid_directx9.cpp
+@@ -89,12 +89,13 @@ static VidEffect* pVidEffect = NULL;
+ static int nDX9HardFX = -1;
+ 
+ #include "overlay.h"		// rollback_netcode: the match bar
++#include "hud.h"			// rollback_netcode: ping / delay / rollback / fps
+ 
+ // rollback_netcode: our own fonts, sized from the window rather than fixed,
+ // so the bar looks the same in a small window and in fullscreen. Declared up
+ // here because vid_FontExit, further down, has to release them.
+-static ID3DXFont* pRbfFont[2] = { NULL, NULL };
+-static int        nRbfFontPx[2] = { 0, 0 };
++static ID3DXFont* pRbfFont[3] = { NULL, NULL, NULL };
++static int        nRbfFontPx[3] = { 0, 0, 0 };
+ 
+ static ID3DXFont* pFont = NULL;							// OSD font
+ static ID3DXFont* pStatusFont = NULL;					// Status font
+@@ -829,6 +830,7 @@ static void vid_FontExit()
+ 	OverlayClaim(0);
+ 	RELEASE(pRbfFont[0]); pRbfFont[0] = NULL; nRbfFontPx[0] = 0;
+ 	RELEASE(pRbfFont[1]); pRbfFont[1] = NULL; nRbfFontPx[1] = 0;
++	RELEASE(pRbfFont[2]); pRbfFont[2] = NULL; nRbfFontPx[2] = 0;
+ 
+ 	RELEASE(pFont);
+ 	RELEASE(pStatusFont);
+@@ -1179,12 +1181,108 @@ static void RbfOverlayDraw(RECT frec)
+ 	RbfTextOut(font, szP2, rc, RBFCOL(L.rgbP2), thick);
+ }
+ 
++// rollback_netcode ---------------------------------------------------------
++// The netcode readout, top right, at window resolution for the same reason as
++// the bar: eight source pixels of digit cannot be made sharp by stretching.
++// Smaller than the bar - this is telemetry, not the scoreboard - and right
++// aligned so the numbers keep their column as they change width.
++static void RbfHudDraw(RECT frec)
++{
++	if (!nVidFullscreen) {
++		frec.top = 0;
++		frec.left = 0;
++		frec.right = Dest.right - Dest.left;
++		frec.bottom = Dest.bottom - Dest.top;
++	}
++
++	HudLines L;
++	if (!HudGetLines(&L)) return;
++
++	const int W = frec.right - frec.left;
++	const int H = frec.bottom - frec.top;
++	if (W <= 0 || H <= 0) return;
++
++	int want = H / 34;
++	if (want < 10) want = 10;
++	if (want > 30) want = 30;
++
++	if (nRbfFontPx[2] != want) {
++		RELEASE(pRbfFont[2]);
++		pRbfFont[2] = NULL;
++		TCHAR szFace[64];
++		_sntprintf(szFace, 63, _T("%S"), OverlayFaceName());
++		HRESULT hr = _D3DXCreateFont(pD3DDevice, want, 0, FW_BOLD, 1, FALSE,
++							  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
++							  DEFAULT_PITCH | FF_DONTCARE, szFace, &pRbfFont[2]);
++
++		// Same trap as the bar: with d3dx9_43.dll missing the entry points are
++		// stubs that return S_OK and do nothing, so the pointer is what has to
++		// be checked. Hand the job back rather than draw nothing.
++		if (FAILED(hr) || !pRbfFont[2]) {
++			pRbfFont[2] = NULL;
++			OverlayClaim(0);
++			return;
++		}
++		nRbfFontPx[2] = want;
++	}
++
++	ID3DXFont* font = pRbfFont[2];
++	if (!font) return;
++
++	TCHAR sz1[128], sz2[128];
++	_sntprintf(sz1, 127, _T("%S"), L.szLine1);
++	_sntprintf(sz2, 127, _T("%S"), L.szLine2);
++
++	const int w1 = RbfMeasure(font, sz1);
++	const int w2 = (L.nMode >= 2) ? RbfMeasure(font, sz2) : 0;
++	if (w1 <= 0) return;
++
++	const int lineH = want + want / 3;
++	const int lines = (L.nMode >= 2) ? 2 : 1;
++	const int pad   = want / 3 + 2;
++	const int panelW = (w1 > w2 ? w1 : w2) + pad * 2;
++	const int panelH = lineH * lines + pad;
++
++	// Below the match bar when that is up, so the two never overlap.
++	int top = frec.top + 2;
++	OverlayLine B;
++	if (OverlayGetLine(&B)) {
++		int barWant = (B.nMode == 2) ? (H / 16) : (H / 26);
++		if (barWant < 11) barWant = 11;
++		if (barWant > 64) barWant = 64;
++		top = frec.top + barWant + barWant / 3 + 2;
++	}
++
++	const int x0 = frec.right - panelW - 2;
++	Boxxy(x0, top, panelW, panelH,
++		  D3DCOLOR_ARGB(L.nBarAlpha, (L.rgbBar >> 16) & 0xFF,
++						  (L.rgbBar >> 8) & 0xFF, L.rgbBar & 0xFF));
++
++	const int thick = (want >= 26) ? 2 : 1;
++
++	RECT rc;
++	rc.right = frec.right - 2 - pad;
++	rc.left  = rc.right - w1;
++	rc.top   = top + pad / 2;
++	rc.bottom = rc.top + lineH;
++	RbfTextOut(font, sz1, rc, RBFCOL(L.rgbText), thick);
++
++	if (L.nMode >= 2) {
++		rc.right = frec.right - 2 - pad;
++		rc.left  = rc.right - w2;
++		rc.top  += lineH;
++		rc.bottom = rc.top + lineH;
++		RbfTextOut(font, sz2, rc, RBFCOL(L.rgbText), thick);
++	}
++}
++
+ static void vid_FontDraw(RECT frec)
+ {
+ 	// rollback_netcode: the match bar is not part of the status display, so
+ 	// it is drawn before that setting gets a say - somebody who turned the
+ 	// OSD off still wants to know who they are playing.
+ 	RbfOverlayDraw(frec);
++	RbfHudDraw(frec);
+ 
+ 	if (nVidSDisplayStatus == 0) {
+ 		return;

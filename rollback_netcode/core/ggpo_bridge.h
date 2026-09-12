@@ -133,8 +133,30 @@ typedef struct {
 } GgpoBridgeNetStats;
 
 int GgpoBridgeGetNetworkStats(int nPlayerHandle, GgpoBridgeNetStats* out);
+
+// The other player, without the caller having to know about handles. In a
+// two-player match that is the only peer there is; with more, it is the first
+// one that is not us.
+int GgpoBridgeGetPeerStats(GgpoBridgeNetStats* out);
+
 int GgpoBridgeLastError(void);        // last raw GGPOErrorCode seen
 long long GgpoBridgeFrameCount(void); // live frames advanced since Start
+
+// Input delay in frames, as the session was actually started - which is the
+// average of what the two players asked for, decided by the server. Not what
+// this machine requested.
+int GgpoBridgeFrameDelay(void);
+
+// ---- rollback, as it is happening -----------------------------------------
+// How many frames libggpo re-simulated during the most recent live frame, and
+// the worst such burst in about the last second.
+//
+// The peak is the one worth showing a player. The per-frame number is 0 most
+// of the time and jumps to 3 or 5 for a single frame, sixty times a second -
+// a display of that is a blur nobody can read. The peak holds long enough to
+// mean something and decays on its own when the line settles down.
+int GgpoBridgeRollbackFrames(void);
+int GgpoBridgeRollbackPeak(void);
 
 // Extract player `idx`'s input word from a syncInputs buffer (nInputBytes<=4).
 static inline unsigned int GgpoBridgeInputWord(const void* syncInputs, int idx, int nInputBytes)

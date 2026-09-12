@@ -78,6 +78,20 @@ int OverlayGetLine(OverlayLine* out);
 // found next to the emulator.
 const char* OverlayFaceName(void);
 
+// ---- shared drawing -------------------------------------------------------
+// The GDI-into-the-image machinery lives here because the match bar needed it
+// first; hud.cpp draws with it too. nSize is 0 small, 1 large - the same two
+// fonts the bar uses, so nothing new is loaded.
+void OverlayEnsureGdi(void);
+int  OverlayTextWidth(const char* s, int nSize, int* pHeight);
+int  OverlayTextOut(unsigned char* img, int w, int h, int bpp, int pitch,
+                    int x, int y, const char* s, unsigned int rgb, int nSize);
+void OverlayFillRect(unsigned char* img, int w, int h, int bpp, int pitch,
+                     int x0, int y0, int x1, int y1, unsigned int rgb, int alpha);
+
+// OverlayClaimed() above covers BOTH the bar and the hud - it is the same
+// blitter drawing the same frame, so one flag settles both.
+
 // A blitter that draws the line itself says so here, and the in-image
 // fallback stands down.
 void OverlayClaim(int bClaimed);

@@ -386,6 +386,33 @@ void OverlayClaim(int bClaimed)
 
 int  OverlayClaimed(void) { return g_claimed; }
 
+// ---- shared drawing, for hud.cpp ------------------------------------------
+void OverlayEnsureGdi(void) { ovInitGdi(); }
+
+int OverlayTextWidth(const char* s, int nSize, int* pHeight)
+{
+	ovInitGdi();
+	return ovMeasure(s, nSize ? 1 : 0, pHeight);
+}
+
+int OverlayTextOut(unsigned char* img, int w, int h, int bpp, int pitch,
+                   int x, int y, const char* s, unsigned int rgb, int nSize)
+{
+	return ovText(img, w, h, bpp, pitch, x, y, s, rgb, nSize ? 1 : 0);
+}
+
+void OverlayFillRect(unsigned char* img, int w, int h, int bpp, int pitch,
+                     int x0, int y0, int x1, int y1, unsigned int rgb, int alpha)
+{
+	if (x0 < 0) x0 = 0;
+	if (y0 < 0) y0 = 0;
+	if (x1 > w) x1 = w;
+	if (y1 > h) y1 = h;
+	for (int y = y0; y < y1; y++)
+		for (int x = x0; x < x1; x++)
+			ovBlend(img, w, h, bpp, pitch, x, y, rgb, alpha);
+}
+
 void OverlayDraw(unsigned char* img, int w, int h, int bpp, int pitch)
 {
 	if (g_claimed) return;          // a blitter is drawing it properly instead

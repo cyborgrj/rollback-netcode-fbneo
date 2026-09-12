@@ -60,3 +60,44 @@ agente gRPC) e a conciliação do pacing de áudio.
 burner win32. O único símbolo de nível burner que ele usa é `bDrvOkay`,
 re-declarado localmente (igual ao que `burn/cheat.cpp` faz). Isso o deixa perto
 de compilável para o burner SDL também.
+
+## O leitor de netcode (`hud.cpp`)
+
+Canto superior direito, ligado no **Backspace**: uma vez mostra as duas linhas,
+de novo deixa só a primeira, de novo esconde. Começa escondido.
+
+```
+                          ping 13ms | delay 3f | rollback 2f
+                                  run ahead off | 59,9 fps
+```
+
+Nada aqui é estimado:
+
+| campo | de onde vem |
+|-------|-------------|
+| `ping` | `ggpo_get_network_stats` do próprio libggpo, contra o adversário — não é o ping do lobby |
+| `delay` | o delay com que a **sessão** abriu, que o servidor decidiu pela média dos dois lados — não o que este lado pediu |
+| `rollback` | quantos frames o libggpo re-simulou, **pior rajada do último segundo** |
+| `run ahead` | a opção do próprio FBNeo |
+| `fps` | frames apresentados, medidos aqui em janelas de meio segundo |
+
+Duas decisões que valem explicação.
+
+**O rollback é um pico, não o valor do frame.** Por frame ele é 0 quase sempre e
+pula para 4 num único frame, sessenta vezes por segundo — um número piscando
+assim não dá para ler. O pico de um segundo segura o valor tempo suficiente para
+significar alguma coisa e cai sozinho quando a linha acalma.
+
+**`run ahead` sempre lê `off` durante uma partida, e isso é a resposta, não uma
+falha.** O run ahead do FBNeo não tem passo 1/2/3 — é um frame, ligado ou
+desligado. E durante uma sessão o nosso caminho de frame nem passa pelo ramo de
+run ahead do `run.cpp`: o rollback faz o mesmo trabalho, melhor, e rodar os dois
+significaria salvar e carregar estado duas vezes por frame. Offline o campo
+mostra a opção de verdade.
+
+Sem sessão, os três campos de rede mostram `--` em vez de sumir, para a linha
+não mudar de forma quando uma partida começa.
+
+Desenho: o mesmo de `overlay.cpp` — GDI dentro da imagem do jogo como base, e o
+DirectX 9 desenhando na resolução da janela quando `OverlayClaim()` está de pé.
+Uma reivindicação só cobre as duas coisas: é o mesmo blitter no mesmo frame.
