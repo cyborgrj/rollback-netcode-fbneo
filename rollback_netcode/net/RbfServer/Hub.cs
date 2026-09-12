@@ -15,6 +15,11 @@ namespace Rbf.Server
     {
         public string UserId;
         public string Username;
+        // From the account when one was verified. AccountId is Django's primary
+        // key - the id that outlives this connection, unlike UserId.
+        public int    AccountId;
+        public string Nickname = "";
+        public int    Ranking;
         public string RemoteIp = "";
         public string Game = "";                       // room short name, "" = no room
         public PlayerState State = PlayerState.PlayerIdle;
@@ -136,9 +141,15 @@ namespace Rbf.Server
         private static readonly TimeSpan ChallengeTtl = TimeSpan.FromSeconds(30);
 
         // ---- login / disconnect --------------------------------------------
-        public Session Login(string username, string connIp, string lanIp, out string reject)
+        /// <summary><paramref name="account"/> is null only when the server is
+        /// running without token checking. When it is there, IT is the identity:
+        /// the username argument is whatever the client typed and does not get
+        /// a say.</summary>
+        public Session Login(string username, string connIp, string lanIp,
+                             VerifiedUser account, out string reject)
         {
             reject = null;
+            if (account != null) username = account.Username;
             username = (username ?? "").Trim();
             if (username.Length < 1 || username.Length > 24) { reject = "Nome inválido (1–24 caracteres)."; return null; }
 
@@ -167,6 +178,9 @@ namespace Rbf.Server
                 {
                     UserId = Guid.NewGuid().ToString("N").Substring(0, 12),
                     Username = username,
+                    AccountId = account?.Id ?? 0,
+                    Nickname = account?.Nickname ?? "",
+                    Ranking = account?.Ranking ?? 0,
                     RemoteIp = peerIp,
                 };
                 _sessions[s.UserId] = s;
@@ -179,7 +193,9 @@ namespace Rbf.Server
                 });
                 s.Send(new ServerMsg { ChatLog = _globalChat.Snapshot(ChatScope.ChatGlobal, "") });
                 BroadcastLobbyLocked();
-                Console.WriteLine($"+ {username} ({s.UserId})  peer-ip={s.RemoteIp}  (conn {connIp}, reported {lanIp})");
+                Console.WriteLine($"+ {username} ({s.UserId})" +
+                                  (account != null ? $"  conta #{account.Id} rank {account.Ranking}" : "  SEM CONTA") +
+                                  $"  peer-ip={s.RemoteIp}  (conn {connIp}, reported {lanIp})");
                 return s;
             }
         }
@@ -665,7 +681,12 @@ namespace Rbf.Server
         {
             var r = new Roster { Epoch = ++_epoch };
             foreach (var s in _sessions.Values)
-                r.Players.Add(new Player { UserId = s.UserId, Username = s.Username, Game = s.Game, State = s.State, PingMs = s.PingMs });
+                r.Players.Add(new Player
+                {
+                    UserId = s.UserId, Username = s.Username, Game = s.Game,
+                    State = s.State, PingMs = s.PingMs,
+                    Nickname = s.Nickname ?? "", Ranking = s.Ranking,
+                });
             return new ServerMsg { Roster = r };
         }
 

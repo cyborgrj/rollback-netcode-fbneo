@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Drives RbfServer's TokenVerifier against a stub Django.
+
+    The source is LINKED rather than referenced because RbfServer is an exe.
+    Same arrangement as launcher/AuthTest, and the same reason: the four
+    answers Django can give (valid, expired, wrong key, silence) each lead
+    somewhere different, and three of them only happen on a bad day.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RootNamespace>Rbf.Server.VerifyTest</RootNamespace>
+    <AssemblyName>VerifyTest</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\RbfServer\TokenVerifier.cs" Link="TokenVerifier.cs" />
+  </ItemGroup>
+
+</Project>

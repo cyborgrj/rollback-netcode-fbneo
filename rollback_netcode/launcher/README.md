@@ -89,10 +89,17 @@ a sessão acabou e o jogador volta para o login. Sem laço: um refresh que produ
 um token que o servidor continua recusando é problema para avisar, não para
 martelar.
 
-⚠️ **O lobby ainda não confere o token.** Hoje a autenticação é um portão do
-lado do launcher: o `RbfServer` continua aceitando qualquer nome no `Hello`.
-Para o portão valer de verdade, o `Hello` precisa levar o access token e o
-servidor precisa perguntar ao Django se ele é válido.
+O `Hello` do lobby leva o `access_token`, e o `RbfServer` pergunta ao Django se
+ele vale antes de aceitar a conexão — **a identidade que vale é a que o Django
+devolve**, não o `username` que o cliente declara. Detalhes em
+[net/README.md](../net/README.md).
+
+O token expira em 60 minutos e o lobby o confere na hora de conectar, então um
+launcher aberto há mais de uma hora renovaria em vão na tela: antes de conectar,
+se o access já passou de 40 minutos, ele é trocado por um novo.
+
+⚠️ **O lobby é h2c, sem TLS.** O token atravessa a rede em claro. Quem estiver no
+caminho consegue se passar pelo jogador até ele expirar — ver `PENDENCIAS.md`.
 
 ### Testar o fluxo sem Django
 

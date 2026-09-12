@@ -99,13 +99,23 @@ receber as partidas detalhadas. Um servidor antigo aceita o `MatchResult` e
 ignora os campos que não conhece: o placar total chega, o detalhe por partida
 não. Nada quebra, mas o `resultados.jsonl` fica sem o que interessa.
 
-## O lobby não confere o token de login
 
-A partir de 12/09 o launcher exige login na API do Frame Perfect. Mas o
-`RbfServer` continua aceitando qualquer nome no `Hello` — quem trocar o cliente,
-ou rodar o emulador na mão, entra sem conta.
+## O lobby não tem TLS, e agora carrega o token
 
-O que fecha isso: o `Hello` leva o `access_token`, e o servidor pergunta ao
-Django se ele vale (uma rota interna, chamada só de localhost). Enquanto isso
-não existe, a autenticação é um portão do lado do launcher e vale como
-comodidade, não como segurança.
+Desde 12/09 o `Hello` leva o `access_token` do jogador, e o `RbfServer` confere
+com o Django antes de aceitar. O portão fechou — mas o transporte não: o gRPC
+do lobby é **h2c, sem TLS**.
+
+Ou seja, quem estiver no caminho (Wi-Fi de café, provedor, qualquer trecho entre
+o jogador e o Lightsail) lê o token e se passa por ele até expirar, em até 60
+minutos. Antes disso só trafegava um nome, que não valia nada; agora trafega
+uma credencial.
+
+O que resolve: TLS no lobby. Certificado do mesmo `certbot` que atende o site,
+`ServerCredentials` em vez de `Insecure` no servidor, e `ChannelCredentials`
+correspondente no launcher.
+
+⚠️ Cuidado com o launcher: ele é **net48 e usa Grpc.Core** justamente porque
+`Grpc.Net.Client` não funciona no Windows velho. O Grpc.Core faz TLS pelo
+BoringSSL que vem embutido, então isso deve funcionar — mas é o tipo de coisa
+que só se sabe testando na VM do Windows 7/10 antigo.

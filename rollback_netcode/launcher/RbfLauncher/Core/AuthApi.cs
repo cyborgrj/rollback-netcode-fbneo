@@ -93,6 +93,7 @@ namespace RbfLauncher.Core
                     using (var doc = JsonDocument.Parse(text))
                     {
                         session.AccessToken  = Str(doc.RootElement, "access") ?? "";
+                        session.AccessIssuedUtc = DateTime.UtcNow;
                         session.RefreshToken = Str(doc.RootElement, "refresh") ?? "";
                     }
                 }
@@ -223,6 +224,7 @@ namespace RbfLauncher.Core
                         string access = Str(doc.RootElement, "access");
                         if (string.IsNullOrEmpty(access)) return false;
                         session.AccessToken = access;
+                        session.AccessIssuedUtc = DateTime.UtcNow;
 
                         // Simple JWT can be set to rotate refresh tokens. When it
                         // does, the old one stops working the moment it is used,

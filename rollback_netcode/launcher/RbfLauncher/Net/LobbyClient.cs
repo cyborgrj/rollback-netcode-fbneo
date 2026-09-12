@@ -120,7 +120,10 @@ namespace RbfLauncher.Net
         public event Action<ChatLog> ChatLogReceived;
         public event Action<IReadOnlyList<MatchEntry>> MatchesUpdated;
 
-        public async Task ConnectAsync(string host, int port, string username, TimeSpan timeout)
+        /// <summary><paramref name="accessToken"/> is the JWT from the account
+        /// API. The lobby hands it to Django and takes the identity from the
+        /// answer, so the username here is only what we believe about ourselves.</summary>
+        public async Task ConnectAsync(string host, int port, string username, string accessToken, TimeSpan timeout)
         {
             _ui = SynchronizationContext.Current;
             _cts = new CancellationTokenSource();
@@ -141,7 +144,11 @@ namespace RbfLauncher.Net
             _call = new Lobby.LobbyClient(_channel).Connect(cancellationToken: _cts.Token);
             await _call.RequestStream.WriteAsync(new ClientMsg
             {
-                Hello = new Hello { Username = username, ClientVer = "0.1", LanIp = LanIp }
+                Hello = new Hello
+                {
+                    Username = username, ClientVer = "0.1", LanIp = LanIp,
+                    AccessToken = accessToken ?? "",
+                }
             }).ConfigureAwait(false);
 
             _ = Task.Run(() => ReadLoopAsync(_cts.Token));

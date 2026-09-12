@@ -28,10 +28,19 @@ message ClientMsg {
 }
 
 message Hello {
+  // Advisory only when the server is checking tokens: the identity that counts
+  // comes back from Django, not from here. A client that claims one name and
+  // carries another's token gets the token's name.
   string username   = 1;
   string client_ver = 2;
   string lan_ip     = 3;   // the client's own LAN IPv4 - used as peer_ip for matches
                            // (more reliable than the address the server sees through NAT)
+
+  // The JWT from POST /api/auth/login/. The server hands it to Django's
+  // /api/internal/verify-token/ and takes the account from the answer.
+  // Empty from a client that predates accounts - refused when the server has
+  // an internal API key configured, accepted when it does not.
+  string access_token = 4;
 }
 
 message JoinRoom  { string game = 1; }   // FBNeo short name, e.g. "sfa2"
@@ -105,6 +114,11 @@ message Player {
   string      game     = 3;   // room short name, "" if none
   PlayerState state    = 4;
   int32       ping_ms  = 5;   // round trip to THIS server, 0 = not measured yet
+
+  // From the account, when the server verified one. Empty nickname means the
+  // player never picked one - show the username then.
+  string      nickname = 6;
+  int32       ranking  = 7;
 }
 message Roster {
   repeated Player players = 1;

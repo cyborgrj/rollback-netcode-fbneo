@@ -19,7 +19,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -89,6 +91,108 @@ namespace Rbf.ProtoTest
         }
     }
 
+    /// <summary>A stand-in for Django's /api/internal/verify-token/, so the real
+    /// RbfServer can be watched doing the real check. One token is good, the
+    /// key has to match, everything else is a 401.</summary>
+    internal sealed class StubDjango : IDisposable
+    {
+        public const string Key = "chave-de-teste";
+
+        // A token is "jwt-ok-<username>" and the stub answers with that name.
+        // Making the identity part of the token is what lets every other
+        // scenario here run with auth ON and still have two distinct players -
+        // and it is also the property being tested, since the name in the Hello
+        // is then provably not the one the server used.
+        public const string Prefix = "jwt-ok-";
+        public static string TokenFor(string username) => Prefix + username;
+
+        private readonly HttpListener _listener = new HttpListener();
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+        public bool Running { get; private set; }
+
+        public StubDjango(int port)
+        {
+            _listener.Prefixes.Add($"http://localhost:{port}/");
+            try { _listener.Start(); Running = true; }
+            catch (Exception ex)
+            {
+                Console.WriteLine("  (nao consegui subir o Django de mentira: " + ex.Message + ")");
+                return;
+            }
+            _ = Task.Run(Loop);
+        }
+
+        private async Task Loop()
+        {
+            while (Running)
+            {
+                HttpListenerContext ctx;
+                try { ctx = await _listener.GetContextAsync(); }
+                catch { return; }
+
+                Interlocked.Increment(ref _calls);
+
+                string body;
+                using (var sr = new StreamReader(ctx.Request.InputStream))
+                    body = await sr.ReadToEndAsync();
+
+                int status;
+                string answer;
+
+                string name = NameIn(body);
+
+                if (ctx.Request.Headers["X-API-KEY"] != Key)
+                {
+                    status = 403;
+                    answer = "{\"detail\":\"chave errada\"}";
+                }
+                else if (name != null)
+                {
+                    status = 200;
+                    answer = "{\"valid\":true,\"user\":{\"id\":1,\"username\":\"" + name + "\"," +
+                             "\"nickname\":\"ArcadeKing\",\"ranking\":1500}}";
+                }
+                else
+                {
+                    status = 401;
+                    answer = "{\"valid\":false,\"error\":\"Token is invalid or expired.\"}";
+                }
+
+                var bytes = Encoding.UTF8.GetBytes(answer);
+                ctx.Response.StatusCode = status;
+                ctx.Response.ContentType = "application/json";
+                ctx.Response.ContentLength64 = bytes.Length;
+                await ctx.Response.OutputStream.WriteAsync(bytes, 0, bytes.Length);
+                ctx.Response.Close();
+            }
+        }
+
+        /// <summary>The username inside {"token":"jwt-ok-fulano"}, or null when
+        /// the token is not one of ours.</summary>
+        private static string NameIn(string body)
+        {
+            const string marker = "\"token\":\"";
+            int i = body.IndexOf(marker, StringComparison.Ordinal);
+            if (i < 0) return null;
+            i += marker.Length;
+            int end = body.IndexOf('"', i);
+            if (end < 0) return null;
+
+            string token = body.Substring(i, end - i);
+            return token.StartsWith(Prefix, StringComparison.Ordinal) && token.Length > Prefix.Length
+                ? token.Substring(Prefix.Length) : null;
+        }
+
+        public void Dispose()
+        {
+            Running = false;
+            try { _listener.Stop(); } catch { }
+            try { _listener.Close(); } catch { }
+        }
+    }
+
     internal static class Program
     {
         private static int _pass, _fail;
@@ -112,8 +216,13 @@ namespace Rbf.ProtoTest
             if (archive != null) Console.WriteLine("arquivo de resultados: " + archive);
             Console.WriteLine();
 
+            // Up for the whole run: every Hello below carries a token, so the
+            // suite passes whether or not the server under test is checking
+            // them. With checking ON it needs this to answer.
+            using (var django = new StubDjango(8099))
             try
             {
+                TokenIsCheckedByTheLobby(host, django);
                 FirstToSurvivesTheRoundTrip(host, 5);
                 FirstToSurvivesTheRoundTrip(host, 0);   // "Livre" is a value, not an absence
                 SessionDetailReachesTheArchive(host, archive);
@@ -131,6 +240,75 @@ namespace Rbf.ProtoTest
             return _fail == 0 ? 0 : 1;
         }
 
+        // The gate. Run the server against the stub Django below and a Hello
+        // has to carry a token the API recognises:
+        //
+        //   set RBF_INTERNAL_API_KEY=chave-de-teste
+        //   dotnet run --project RbfServer -- --port 50061 --api-url http://localhost:8099
+        //
+        // Without that the server runs open, which is a legitimate way to run
+        // it on a LAN - so this reports the fact and skips rather than failing.
+        private static void TokenIsCheckedByTheLobby(string host, StubDjango django)
+        {
+            Console.WriteLine("-- o lobby confere o token com o Django");
+
+            {
+                if (!django.Running) { Console.WriteLine(); return; }
+
+                string suffix = Guid.NewGuid().ToString("N").Substring(0, 4);
+
+                // A made-up token, and a username that is not the account's.
+                using (var liar = new Peer(host, "mentiroso" + suffix))
+                {
+                    liar.Send(new ClientMsg { Hello = new Hello
+                    {
+                        Username = "mentiroso" + suffix, ClientVer = "test",
+                        LanIp = "192.168.1.10", AccessToken = "jwt-ruim",
+                    }});
+
+                    var rejected = liar.Await(ServerMsg.KindOneofCase.LoginRejected, null, 3000);
+                    var welcomed = liar.Await(ServerMsg.KindOneofCase.Welcome, null, 200);
+
+                    if (rejected == null && welcomed != null)
+                    {
+                        Console.WriteLine("  -     servidor rodando ABERTO (sem RBF_INTERNAL_API_KEY):");
+                        Console.WriteLine("        esta parte nao foi verificada. Veja o comentario acima.");
+                        Console.WriteLine();
+                        return;
+                    }
+
+                    Check(rejected != null, "token invalido nao entra");
+                    Check(django.Calls > 0, "o servidor realmente perguntou ao Django");
+                }
+
+                // The real thing - and the username in the Hello is a lie, so
+                // what comes back says whose word the server took.
+                string account = "conta" + suffix;
+                using (var real = new Peer(host, account))
+                {
+                    real.Send(new ClientMsg { Hello = new Hello
+                    {
+                        Username = "naoimporta" + suffix, ClientVer = "test",
+                        LanIp = "192.168.1.11", AccessToken = StubDjango.TokenFor(account),
+                    }});
+
+                    var welcome = real.Await(ServerMsg.KindOneofCase.Welcome, null, 3000);
+                    Check(welcome != null, "token valido entra");
+                    Check(welcome != null && welcome.Welcome.Username == account,
+                          $"a identidade veio do Django ({account}), nao do que o cliente disse");
+
+                    var roster = real.Await(ServerMsg.KindOneofCase.Roster,
+                                            m => m.Roster.Players.Any(p => p.Username == account));
+                    Check(roster != null && roster.Roster.Players
+                              .Any(p => p.Username == account && p.Ranking == 1500 &&
+                                        p.Nickname == "ArcadeKing"),
+                          "nickname e ranking da conta chegaram no roster");
+                }
+            }
+
+            Console.WriteLine();
+        }
+
         // The whole point: a limit chosen by the challenger has to reach BOTH
         // emulators unchanged. Anything that drops it on the way reads as
         // "livre" at the far end, and a session that should stop never stops.
@@ -143,8 +321,8 @@ namespace Rbf.ProtoTest
             using (var a = new Peer(host, "a" + suffix))
             using (var b = new Peer(host, "b" + suffix))
             {
-                a.Send(new ClientMsg { Hello = new Hello { Username = a.Name, ClientVer = "test", LanIp = "192.168.1.10" } });
-                b.Send(new ClientMsg { Hello = new Hello { Username = b.Name, ClientVer = "test", LanIp = "192.168.1.11" } });
+                a.Send(new ClientMsg { Hello = new Hello { Username = a.Name, ClientVer = "test", LanIp = "192.168.1.10", AccessToken = StubDjango.TokenFor(a.Name) } });
+                b.Send(new ClientMsg { Hello = new Hello { Username = b.Name, ClientVer = "test", LanIp = "192.168.1.11", AccessToken = StubDjango.TokenFor(b.Name) } });
 
                 Check(a.Await(ServerMsg.KindOneofCase.Welcome) != null, "a entrou");
                 Check(b.Await(ServerMsg.KindOneofCase.Welcome) != null, "b entrou");
@@ -218,7 +396,7 @@ namespace Rbf.ProtoTest
                 // enough to write its history.
                 using (var c = new Peer(host, "c" + suffix))
                 {
-                    c.Send(new ClientMsg { Hello = new Hello { Username = c.Name, ClientVer = "test", LanIp = "192.168.1.12" } });
+                    c.Send(new ClientMsg { Hello = new Hello { Username = c.Name, ClientVer = "test", LanIp = "192.168.1.12", AccessToken = StubDjango.TokenFor(c.Name) } });
                     if (c.Await(ServerMsg.KindOneofCase.Welcome) != null)
                     {
                         var fake = res.Clone();
@@ -262,8 +440,8 @@ namespace Rbf.ProtoTest
             using (var a = new Peer(host, "p" + suffix))
             using (var b = new Peer(host, "q" + suffix))
             {
-                a.Send(new ClientMsg { Hello = new Hello { Username = a.Name, ClientVer = "test", LanIp = "192.168.1.10" } });
-                b.Send(new ClientMsg { Hello = new Hello { Username = b.Name, ClientVer = "test", LanIp = "192.168.1.11" } });
+                a.Send(new ClientMsg { Hello = new Hello { Username = a.Name, ClientVer = "test", LanIp = "192.168.1.10", AccessToken = StubDjango.TokenFor(a.Name) } });
+                b.Send(new ClientMsg { Hello = new Hello { Username = b.Name, ClientVer = "test", LanIp = "192.168.1.11", AccessToken = StubDjango.TokenFor(b.Name) } });
                 if (a.Await(ServerMsg.KindOneofCase.Welcome) == null ||
                     b.Await(ServerMsg.KindOneofCase.Welcome) == null) { Check(false, "os dois entraram"); return; }
 

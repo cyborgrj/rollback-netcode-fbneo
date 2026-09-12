@@ -20,6 +20,16 @@ namespace Rbf.Server
             // the systemd unit is the folder the binary was published into.
             string results = "resultados.jsonl";
 
+            // Where Django is. Localhost in production too: the lobby and the
+            // API share the Lightsail instance, and /api/internal/ is closed to
+            // everyone else at the Nginx.
+            string apiUrl = "http://localhost:8000";
+            // The shared secret is NOT a command line argument. Anything in
+            // argv is readable by every local user through ps; an environment
+            // variable set by the systemd unit is not.
+            string apiKey = Environment.GetEnvironmentVariable("RBF_INTERNAL_API_KEY");
+            string apiKeyFile = null;
+
             for (int i = 0; i + 1 < args.Length; i++)
             {
                 if (args[i] == "--port") int.TryParse(args[i + 1], out port);
@@ -29,6 +39,8 @@ namespace Rbf.Server
                 else if (args[i] == "--frame-delay") int.TryParse(args[i + 1], out frameDelay);
                 else if (args[i] == "--bind") bind = args[i + 1];
                 else if (args[i] == "--results") results = args[i + 1];
+                else if (args[i] == "--api-url") apiUrl = args[i + 1];
+                else if (args[i] == "--api-key-file") apiKeyFile = args[i + 1];
             }
             // --quiet keeps the per-request lines out of the journal; the lifecycle
             // lines (login, match, relay) are always printed.
@@ -40,6 +52,27 @@ namespace Rbf.Server
             if (frameDelay < 0 || frameDelay > 10) frameDelay = 2;
 
             MatchArchive.Open(results == "-" ? null : results);
+
+            if (string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(apiKeyFile))
+            {
+                try { apiKey = System.IO.File.ReadAllText(apiKeyFile).Trim(); }
+                catch (Exception ex) { Console.WriteLine($"! nao consegui ler {apiKeyFile}: {ex.Message}"); }
+            }
+
+            var auth = new TokenVerifier(apiUrl, apiKey);
+            if (auth.Enabled)
+            {
+                Console.WriteLine($"  contas: verificando token em {auth.ApiUrl}/api/internal/verify-token/");
+            }
+            else
+            {
+                // Worth shouting about. In this state anybody who speaks the
+                // protocol is whoever they say they are - which was the only
+                // mode that existed before accounts, and is fine on a LAN test,
+                // but is not what anyone wants facing the internet.
+                Console.WriteLine("!! LOBBY ABERTO: sem RBF_INTERNAL_API_KEY, nenhum token e verificado.");
+                Console.WriteLine("   Qualquer cliente entra com o nome que quiser.");
+            }
 
             var hub = new Hub
             {
@@ -59,7 +92,7 @@ namespace Rbf.Server
 
             var server = new Grpc.Core.Server(grpcOptions)
             {
-                Services = { Lobby.BindService(new LobbyService(hub)) },
+                Services = { Lobby.BindService(new LobbyService(hub, auth)) },
                 Ports = { new ServerPort(bind, port, ServerCredentials.Insecure) },
             };
             server.Start();

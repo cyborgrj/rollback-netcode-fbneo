@@ -93,15 +93,31 @@ namespace RbfLauncher
             if (_connecting || (_client != null && _client.LoggedIn)) return;
             _connecting = true;
 
+            ConnectButton.IsEnabled = false;
+            PlayerLabel.Text = "conectando…";
+
+            // The lobby checks this token with Django at connect time, so a
+            // launcher that has been open for over an hour would be refused
+            // with nothing the player could do about it. Renew first; a failed
+            // renewal is not fatal here - let the lobby be the one to say no.
+            if (_session.AccessNearlyExpired)
+            {
+                try
+                {
+                    using (var api = new AuthApi(_config.ResolvedApiBaseUrl))
+                        await api.TryRefreshAsync(_session);
+                }
+                catch { /* offline account API must not block a LAN lobby */ }
+            }
+
             var client = new LobbyClient();
             WireClient(client);
 
-            ConnectButton.IsEnabled = false;
-            PlayerLabel.Text = "conectando…";
             try
             {
                 await client.ConnectAsync(_config.ServerHost, _config.ServerPort,
-                                          _session.Username, TimeSpan.FromSeconds(8));
+                                          _session.Username, _session.AccessToken,
+                                          TimeSpan.FromSeconds(8));
                 _client = client;
             }
             catch (Exception ex)

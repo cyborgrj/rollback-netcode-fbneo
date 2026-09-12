@@ -25,6 +25,17 @@ namespace RbfLauncher.Core
         public string AccessToken  { get; set; } = "";
         public string RefreshToken { get; set; } = "";
 
+        /// <summary>When the access token in hand was issued. The lobby verifies
+        /// the token at connect time, so a launcher left open for two hours
+        /// would be refused on the next Conectar with nothing to show for it -
+        /// this is what lets it renew first instead.</summary>
+        public DateTime AccessIssuedUtc { get; set; } = DateTime.UtcNow;
+
+        /// <summary>Past two thirds of the hour the API gives it. Early enough
+        /// that a slow renewal still lands inside the window.</summary>
+        public bool AccessNearlyExpired =>
+            DateTime.UtcNow - AccessIssuedUtc > TimeSpan.FromMinutes(40);
+
         /// <summary>What to show on screen: the nickname when there is one, the
         /// username otherwise. The API sends `nickname: null` for a player who
         /// has not picked one, so this is the normal case, not the edge.</summary>

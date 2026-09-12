@@ -9,7 +9,13 @@ namespace Rbf.Server
     internal sealed class LobbyService : Lobby.LobbyBase
     {
         private readonly Hub _hub;
-        public LobbyService(Hub hub) => _hub = hub;
+        private readonly TokenVerifier _auth;
+
+        public LobbyService(Hub hub, TokenVerifier auth)
+        {
+            _hub = hub;
+            _auth = auth;
+        }
 
         public override async Task Connect(
             IAsyncStreamReader<ClientMsg> requestStream,
@@ -37,7 +43,33 @@ namespace Rbf.Server
                             return;
                         }
 
-                        session = _hub.Login(msg.Hello.Username, ip, msg.Hello.LanIp, out var reject);
+                        VerifiedUser account = null;
+                        if (_auth != null && _auth.Enabled)
+                        {
+                            var v = await _auth.VerifyAsync(msg.Hello.AccessToken,
+                                                            context.CancellationToken).ConfigureAwait(false);
+                            if (!v.Ok)
+                            {
+                                // The player is told what they can act on; the log
+                                // gets the part that is our problem, not theirs.
+                                string forPlayer =
+                                    v.Outcome == VerifyOutcome.Rejected
+                                        ? "Sua sessão expirou. Entre de novo no launcher."
+                                        : "O servidor de contas não respondeu. Tente de novo em instantes.";
+
+                                Console.WriteLine($"! login recusado de {Short(msg.Hello.Username)} " +
+                                                  $"({ip}): {v.Outcome} - {v.Detail}");
+
+                                await responseStream.WriteAsync(new ServerMsg
+                                {
+                                    LoginRejected = new LoginRejected { Reason = forPlayer }
+                                }).ConfigureAwait(false);
+                                return;
+                            }
+                            account = v.User;
+                        }
+
+                        session = _hub.Login(msg.Hello.Username, ip, msg.Hello.LanIp, account, out var reject);
                         if (session == null)
                         {
                             await responseStream.WriteAsync(new ServerMsg

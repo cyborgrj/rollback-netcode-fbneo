@@ -60,6 +60,63 @@ One bidirectional stream per client: `rpc Connect(stream ClientMsg) returns (str
   connection (correct on a LAN; NAT traversal is a later problem).
 - `MatchStatus{phase}` from a client ends/aborts the match server-side.
 
+## Contas: o lobby confere o token com o Django
+
+O `Hello` leva o `access_token` que o launcher pegou no login, e o servidor
+pergunta ao Django se ele vale antes de aceitar a conexão:
+
+```
+POST {api}/api/internal/verify-token/
+X-API-KEY: <segredo compartilhado>
+{"token": "..."}
+
+200 {"valid":true,"user":{"id":1,"username":"PlayerOne","nickname":"ArcadeKing","ranking":1500}}
+401 {"valid":false,"error":"Token is invalid or expired."}
+403  a chave é nossa e está errada
+```
+
+**A identidade vem da resposta do Django, e o `username` do `Hello` é ignorado.**
+Aceitar o nome que o cliente declara ao lado de um token faria do token
+decoração: qualquer um logaria como si mesmo e anunciaria outro nome.
+
+Os três "não" são coisas diferentes e continuam diferentes:
+
+| resposta | o que é | o que o jogador lê |
+|----------|---------|--------------------|
+| `401` | token expirado ou falso | "Sua sessão expirou. Entre de novo no launcher." |
+| `403` | **nossa** `X-API-KEY` está errada | "O servidor de contas não respondeu." |
+| silêncio / `5xx` | Django fora do ar | idem |
+
+Juntar `403` com `401` diria a todo mundo que o login expirou no dia em que
+alguém trocasse a chave — e o log concordaria com eles.
+
+### Configurar
+
+A chave vem do **ambiente**, nunca da linha de comando: qualquer coisa em
+`argv` é legível por outro usuário da máquina via `ps`.
+
+```ini
+# /etc/systemd/system/rbfserver.service
+[Service]
+Environment=RBF_INTERNAL_API_KEY=<o mesmo INTERNAL_API_KEY do Django>
+ExecStart=/home/ubuntu/rbfserver/RbfServer --bind 0.0.0.0 --port 50051
+```
+
+`--api-url` muda o endereço do Django (padrão `http://localhost:8000`, que é o
+caso em produção — os dois moram na mesma instância). `--api-key-file <arquivo>`
+existe para quem preferir um arquivo com permissão fechada em vez da variável.
+
+**Sem a chave configurada, o lobby roda ABERTO** — qualquer cliente entra com o
+nome que quiser, como era antes das contas. O servidor grita isso no boot:
+
+```
+!! LOBBY ABERTO: sem RBF_INTERNAL_API_KEY, nenhum token e verificado.
+```
+
+⚠️ **O lobby ainda é h2c, sem TLS.** Agora que o token trafega por ele, quem
+estiver no caminho consegue lê-lo e se passar pelo jogador até ele expirar. Isso
+é o que falta para a autenticação valer de ponta a ponta — ver `PENDENCIAS.md`.
+
 ## Onde o resultado da partida vai parar
 
 A cadeia inteira, do jogo até o disco. Ninguém digita nada em lugar nenhum: o
@@ -148,12 +205,30 @@ laço sobre linhas, e uma queda no meio custa a última partida em vez de todas.
 O arquivo continua sendo útil depois do banco existir — é o que se lê quando a
 importação parece errada.
 
-Para conferir o caminho inteiro sem ninguém jogar:
+## Testes
 
 ```bash
-dotnet run --project RbfServer -- --port 50061 --results teste.jsonl
+dotnet run --project VerifyTest
+```
+
+23 checagens do `TokenVerifier` contra um Django de mentira: token válido,
+expirado, `X-API-KEY` errada, Django mudo, um `200` que diz `valid:false`, e
+resposta sem `user`. Não sobe rede nenhuma.
+
+```bash
+# um terminal
+RBF_INTERNAL_API_KEY=chave-de-teste \
+  dotnet run --project RbfServer -- --port 50061 --api-url http://localhost:8099 --results teste.jsonl
+
+# outro
 dotnet run --project RbfProtoTest -- 127.0.0.1:50061 teste.jsonl
 ```
+
+36 checagens contra o servidor **de verdade**. O próprio `RbfProtoTest` sobe um
+Django de mentira em `localhost:8099`, então dá para ver o servidor recusar um
+token falso, aceitar um bom, e entrar no lobby com o nome que o Django devolveu
+em vez do que o cliente declarou. Sem a variável de ambiente o servidor roda
+aberto e essa parte se diz não verificada em vez de falhar.
 
 ## Scope now / next
 
