@@ -61,6 +61,31 @@ namespace Rbf.Server
             return null;
         }
 
+        /// <summary>The stable string Django keys its matchup stats on:
+        /// lowercase, dots dropped, spaces to underscores - "ryu", "e_honda",
+        /// "m_bison", "chun_li". An id we cannot name yet goes as its number
+        /// ("17"), which is not a placeholder to be fixed later: it is the same
+        /// value the emulator read, so the row stays correct and only its label
+        /// improves when the roster fills in.
+        ///
+        /// The full mapping is printed in net/README.md - Django needs the same
+        /// list, and a convention that lives in one head is a convention that
+        /// drifts.</summary>
+        public static string Code(string game, int id)
+        {
+            string name = Name(game, id);
+            if (name == null) return id.ToString();
+
+            var sb = new System.Text.StringBuilder(name.Length);
+            foreach (char c in name.ToLowerInvariant())
+            {
+                if (c == '.') continue;
+                sb.Append(c == ' ' || c == '/' || c == '-' ? '_' : c);
+            }
+            // "e. honda" leaves a double underscore behind; collapse it.
+            return sb.ToString().Replace("__", "_").Trim('_');
+        }
+
         /// <summary>"Ryu" for one, "Kyo/Benimaru/Daimon" for a team, and the
         /// bare id where the name is unknown: "Ryu/27/Vice".</summary>
         public static string Describe(string game, IEnumerable<int> ids)

@@ -205,15 +205,77 @@ laço sobre linhas, e uma queda no meio custa a última partida em vez de todas.
 O arquivo continua sendo útil depois do banco existir — é o que se lê quando a
 importação parece errada.
 
+## Cada partida vira uma linha no Django
+
+Quando o resultado da sessão chega, o servidor manda **um POST por partida
+terminada**, na ordem em que foram jogadas:
+
+```
+POST {api}/api/internal/matches/report/
+X-API-KEY: <segredo compartilhado>
+
+{"game_code":"sf2ce","player1_id":1,"player2_id":2,
+ "player1_character":"ryu","player2_character":"guile",
+ "player1_score":2,"player2_score":1,"winner_id":1,"duration_seconds":185}
+
+201 {"status":"recorded","match_id":42,
+     "elo_update":{"player1":{"before":1000,"after":1025,"diff":25}, ...}}
+```
+
+Uma sessão de cinco partidas são **cinco linhas**, não uma. Os dois lados
+escolhem de novo entre uma partida e outra, então resumir jogaria fora
+exatamente aquilo de que as estatísticas tratam.
+
+Três decisões que valem dizer em voz alta:
+
+**Empate manda `winner_id: null`.** Um duplo KO no match point não é de ninguém,
+e inventar um vencedor ali corromperia a ficha dos dois jogadores em silêncio.
+
+**KOF é 3x3 e não cabe no formato.** `player1_character` leva o personagem de
+**ponta** — o que entrou primeiro — para o matchup continuar legível, e o time
+inteiro vai num campo extra `player1_characters` / `player2_characters`. Esse
+campo só aparece nos jogos de time; todos os outros mandam exatamente os nove
+campos combinados. ⚠️ Se o serializer do Django recusar campo desconhecido, é só
+avisar que eu tiro.
+
+**O ELO da resposta é aplicado na hora.** O rank que aparece na sala vira o que
+o Django acabou de escrever, em vez do que veio do login uma hora atrás.
+
+Quando o Django não responde, a partida **não se perde**: ela já está no
+`resultados.jsonl` antes deste POST sair. O custo é uma reimportação, não uma
+sessão.
+
+Se o lobby estiver rodando aberto (sem `RBF_INTERNAL_API_KEY`) não há id de
+conta de ninguém, e o servidor diz isso e não reporta.
+
+### Código de personagem
+
+O `player1_character` é o nome em minúsculas, sem pontos, com espaço virando
+`_`. Um id que ainda não tem nome vai como **número** — que é o mesmo valor que
+o emulador leu, então a linha fica certa e só o rótulo melhora quando o elenco
+for completado. Django precisa da mesma lista:
+
+| jogo | código |
+|------|--------|
+| `sf2ce` | 4 `ryu` · 5 `e_honda` · 6 `ken` — o resto vai como número |
+| `sfa2` | 0 `ryu` · 1 `ken` · 2 `akuma` · 3 `nash` · 4 `chun_li` · 5 `adon` · 6 `sodom` · 7 `guy` · 8 `birdie` · 9 `rose` · 10 `m_bison` · 11 `sagat` · 12 `dan` · 13 `sakura` · 14 `rolento` · 15 `dhalsim` · 16 `zangief` · 17 `gen` |
+| `kof98` | 0 `kyo` · 1 `benimaru` · 2 `daimon` · 18 `kim` · 19 `choi` · 20 `chang` · 27 `iori` · 28 `mature` · 29 `vice` |
+| `vsav` | 22 `l_raptor` · 36 `jedah` — e o lado do P2 ainda não é legível |
+
+`ssf2t` e `kof2002` ainda não têm endereços mapeados: o emulador não lê placar
+nem personagem neles, então não há o que reportar. Entram quando passarem pelo
+mesmo trabalho que os quatro atuais (ver `tools/README.md`).
+
 ## Testes
 
 ```bash
 dotnet run --project VerifyTest
 ```
 
-23 checagens do `TokenVerifier` contra um Django de mentira: token válido,
-expirado, `X-API-KEY` errada, Django mudo, um `200` que diz `valid:false`, e
-resposta sem `user`. Não sobe rede nenhuma.
+42 checagens do `TokenVerifier` e do `MatchReporter` contra um Django de
+mentira: token válido, expirado, `X-API-KEY` errada, Django mudo, um `200` que
+diz `valid:false`, resposta sem `user`, o corpo do report campo a campo, empate
+sem vencedor, time de KOF e código de personagem. Não sobe rede nenhuma.
 
 ```bash
 # um terminal
@@ -224,11 +286,13 @@ RBF_INTERNAL_API_KEY=chave-de-teste \
 dotnet run --project RbfProtoTest -- 127.0.0.1:50061 teste.jsonl
 ```
 
-36 checagens contra o servidor **de verdade**. O próprio `RbfProtoTest` sobe um
+40 checagens contra o servidor **de verdade**. O próprio `RbfProtoTest` sobe um
 Django de mentira em `localhost:8099`, então dá para ver o servidor recusar um
-token falso, aceitar um bom, e entrar no lobby com o nome que o Django devolveu
-em vez do que o cliente declarou. Sem a variável de ambiente o servidor roda
-aberto e essa parte se diz não verificada em vez de falhar.
+token falso, aceitar um bom, entrar no lobby com o nome que o Django devolveu em
+vez do que o cliente declarou, e mandar as três partidas da sessão para
+`/api/internal/matches/report/` com placar, duração e código de personagem. Sem
+a variável de ambiente o servidor roda aberto e essas partes se dizem não
+verificadas em vez de falhar.
 
 ## Scope now / next
 

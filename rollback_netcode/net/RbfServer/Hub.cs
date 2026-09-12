@@ -57,6 +57,10 @@ namespace Rbf.Server
         // say who played rather than "?".
         public string P1Name;
         public string P2Name;
+        // Django's ids. Zero when the lobby is running without token checking -
+        // and then there is nobody to report the match against.
+        public int    P1AccountId;
+        public int    P2AccountId;
         public int Port;
         public int FrameDelay;
         public int FirstTo;         // games that end the session; 0 = free play
@@ -128,6 +132,11 @@ namespace Rbf.Server
         // How many people are watching a match, or -1 when it is not being
         // published. Supplied by the relay; null means nothing is watchable.
         public Func<string, int> WatchViewers { get; set; }
+
+        // Where finished games go. Null (or not Enabled) means nothing is
+        // reported - the lobby still runs, and resultados.jsonl still fills.
+        private MatchReporter _reporter;
+        public MatchReporter Reporter { set => _reporter = value; }
 
         private int _epoch;
         private int _matchEpoch;
@@ -353,6 +362,8 @@ namespace Rbf.Server
                     P2Id = to.UserId,
                     P1Name = from.Username,
                     P2Name = to.Username,
+                    P1AccountId = from.AccountId,
+                    P2AccountId = to.AccountId,
                     Port = AllocPortLocked(),
                     // meet in the middle, rounding up. Both zero means neither
                     // side expressed a preference (old client) -> server default.
@@ -508,6 +519,7 @@ namespace Rbf.Server
 
                     m.Archived = true;
                     MatchArchive.Write(m, r, s.UserId);
+                    ReportToDjango(m, r);
                     return;
                 }
 
@@ -524,6 +536,93 @@ namespace Rbf.Server
                 }
             }
         }
+
+        /// <summary>Hand every finished game of the session to Django, one POST
+        /// each, in the order they were played.
+        ///
+        /// Off the lock and off the caller's thread: Django writes history,
+        /// moves both ELOs and adds up playing time, and none of that should
+        /// hold up a lobby where somebody else is trying to start a match. The
+        /// session is already in resultados.jsonl before this runs, so a Django
+        /// that is down costs a re-import later and not a lost match.</summary>
+        private void ReportToDjango(Match m, MatchResult r)
+        {
+            if (_reporter == null || !_reporter.Enabled) return;
+
+            if (m.P1AccountId <= 0 || m.P2AccountId <= 0)
+            {
+                Console.WriteLine($"  {m.Id}: sem conta dos dois lados, nada reportado ao Django");
+                return;
+            }
+            if (r.GamesPlayed.Count == 0) return;
+
+            // Copy what is needed while it is still ours to read.
+            var games = r.GamesPlayed.ToList();
+            string game = r.Game ?? m.Game;
+            int p1Account = m.P1AccountId, p2Account = m.P2AccountId;
+            string p1Name = m.P1Name, p2Name = m.P2Name;
+            string p1SessionId = m.P1Id, p2SessionId = m.P2Id;
+            string matchId = m.Id;
+
+            _ = Task.Run(async () =>
+            {
+                foreach (var g in games)
+                {
+                    var report = new MatchReport
+                    {
+                        GameCode = game,
+                        P1AccountId = p1Account,
+                        P2AccountId = p2Account,
+                        P1Character = CharacterCode(game, g.P1Chars),
+                        P2Character = CharacterCode(game, g.P2Chars),
+                        P1Team = Team(game, g.P1Chars),
+                        P2Team = Team(game, g.P2Chars),
+                        P1Score = g.P1Rounds,
+                        P2Score = g.P2Rounds,
+                        WinnerId = g.Winner == 1 ? p1Account : g.Winner == 2 ? p2Account : (int?)null,
+                        DurationSeconds = g.Frames > 0 ? (int)Math.Round(g.Frames / 60.0) : 0,
+                    };
+
+                    var res = await _reporter.ReportAsync(report).ConfigureAwait(false);
+
+                    if (!res.Ok)
+                    {
+                        Console.WriteLine($"! {matchId} partida {g.Index}: Django recusou - {res.Detail}");
+                        continue;
+                    }
+
+                    Console.WriteLine($"  {matchId} partida {g.Index} -> Django #{res.MatchId}" +
+                                      (res.P1Elo != null ? $"   {p1Name} {res.P1Elo}" : "") +
+                                      (res.P2Elo != null ? $"   {p2Name} {res.P2Elo}" : ""));
+
+                    // The rank on everybody's screen should be the rank Django
+                    // just wrote, not the one from login an hour ago.
+                    ApplyElo(p1SessionId, res.P1Elo, p2SessionId, res.P2Elo);
+                }
+            });
+        }
+
+        private void ApplyElo(string p1SessionId, EloMove p1, string p2SessionId, EloMove p2)
+        {
+            lock (_gate)
+            {
+                bool changed = false;
+                if (p1 != null && _sessions.TryGetValue(p1SessionId ?? "", out var s1)) { s1.Ranking = p1.After; changed = true; }
+                if (p2 != null && _sessions.TryGetValue(p2SessionId ?? "", out var s2)) { s2.Ranking = p2.After; changed = true; }
+                if (changed) BroadcastLobbyLocked();
+            }
+        }
+
+        /// <summary>The point character - the one a matchup is read as. For a
+        /// KOF team that is whoever entered first; the rest ride along in
+        /// player1_characters.</summary>
+        private static string CharacterCode(string game, IReadOnlyList<int> chars) =>
+            chars == null || chars.Count == 0 ? "" : Characters.Code(game, chars[0]);
+
+        private static string[] Team(string game, IReadOnlyList<int> chars) =>
+            chars == null || chars.Count < 2
+                ? null
+                : chars.Select(id => Characters.Code(game, id)).ToArray();
 
         /// <summary>The session as a person would read it: the totals, then one
         /// line per game with the characters that game was actually played

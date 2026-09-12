@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Rbf.Server;
@@ -75,6 +76,12 @@ namespace Rbf.Server.VerifyTest
             NicknameVazioCaiParaUsername();
             SemChaveConfiguradaOLobbyFicaAberto();
             TokenVazioNaoViraChamada();
+
+            PartidaReportada();
+            EmpateNaoTemVencedor();
+            TimeDeKofViaPersonagemDePonta();
+            PersonagemSemNomeVaiComoNumero();
+            DjangoRecusandoOReport();
 
             Console.WriteLine();
             Console.WriteLine(_fail == 0
@@ -219,5 +226,131 @@ namespace Rbf.Server.VerifyTest
 
         private static VerifyResult Verify(StubDjango stub, string token) =>
             new TokenVerifier(Api, Key, stub).VerifyAsync(token).GetAwaiter().GetResult();
+
+        // ---- reporting a finished game --------------------------------------
+        private const string Created =
+            "{\"status\":\"recorded\",\"match_id\":42,\"elo_update\":{" +
+            "\"player1\":{\"before\":1000,\"after\":1025,\"diff\":25}," +
+            "\"player2\":{\"before\":1050,\"after\":1025,\"diff\":-25}}}";
+
+        private static void PartidaReportada()
+        {
+            Console.WriteLine("-- uma partida terminada vai para o Django");
+
+            var stub = new StubDjango
+            {
+                Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, Created)
+            };
+
+            var res = Report(stub, new MatchReport
+            {
+                GameCode = "sf2ce", P1AccountId = 1, P2AccountId = 2,
+                P1Character = "ryu", P2Character = "guile",
+                P1Score = 2, P2Score = 1, WinnerId = 1, DurationSeconds = 185,
+            });
+
+            Check(res.Ok, "aceito");
+            Check(res.MatchId == 42, "leu o match_id");
+            Check(res.P1Elo != null && res.P1Elo.After == 1025 && res.P1Elo.Diff == 25, "leu o ELO do p1");
+            Check(res.P2Elo != null && res.P2Elo.Diff == -25, "leu o ELO do p2");
+
+            Check(stub.Paths.Count == 1 && stub.Paths[0] == "POST /api/internal/matches/report/",
+                  "bateu na rota combinada");
+            Check(stub.Keys[0] == Key, "mandou o X-API-KEY");
+
+            var sent = JsonDocument.Parse(stub.Bodies[0]).RootElement;
+            Check(sent.GetProperty("game_code").GetString() == "sf2ce" &&
+                  sent.GetProperty("player1_id").GetInt32() == 1 &&
+                  sent.GetProperty("player2_id").GetInt32() == 2 &&
+                  sent.GetProperty("player1_character").GetString() == "ryu" &&
+                  sent.GetProperty("player2_character").GetString() == "guile" &&
+                  sent.GetProperty("player1_score").GetInt32() == 2 &&
+                  sent.GetProperty("player2_score").GetInt32() == 1 &&
+                  sent.GetProperty("winner_id").GetInt32() == 1 &&
+                  sent.GetProperty("duration_seconds").GetInt32() == 185,
+                  "o corpo saiu exatamente no formato combinado");
+            Check(!sent.TryGetProperty("player1_characters", out _),
+                  "jogo de um personagem nao carrega campo extra nenhum");
+            Console.WriteLine();
+        }
+
+        private static void EmpateNaoTemVencedor()
+        {
+            Console.WriteLine("-- empate (duplo KO no match point)");
+
+            var stub = new StubDjango { Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, Created) };
+            Report(stub, new MatchReport
+            {
+                GameCode = "sfa2", P1AccountId = 1, P2AccountId = 2,
+                P1Character = "ryu", P2Character = "ken",
+                P1Score = 1, P2Score = 1, WinnerId = null, DurationSeconds = 90,
+            });
+
+            var sent = JsonDocument.Parse(stub.Bodies[0]).RootElement;
+            // Inventing a winner here corromperia a ficha dos dois jogadores.
+            Check(sent.GetProperty("winner_id").ValueKind == JsonValueKind.Null,
+                  "winner_id vai nulo em vez de chutar um vencedor");
+            Console.WriteLine();
+        }
+
+        private static void TimeDeKofViaPersonagemDePonta()
+        {
+            Console.WriteLine("-- kof98, que e 3x3 e nao cabe em um personagem por lado");
+
+            var stub = new StubDjango { Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, Created) };
+            Report(stub, new MatchReport
+            {
+                GameCode = "kof98", P1AccountId = 1, P2AccountId = 2,
+                P1Character = "kyo", P2Character = "kim",
+                P1Team = new[] { "kyo", "benimaru", "daimon" },
+                P2Team = new[] { "kim", "choi", "chang" },
+                P1Score = 3, P2Score = 1, WinnerId = 1, DurationSeconds = 124,
+            });
+
+            var sent = JsonDocument.Parse(stub.Bodies[0]).RootElement;
+            Check(sent.GetProperty("player1_character").GetString() == "kyo",
+                  "player1_character e o personagem de ponta, entao o matchup continua legivel");
+            Check(sent.TryGetProperty("player1_characters", out var team) &&
+                  team.GetArrayLength() == 3 && team[2].GetString() == "daimon",
+                  "o time inteiro viaja num campo extra");
+            Console.WriteLine();
+        }
+
+        private static void PersonagemSemNomeVaiComoNumero()
+        {
+            Console.WriteLine("-- personagem cujo nome ainda nao conhecemos");
+
+            // O elenco do sf2ce so tem tres nomes confirmados ate agora.
+            Check(Characters.Code("sf2ce", 4) == "ryu", "id conhecido vira codigo");
+            Check(Characters.Code("sf2ce", 5) == "e_honda", "ponto e espaco viram um underscore so");
+            Check(Characters.Code("sfa2", 10) == "m_bison", "idem para M. Bison");
+            Check(Characters.Code("sfa2", 4) == "chun_li", "espaco vira underscore");
+            Check(Characters.Code("sf2ce", 99) == "99",
+                  "id sem nome vai como numero - e o mesmo valor que o emulador leu, "
+                  + "entao a linha fica certa e so o rotulo melhora depois");
+            Console.WriteLine();
+        }
+
+        private static void DjangoRecusandoOReport()
+        {
+            Console.WriteLine("-- Django recusando o report");
+
+            var forbidden = new StubDjango { Handler = (r, b) => StubDjango.Json(HttpStatusCode.Forbidden, "{}") };
+            var r1 = Report(forbidden, new MatchReport { GameCode = "sf2ce", P1AccountId = 1, P2AccountId = 2 });
+            Check(!r1.Ok && r1.Detail.Contains("X-API-KEY"), "403 diz que a chave e a nossa");
+
+            var down = new StubDjango { Handler = (r, b) => throw new HttpRequestException("refused") };
+            var r2 = Report(down, new MatchReport { GameCode = "sf2ce", P1AccountId = 1, P2AccountId = 2 });
+            Check(!r2.Ok, "Django fora do ar nao vira sucesso silencioso");
+
+            // 201 sem corpo que dê para ler ainda é uma partida gravada.
+            var odd = new StubDjango { Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, "nao e json") };
+            var r3 = Report(odd, new MatchReport { GameCode = "sf2ce", P1AccountId = 1, P2AccountId = 2 });
+            Check(r3.Ok, "201 com corpo ilegivel continua sendo partida gravada");
+            Console.WriteLine();
+        }
+
+        private static ReportOutcome Report(StubDjango stub, MatchReport r) =>
+            new MatchReporter(Api, Key, stub).ReportAsync(r).GetAwaiter().GetResult();
     }
 }

@@ -119,3 +119,23 @@ correspondente no launcher.
 `Grpc.Net.Client` não funciona no Windows velho. O Grpc.Core faz TLS pelo
 BoringSSL que vem embutido, então isso deve funcionar — mas é o tipo de coisa
 que só se sabe testando na VM do Windows 7/10 antigo.
+
+## Report ao Django só sai no fim da sessão, não a cada partida
+
+O servidor manda uma linha por partida, mas **todas de uma vez**, quando a
+sessão acaba — porque é aí que o emulador escreve o `rbf-result-*.txt` e o
+launcher o lê. Se o emulador morrer no meio de uma sessão de dez partidas, as
+dez se perdem.
+
+Para reportar partida a partida, ao vivo, falta um canal entre emulador e
+launcher **enquanto o jogo roda** — hoje o único caminho é o arquivo na saída.
+Um pipe nomeado ou um arquivo append-only que o launcher acompanhe resolveria.
+
+Não é urgente: o dado é o mesmo nos dois casos, muda só a resistência a crash.
+
+## Jogos sem endereços mapeados
+
+O usuário citou `ssf2t` e `kof2002` na lista de `game_code`. Nenhum dos dois tem
+endereço de vida nem de personagem mapeado, então o emulador não lê placar neles
+e não há o que reportar. Entram quando passarem pelo mesmo trabalho dos quatro
+atuais — o caminho está em `tools/README.md`.

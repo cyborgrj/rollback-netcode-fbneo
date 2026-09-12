@@ -74,10 +74,15 @@ namespace Rbf.Server
                 Console.WriteLine("   Qualquer cliente entra com o nome que quiser.");
             }
 
+            var reporter = new MatchReporter(apiUrl, apiKey);
+            if (reporter.Enabled)
+                Console.WriteLine($"  partidas -> {reporter.ApiUrl}/api/internal/matches/report/");
+
             var hub = new Hub
             {
                 PunchPort = punchPort, RelayPort = relayPort,
                 GameRelayPort = gamePort, FrameDelay = frameDelay,
+                Reporter = reporter,
             };
 
             // Keepalive so a client that dies without a clean FIN is reaped

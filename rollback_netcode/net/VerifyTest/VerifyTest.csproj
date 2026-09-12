@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <Compile Include="..\RbfServer\TokenVerifier.cs" Link="TokenVerifier.cs" />
+    <Compile Include="..\RbfServer\MatchReporter.cs" Link="MatchReporter.cs" />
+    <Compile Include="..\RbfServer\Characters.cs" Link="Characters.cs" />
   </ItemGroup>
 
 </Project>

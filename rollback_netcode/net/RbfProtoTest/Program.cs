@@ -108,9 +108,14 @@ namespace Rbf.ProtoTest
 
         private readonly HttpListener _listener = new HttpListener();
         private int _calls;
+        private readonly List<string> _reports = new List<string>();
+        private readonly object _gate = new object();
 
         public int Calls => Volatile.Read(ref _calls);
         public bool Running { get; private set; }
+
+        /// <summary>Bodies of every /api/internal/matches/report/ that arrived.</summary>
+        public List<string> Reports { get { lock (_gate) return new List<string>(_reports); } }
 
         public StubDjango(int port)
         {
@@ -142,11 +147,20 @@ namespace Rbf.ProtoTest
                 string answer;
 
                 string name = NameIn(body);
+                bool isReport = ctx.Request.Url.AbsolutePath == "/api/internal/matches/report/";
 
                 if (ctx.Request.Headers["X-API-KEY"] != Key)
                 {
                     status = 403;
                     answer = "{\"detail\":\"chave errada\"}";
+                }
+                else if (isReport)
+                {
+                    lock (_gate) _reports.Add(body);
+                    status = 201;
+                    answer = "{\"status\":\"recorded\",\"match_id\":42,\"elo_update\":{" +
+                             "\"player1\":{\"before\":1500,\"after\":1525,\"diff\":25}," +
+                             "\"player2\":{\"before\":1500,\"after\":1475,\"diff\":-25}}}";
                 }
                 else if (name != null)
                 {
@@ -225,7 +239,7 @@ namespace Rbf.ProtoTest
                 TokenIsCheckedByTheLobby(host, django);
                 FirstToSurvivesTheRoundTrip(host, 5);
                 FirstToSurvivesTheRoundTrip(host, 0);   // "Livre" is a value, not an absence
-                SessionDetailReachesTheArchive(host, archive);
+                SessionDetailReachesTheArchive(host, archive, django);
             }
             catch (Exception ex)
             {
@@ -421,7 +435,7 @@ namespace Rbf.ProtoTest
         // match and the other player's Ended arrives whenever it arrives. Two:
         // the per-game detail survives the whole trip, which is the part the
         // totals cannot carry, since both sides pick again between games.
-        private static void SessionDetailReachesTheArchive(string host, string archivePath)
+        private static void SessionDetailReachesTheArchive(string host, string archivePath, StubDjango django)
         {
             Console.WriteLine("-- sessao detalhada, depois do fim da partida");
 
@@ -483,7 +497,40 @@ namespace Rbf.ProtoTest
                 Thread.Sleep(200);
                 a.Send(new ClientMsg { MatchResult = res });
                 b.Send(new ClientMsg { MatchResult = res });   // the second reading only gets compared
-                Thread.Sleep(600);
+                Thread.Sleep(900);
+            }
+
+            // Each finished game should have become one POST to Django - the
+            // characters change between them, so five games is five rows and
+            // not one summary.
+            var reports = django.Reports;
+            if (reports.Count > 0)
+            {
+                Check(reports.Count == wanted.Length,
+                      $"{reports.Count} partidas reportadas ao Django (esperado {wanted.Length})");
+
+                bool bodiesOk = reports.Count == wanted.Length;
+                for (int i = 0; bodiesOk && i < wanted.Length; i++)
+                {
+                    var sent = JsonDocument.Parse(reports[i]).RootElement;
+                    bodiesOk &= sent.GetProperty("game_code").GetString() == "sf2ce"
+                             && sent.GetProperty("player1_score").GetInt32() == wanted[i].R1
+                             && sent.GetProperty("player2_score").GetInt32() == wanted[i].R2
+                             && sent.GetProperty("duration_seconds").GetInt32() == 60;
+                }
+                Check(bodiesOk, "cada report com o placar e a duracao da sua partida");
+
+                var first = JsonDocument.Parse(reports[0]).RootElement;
+                Check(first.GetProperty("player1_character").GetString() == "ryu" &&
+                      first.GetProperty("player2_character").GetString() == "e_honda",
+                      "os ids viraram codigo de personagem no caminho");
+                Check(first.GetProperty("player1_id").GetInt32() > 0 &&
+                      first.GetProperty("player2_id").GetInt32() > 0,
+                      "os ids de conta do Django foram junto");
+            }
+            else
+            {
+                Console.WriteLine("  -     servidor sem report de partida configurado; parte nao verificada.");
             }
 
             if (archivePath == null)
