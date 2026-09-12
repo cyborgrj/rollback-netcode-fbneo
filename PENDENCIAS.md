@@ -139,3 +139,25 @@ O usuário citou `ssf2t` e `kof2002` na lista de `game_code`. Nenhum dos dois te
 endereço de vida nem de personagem mapeado, então o emulador não lê placar neles
 e não há o que reportar. Entram quando passarem pelo mesmo trabalho dos quatro
 atuais — o caminho está em `tools/README.md`.
+
+## Armadilha: lobby em 127.0.0.1 mata a partida
+
+Custou uma noite de teste em 12/09. O launcher descobre o proprio IP abrindo um
+socket UDP na direcao do lobby e lendo o endereco de origem que o SO escolheu.
+Com o lobby em `127.0.0.1`, a rota sai pelo loopback e o launcher se anuncia como
+`127.0.0.1` — e o **adversario** recebe isso como destino dos pacotes do jogo.
+
+Sintoma: tudo funciona (sala, desafio, o emulador abre nos dois lados) e cerca de
+**15 segundos depois os dois emuladores fecham**, porque o GGPO nunca sincroniza e
+o watchdog derruba a sessao. Nada no log aponta para a causa.
+
+Resolvido dos dois lados:
+
+- `LobbyClient.GuessLanIp` nunca devolve loopback quando existe placa de rede —
+  cai para a enumeracao de interfaces, que esta certa nos dois casos (pacote para
+  o proprio IP de LAN faz loopback local de qualquer jeito);
+- o servidor avisa em voz alta quando cria uma partida com um lado em loopback e
+  o outro nao, com a causa provavel e o que fazer.
+
+⚠️ Continua valendo a regra geral: **use o endereco de rede da maquina, nao
+`127.0.0.1`**, sempre que o adversario estiver em outra maquina.

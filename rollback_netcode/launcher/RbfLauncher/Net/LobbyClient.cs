@@ -93,7 +93,18 @@ namespace RbfLauncher.Net
                 using (var s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
                 {
                     s.Connect(towardHost, 9);
-                    return ((IPEndPoint)s.LocalEndPoint).Address.ToString();
+                    var addr = ((IPEndPoint)s.LocalEndPoint).Address;
+
+                    // Loopback is a real answer to the wrong question. Running
+                    // the lobby on this machine and pointing at 127.0.0.1 makes
+                    // the OS route through loopback, so this comes back
+                    // 127.0.0.1 - and that is what the OTHER player is then
+                    // told to send game packets to. They send them to
+                    // themselves, nothing arrives, and fifteen seconds later
+                    // both emulators close with no clue why. Fall through to
+                    // the interface list, which is right either way: packets to
+                    // our own LAN address loop back locally anyway.
+                    if (!IPAddress.IsLoopback(addr)) return addr.ToString();
                 }
             }
             catch { }

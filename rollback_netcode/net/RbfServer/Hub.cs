@@ -392,6 +392,7 @@ namespace Rbf.Server
                 SendMatchStartLocked(m, to, 2, from);
                 BroadcastLobbyLocked();
                 Console.WriteLine($"= match {m.Id} {m.Game}: {from.Username}@{from.RemoteIp} (P1, {from.PingMs}ms, wants {c.DelayFrom}) vs {to.Username}@{to.RemoteIp} (P2, {to.PingMs}ms, wants {c.DelayTo})  udp :{m.Port}  delay {m.FrameDelay}  {(m.FirstTo > 0 ? "FT" + m.FirstTo : "livre")}");
+                WarnAboutLoopbackLocked(m, from, to);
             }
         }
 
@@ -416,6 +417,32 @@ namespace Rbf.Server
                 }
             });
         }
+
+        /// <summary>One side on loopback and the other not is a match that
+        /// cannot work: the peer is told to send game packets to 127.0.0.1 and
+        /// sends them to itself.
+        ///
+        /// The symptom is both emulators closing about fifteen seconds in, with
+        /// nothing in either log pointing at the cause - which cost an evening
+        /// once. A client that reports its own address as loopback is usually a
+        /// launcher pointed at a lobby on 127.0.0.1; the fix is to point it at
+        /// the machine's real address instead. Newer launchers never report
+        /// loopback, so this is here for the older ones and for the surprise.</summary>
+        private static void WarnAboutLoopbackLocked(Match m, Session from, Session to)
+        {
+            bool a = IsLoopback(from.RemoteIp), b = IsLoopback(to.RemoteIp);
+            if (a == b) return;   // both local (one machine) or neither: fine
+
+            string who = a ? from.Username : to.Username;
+            Console.WriteLine($"!! {m.Id}: {who} se anunciou como loopback ({(a ? from.RemoteIp : to.RemoteIp)}) " +
+                              "e o adversario nao esta na mesma maquina.");
+            Console.WriteLine("   Os pacotes do jogo nao vao chegar e os dois emuladores vao fechar em ~15s.");
+            Console.WriteLine("   Provavel causa: o launcher desse jogador aponta o lobby para 127.0.0.1. " +
+                              "Aponte para o endereco de rede da maquina.");
+        }
+
+        private static bool IsLoopback(string ip) =>
+            System.Net.IPAddress.TryParse(ip ?? "", out var a) && System.Net.IPAddress.IsLoopback(a);
 
         private void ResolveChallengeLocked(Challenge c, Outcome outcome)
         {
