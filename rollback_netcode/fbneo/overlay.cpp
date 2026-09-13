@@ -35,6 +35,9 @@ extern "C" void FbnHostLogLine(const char* s);
 #define OV_MAX_NAME 24
 #define OV_SMALL_PX 8
 #define OV_LARGE_PX 12
+// The readout is telemetry, not the scoreboard - it should be readable and
+// then get out of the way.
+#define OV_HUD_PX   6
 
 // The scratch DIB only ever holds one run of text at a time.
 #define OV_DIB_W 640
@@ -51,7 +54,7 @@ static HDC      g_dc      = NULL;
 static HBITMAP  g_dib     = NULL;
 static HBITMAP  g_dibOld  = NULL;
 static unsigned char* g_bits = NULL;     // BGRA, top-down
-static HFONT    g_font[2] = { NULL, NULL };
+static HFONT    g_font[3] = { NULL, NULL, NULL };   // 0 small, 1 large, 2 hud
 static int      g_fontTried = 0;
 static int      g_haveFace  = 0;         // 1 when the real typeface loaded
 static int      g_claimed   = 0;         // a blitter draws the line itself
@@ -68,7 +71,20 @@ static const char* kFontFiles[] = {
 	"support\\fonte_placar.ttf",
 };
 
+// The netcode readout gets its own file. A display face chosen for names on a
+// scoreboard is the wrong tool for "ping 13ms | delay 3f" - digits there want
+// to be plain and even-width, and whoever picks one should not have to give up
+// the other. Same rule: drop it in beside the emulator, or get Arial.
+static const char* kMetricFiles[] = {
+	"fonte_metricas.ttf",
+	"fonte_metricas.otf",
+	"support\\fonte_metricas.ttf",
+	"support\\fonte_metricas.otf",
+};
+
 static char g_face[64] = "Arial";
+static char g_metricFace[64] = "Arial";
+static int  g_haveMetricFace = 0;
 
 // ---- reading the family name out of the font file -------------------------
 //
@@ -146,20 +162,53 @@ static int readFaceName(const char* szPath, char* out, size_t cap)
 	return ok;
 }
 
+// Try each candidate filename and keep the first that both parses and loads.
+static int ovLoadFamily(const char* const* files, int n, char* faceOut, size_t cap,
+                        const char* szWhat)
+{
+	char szFound[64] = "";
+	for (int i = 0; i < n; i++) {
+		if (!readFaceName(files[i], szFound, sizeof(szFound))) continue;
+		if (AddFontResourceExA(files[i], FR_PRIVATE, NULL) <= 0) continue;
+		strncpy(faceOut, szFound, cap - 1);
+		faceOut[cap - 1] = '\0';
+		char szMsg[128];
+		snprintf(szMsg, sizeof(szMsg), "overlay: usando a fonte de %s", szWhat);
+		FbnHostLogLine(szMsg);
+		return 1;
+	}
+	return 0;
+}
+
+static HFONT ovMakeFont(int px, const char* szFace)
+{
+	return CreateFontA(-px, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+	                   DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+	                   ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, szFace);
+}
+
+// GDI never refuses a face - it quietly substitutes one. So ask what we were
+// actually given: if it is not what we asked for, the drop-in file was no good
+// and Arial is the honest answer.
+static int ovFaceAccepted(HFONT f, const char* szWant)
+{
+	if (!f || !g_dc) return 0;
+	HFONT old = (HFONT)SelectObject(g_dc, f);
+	char szActual[64] = "";
+	GetTextFaceA(g_dc, sizeof(szActual), szActual);
+	SelectObject(g_dc, old);
+	return _stricmp(szActual, szWant) == 0;
+}
+
 static void ovInitGdi(void)
 {
 	if (g_fontTried) return;
 	g_fontTried = 1;
 
-	char szFound[64] = "";
-	for (unsigned i = 0; i < sizeof(kFontFiles) / sizeof(kFontFiles[0]); i++) {
-		if (!readFaceName(kFontFiles[i], szFound, sizeof(szFound))) continue;
-		if (AddFontResourceExA(kFontFiles[i], FR_PRIVATE, NULL) <= 0) continue;
-		strncpy(g_face, szFound, sizeof(g_face) - 1);
-		g_haveFace = 1;
-		FbnHostLogLine("overlay: usando a fonte de fonte_placar");
-		break;
-	}
+	g_haveFace = ovLoadFamily(kFontFiles, (int)(sizeof(kFontFiles) / sizeof(kFontFiles[0])),
+	                          g_face, sizeof(g_face), "fonte_placar");
+	g_haveMetricFace = ovLoadFamily(kMetricFiles, (int)(sizeof(kMetricFiles) / sizeof(kMetricFiles[0])),
+	                                g_metricFace, sizeof(g_metricFace), "fonte_metricas");
 
 	HDC screen = GetDC(NULL);
 	g_dc = CreateCompatibleDC(screen);
@@ -179,35 +228,25 @@ static void ovInitGdi(void)
 	if (!g_dib) { DeleteDC(g_dc); g_dc = NULL; return; }
 	g_dibOld = (HBITMAP)SelectObject(g_dc, g_dib);
 
-	const int px[2] = { OV_SMALL_PX, OV_LARGE_PX };
-	for (int i = 0; i < 2; i++) {
-		g_font[i] = CreateFontA(-px[i], 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-		                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-		                        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, g_face);
+	g_font[0] = ovMakeFont(OV_SMALL_PX, g_face);
+	g_font[1] = ovMakeFont(OV_LARGE_PX, g_face);
+	g_font[2] = ovMakeFont(OV_HUD_PX,   g_metricFace);
+
+	// A font that does not work costs nothing but itself: the score falls back
+	// without taking the readout with it, and the other way round.
+	if (g_haveFace && !ovFaceAccepted(g_font[0], g_face)) {
+		FbnHostLogLine("overlay: o Windows nao aceitou a fonte de fonte_placar - usando Arial");
+		g_haveFace = 0;
+		strcpy(g_face, "Arial");
+		DeleteObject(g_font[0]); g_font[0] = ovMakeFont(OV_SMALL_PX, g_face);
+		DeleteObject(g_font[1]); g_font[1] = ovMakeFont(OV_LARGE_PX, g_face);
 	}
 
-	// Did Windows actually give us that face, or quietly substitute something
-	// when the file turned out to be unusable? GDI never says no - it just
-	// hands back a different font. If the name that comes back is not the one
-	// we asked for, treat the drop-in as a failure and go to Arial, which is
-	// the promise: a font that does not work costs nothing but itself.
-	if (g_haveFace && g_font[0]) {
-		HFONT old = (HFONT)SelectObject(g_dc, g_font[0]);
-		char szActual[64] = "";
-		GetTextFaceA(g_dc, sizeof(szActual), szActual);
-		SelectObject(g_dc, old);
-
-		if (_stricmp(szActual, g_face) != 0) {
-			FbnHostLogLine("overlay: o Windows nao aceitou a fonte de fonte_placar - usando Arial");
-			g_haveFace = 0;
-			strcpy(g_face, "Arial");
-			for (int i = 0; i < 2; i++) {
-				DeleteObject(g_font[i]);
-				g_font[i] = CreateFontA(-px[i], 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-				                        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-				                        ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE, g_face);
-			}
-		}
+	if (g_haveMetricFace && !ovFaceAccepted(g_font[2], g_metricFace)) {
+		FbnHostLogLine("overlay: o Windows nao aceitou a fonte de fonte_metricas - usando Arial");
+		g_haveMetricFace = 0;
+		strcpy(g_metricFace, "Arial");
+		DeleteObject(g_font[2]); g_font[2] = ovMakeFont(OV_HUD_PX, g_metricFace);
 	}
 
 	SetBkMode(g_dc, OPAQUE);
@@ -388,16 +427,24 @@ int  OverlayClaimed(void) { return g_claimed; }
 // ---- shared drawing, for hud.cpp ------------------------------------------
 void OverlayEnsureGdi(void) { ovInitGdi(); }
 
+static int ovClampSize(int n) { return (n < 0) ? 0 : (n > 2) ? 2 : n; }
+
 int OverlayTextWidth(const char* s, int nSize, int* pHeight)
 {
 	ovInitGdi();
-	return ovMeasure(s, nSize ? 1 : 0, pHeight);
+	return ovMeasure(s, ovClampSize(nSize), pHeight);
 }
 
 int OverlayTextOut(unsigned char* img, int w, int h, int bpp, int pitch,
                    int x, int y, const char* s, unsigned int rgb, int nSize)
 {
-	return ovText(img, w, h, bpp, pitch, x, y, s, rgb, nSize ? 1 : 0);
+	return ovText(img, w, h, bpp, pitch, x, y, s, rgb, ovClampSize(nSize));
+}
+
+const char* OverlayMetricFaceName(void)
+{
+	ovInitGdi();
+	return g_metricFace;
 }
 
 void OverlayFillRect(unsigned char* img, int w, int h, int bpp, int pitch,

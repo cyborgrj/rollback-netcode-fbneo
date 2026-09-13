@@ -29,21 +29,21 @@ namespace Rbf.Server
                 [15] = "Dhalsim", [16] = "Zangief", [17] = "Gen",
             },
 
-            // Only what a HUMAN match confirmed: P1 Ryu read 4, P2 Ken read 6.
+            // The full roster, read off the select-screen cursor on 12/09
+            // (ProbeAnalyze --walk) against a written-down walking order. It is
+            // the classic SF2 ordering: the eight originals, then the bosses.
             //
-            // 5 was "E. Honda" until 12/09, from a recording against the CPU -
-            // and then a human match read 5 for Guile. Both cannot be right,
-            // and no contiguous ordering fits 4=Ryu, 6=Ken with Honda AND
-            // Guile at 5, so the whole roster here is suspect rather than
-            // merely incomplete. Removed instead of guessed: an id with no name
-            // reports as its number, which is honest; a wrong name is a lie
-            // that reads as data.
-            //
-            // The fix is the walk that mapped sfa2 in one go - see
-            // tools/README.md. Until then, sf2ce reports numbers.
+            // ⚠️ The emulator cannot produce these ids yet. The address it
+            // reads during a fight (0xFF83D9) is NOT this field - it gave 4 and
+            // 6 for a Ryu vs Ken match, which under this table is Ken vs
+            // Zangief. So sf2ce characters are switched OFF in match_score.cpp
+            // until a two-player recording pins the right address; this table
+            // is ready for when it does.
             ["sf2ce"] = new Dictionary<int, string>
             {
-                [4] = "Ryu", [6] = "Ken",
+                [0] = "Ryu",     [1] = "E. Honda", [2] = "Blanka",  [3] = "Guile",
+                [4] = "Ken",     [5] = "Chun Li",  [6] = "Zangief", [7] = "Dhalsim",
+                [8] = "M. Bison", [9] = "Sagat",   [10] = "Balrog", [11] = "Vega",
             },
 
             // Incomplete. 19 and 20 came from the order a CPU team entered the

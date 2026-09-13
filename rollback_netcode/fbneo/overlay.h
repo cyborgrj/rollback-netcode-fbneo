@@ -78,10 +78,16 @@ int OverlayGetLine(OverlayLine* out);
 // found next to the emulator.
 const char* OverlayFaceName(void);
 
+// The typeface for the netcode readout: whatever is in fonte_metricas.ttf /
+// .otf beside the emulator, or "Arial". Separate from the score face on
+// purpose - a display face made for names is the wrong tool for a row of
+// numbers, and picking one should not cost you the other.
+const char* OverlayMetricFaceName(void);
+
 // ---- shared drawing -------------------------------------------------------
 // The GDI-into-the-image machinery lives here because the match bar needed it
-// first; hud.cpp draws with it too. nSize is 0 small, 1 large - the same two
-// fonts the bar uses, so nothing new is loaded.
+// first; hud.cpp draws with it too. nSize: 0 small and 1 large are the score
+// face, 2 is the smaller metrics face.
 void OverlayEnsureGdi(void);
 int  OverlayTextWidth(const char* s, int nSize, int* pHeight);
 int  OverlayTextOut(unsigned char* img, int w, int h, int bpp, int pitch,

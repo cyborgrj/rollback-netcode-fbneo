@@ -129,6 +129,27 @@ internal static class Program
                 return 0;
             }
 
+            // A select-screen cursor, by its shape.
+            //
+            // sfa2 was mapped in one pass because its character byte followed
+            // the cursor live and we already knew the address. sf2ce does not:
+            // 0xFF83D9 sits at zero through the whole select screen and only
+            // gets written when the fight starts. So the byte that DOES follow
+            // the cursor has to be found first, and what identifies it is the
+            // shape of a walk - it lands on roughly as many distinct values as
+            // there are characters, and each one is a plateau rather than a
+            // flicker.
+            //
+            // Prints the sequence, which is the point: read it next to the
+            // order you walked and the roster falls out.
+            int iWalk = args.ToList().IndexOf("--walk");
+            if (iWalk >= 0)
+            {
+                int want = (iWalk + 1 < args.Length && int.TryParse(args[iWalk + 1], out int n)) ? n : 12;
+                Walk(files[0], want);
+                return 0;
+            }
+
             // The shipping rule, run over a recording whose result we already
             // know. This is the oracle the emulator-side reader has to agree
             // with - it is cheap to re-check every recording here, and there is
@@ -791,6 +812,58 @@ internal static class Program
             Console.WriteLine($"    {i + 1,2}. P1[{g.C1}] {g.R1} x {g.R2} P2[{g.C2}]   {w,-6} " +
                               $"(f{g.From}..f{g.To})");
         }
+    }
+
+    // Addresses whose value walked over about `want` distinct plateaus. See the
+    // note at --walk.
+    private static void Walk(string path, int want)
+    {
+        var rec = Load(path);
+
+        Console.WriteLine($"{Path.GetFileName(path)} ({rec.H.Game}) - bytes que passearam por " +
+                          $"{want - 3}..{want + 3} valores distintos:");
+        Console.WriteLine();
+
+        int found = 0;
+        for (int i = 0; i < rec.Tracks.Length; i++)
+        {
+            var t = rec.Tracks[i];
+            if (t.Trans == null || t.Noisy || t.Changes < want - 3) continue;
+
+            // Distinct values, and how long each was held. A cursor rests on a
+            // character for as long as it takes to press the stick again; a
+            // counter or an animation frame does not rest at all.
+            var seen = new List<byte>();
+            foreach (var e in t.Trans)
+            {
+                byte v = (byte)(e & 0xFF);
+                if (!seen.Contains(v)) seen.Add(v);
+            }
+            if (seen.Count < want - 3 || seen.Count > want + 3) continue;
+
+            // Too many revisits and it is oscillating, not walking.
+            if (t.Changes > seen.Count * 4) continue;
+
+            var order = new List<string>();
+            byte prev = t.First;
+            order.Add(prev.ToString());
+            foreach (var e in t.Trans)
+            {
+                byte v = (byte)(e & 0xFF);
+                if (v == prev) continue;
+                order.Add(v.ToString());
+                prev = v;
+            }
+
+            Console.WriteLine($"  0x{rec.AddrOf(i):X6}   {seen.Count} valores, {t.Changes} trocas");
+            Console.WriteLine($"             {string.Join(" ", order)}");
+            found++;
+            if (found >= 12) { Console.WriteLine("  (...)"); break; }
+        }
+
+        if (found == 0)
+            Console.WriteLine("  nenhum. Tente outro numero de personagens, ou grave de novo " +
+                              "passando mais devagar pelo cursor.");
     }
 
     private static void Activity(string path)

@@ -61,7 +61,7 @@ index 5aae4b0..fd19fc6 100644
  
  	return 0;
 diff --git a/src/intf/video/win32/vid_directx9.cpp b/src/intf/video/win32/vid_directx9.cpp
-index 6b81ef2..78352f4 100644
+index 6b81ef2..3b7ed3d 100644
 --- a/src/intf/video/win32/vid_directx9.cpp
 +++ b/src/intf/video/win32/vid_directx9.cpp
 @@ -89,12 +89,13 @@ static VidEffect* pVidEffect = NULL;
@@ -113,15 +113,15 @@ index 6b81ef2..78352f4 100644
 +	const int H = frec.bottom - frec.top;
 +	if (W <= 0 || H <= 0) return;
 +
-+	int want = H / 34;
-+	if (want < 10) want = 10;
-+	if (want > 30) want = 30;
++	int want = H / 40;
++	if (want < 9)  want = 9;
++	if (want > 26) want = 26;
 +
 +	if (nRbfFontPx[2] != want) {
 +		RELEASE(pRbfFont[2]);
 +		pRbfFont[2] = NULL;
 +		TCHAR szFace[64];
-+		_sntprintf(szFace, 63, _T("%S"), OverlayFaceName());
++		_sntprintf(szFace, 63, _T("%S"), OverlayMetricFaceName());
 +		HRESULT hr = _D3DXCreateFont(pD3DDevice, want, 0, FW_BOLD, 1, FALSE,
 +							  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
 +							  DEFAULT_PITCH | FF_DONTCARE, szFace, &pRbfFont[2]);

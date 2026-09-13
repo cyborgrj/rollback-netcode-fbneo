@@ -331,15 +331,15 @@ namespace Rbf.Server.VerifyTest
             Console.WriteLine("-- personagem cujo nome ainda nao conhecemos");
 
             // O elenco do sf2ce so tem tres nomes confirmados ate agora.
-            Check(Characters.Code("sf2ce", 4) == "ryu", "id conhecido vira codigo");
+            Check(Characters.Code("sf2ce", 4) == "ken", "id conhecido vira codigo");
             Check(Characters.Code("vsav", 22) == "l_raptor", "ponto e espaco viram um underscore so");
             Check(Characters.Code("sfa2", 10) == "m_bison", "idem para M. Bison");
 
-            // O 5 do sf2ce foi "E. Honda" ate 12/09, quando uma partida entre
-            // humanos leu 5 para o Guile. Nome errado e pior que nome nenhum:
-            // ele chega no banco parecendo dado.
-            Check(Characters.Code("sf2ce", 5) == "5",
-                  "id contestado reporta o numero em vez de um nome errado");
+            // O elenco do sf2ce foi medido no cursor da tela de selecao em 12/09;
+            // o que falta agora e o ENDERECO que o jogo escreve durante a luta.
+            Check(Characters.Code("sf2ce", 8) == "m_bison", "ponto e espaco no elenco novo");
+            Check(Characters.Code("sf2ce", 99) == "99",
+                  "id fora do elenco reporta o numero em vez de um nome errado");
             Check(Characters.Code("sfa2", 4) == "chun_li", "espaco vira underscore");
             Check(Characters.Code("sf2ce", 99) == "99",
                   "id sem nome vai como numero - e o mesmo valor que o emulador leu, "

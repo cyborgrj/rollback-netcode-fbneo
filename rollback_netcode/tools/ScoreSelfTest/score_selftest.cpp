@@ -25,8 +25,10 @@
 #include <string.h>
 
 // ---- the fake game --------------------------------------------------------
-// sf2ce addresses, from match_score.cpp. Life is a signed 16-bit big-endian
-// word; the character is one byte.
+// sfa2 addresses, from match_score.cpp. sfa2 and not sf2ce because sf2ce has
+// its character reading switched off until the right address is found - and a
+// test of the per-game character logic needs a game that reads characters.
+// Life is a signed 16-bit big-endian word; the character is one byte.
 static int g_life1 = 0, g_life2 = 0;
 static int g_char1 = 0, g_char2 = 0;
 
@@ -35,20 +37,20 @@ extern "C" {
 unsigned char RamProbeRead8(unsigned int nAddr)
 {
 	switch (nAddr) {
-		case 0xFF83E8: return (unsigned char)((g_life1 >> 8) & 0xFF);
-		case 0xFF83E9: return (unsigned char)(g_life1 & 0xFF);
-		case 0xFF86E8: return (unsigned char)((g_life2 >> 8) & 0xFF);
-		case 0xFF86E9: return (unsigned char)(g_life2 & 0xFF);
-		case 0xFF83D9: return (unsigned char)g_char1;
-		case 0xFF86D9: return (unsigned char)g_char2;
+		case 0xFF8450: return (unsigned char)((g_life1 >> 8) & 0xFF);
+		case 0xFF8451: return (unsigned char)(g_life1 & 0xFF);
+		case 0xFF8850: return (unsigned char)((g_life2 >> 8) & 0xFF);
+		case 0xFF8851: return (unsigned char)(g_life2 & 0xFF);
+		case 0xFF8482: return (unsigned char)g_char1;
+		case 0xFF8882: return (unsigned char)g_char2;
 	}
 	return 0;
 }
 
 int RamProbeAttach(void (*pfnLog)(const char*)) { (void)pfnLog; return RAM_PROBE_OK; }
 
-// match_score.cpp asks the driver for its name; here it is always sf2ce.
-char* BurnDrvGetTextA(unsigned int i) { (void)i; return (char*)"sf2ce"; }
+// match_score.cpp asks the driver for its name.
+char* BurnDrvGetTextA(unsigned int i) { (void)i; return (char*)"sfa2"; }
 
 } // extern "C"
 

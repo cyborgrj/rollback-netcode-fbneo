@@ -35,7 +35,18 @@ typedef struct {
 } ScoreMap;
 
 static const ScoreMap kMaps[] = {
-	{ "sf2ce", 0xFF83E8, 0xFF86E8, 0xFF83D9, 0xFF86D9, 1, 0x0090, 0 },
+	// sf2ce: characters OFF (the two zeros) until the right address is known.
+	//
+	// 0xFF83D9 / 0xFF86D9 were taken for the character in recordings against
+	// the CPU, and a two-human match proved them wrong: they read 4 and 6 for
+	// Ryu vs Ken, while the game's own ids - measured off the select-screen
+	// cursor at 0xFF0A54 - make 4 = Ken and 6 = Zangief. Whatever those two
+	// addresses hold, it is not this.
+	//
+	// Zero here means "cannot read that side", which the reader already
+	// handles: the match is still scored, it just reports no character. A
+	// wrong id is worse than none - it reaches the database looking like data.
+	{ "sf2ce", 0xFF83E8, 0xFF86E8, 0,        0,        1, 0x0090, 0 },
 	{ "sfa2",  0xFF8450, 0xFF8850, 0xFF8482, 0xFF8882, 1, 0x0090, 0 },
 	{ "vsav",  0xFF8450, 0xFF8850, 0xFF841D, 0,        1, 0x0120, 1 },
 	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0 },

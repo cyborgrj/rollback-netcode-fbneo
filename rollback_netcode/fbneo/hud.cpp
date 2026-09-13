@@ -143,8 +143,8 @@ void HudDraw(unsigned char* img, int w, int h, int bpp, int pitch)
 	OverlayEnsureGdi();
 
 	int lh = 0;
-	const int w1 = OverlayTextWidth(L.szLine1, 0, &lh);
-	const int w2 = (L.nMode >= 2) ? OverlayTextWidth(L.szLine2, 0, NULL) : 0;
+	const int w1 = OverlayTextWidth(L.szLine1, 2, &lh);
+	const int w2 = (L.nMode >= 2) ? OverlayTextWidth(L.szLine2, 2, NULL) : 0;
 	if (lh <= 0 || w1 <= 0) return;
 
 	const int lines = (L.nMode >= 2) ? 2 : 1;
@@ -163,8 +163,8 @@ void HudDraw(unsigned char* img, int w, int h, int bpp, int pitch)
 	// Right-aligned, so the numbers keep their column as they change width.
 	const int right = x0 + panelW - HUD_PAD;
 	OverlayTextOut(img, w, h, bpp, pitch, right - w1, y0 + HUD_PAD,
-	               L.szLine1, L.rgbText, 0);
+	               L.szLine1, L.rgbText, 2);
 	if (L.nMode >= 2)
 		OverlayTextOut(img, w, h, bpp, pitch, right - w2, y0 + HUD_PAD + lh,
-		               L.szLine2, L.rgbText, 0);
+		               L.szLine2, L.rgbText, 2);
 }
