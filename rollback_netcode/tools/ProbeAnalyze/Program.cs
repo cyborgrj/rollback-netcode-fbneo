@@ -698,6 +698,8 @@ internal static class Program
         public bool Bars;
         // vsav: the pick byte flickers to id+1 with some moves.
         public bool CharAlt;
+        // Team games: a game ends when one side lost this many (kof98: 3).
+        public int  KOsToWin;
     }
 
     private static readonly GameMap[] Maps =
@@ -713,7 +715,7 @@ internal static class Program
         new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
                       CharP1 = 0xFF841D, CharP2 = 0xFF881D, Full = 0x120, Bars = true, CharAlt = true },
         new GameMap { Game = "kof98", LifeP1 = 0x108238, LifeP2 = 0x108438,
-                      CharP1 = 0x10A84E, CharP2 = 0x10A85F, CharCount = 3, Full = 0x67 },
+                      CharP1 = 0x10A84E, CharP2 = 0x10A85F, CharCount = 3, Full = 0x67, KOsToWin = 3 },
     };
 
     private static int Life(Header h, byte[] ram, uint a)
@@ -838,6 +840,14 @@ internal static class Program
 
             if (l2 < 0) { if (!p2Down) { p2Down = true; p1Won++; endFrame = frame; } }
             else if (l2 > 0) p2Down = false;
+
+            // Team games end on the count - kof98 against a human never clears
+            // both words between games. Same rule as match_score.cpp.
+            if (m.KOsToWin > 0 && (p1Won >= m.KOsToWin || p2Won >= m.KOsToWin))
+            {
+                CloseGame(frame);
+                return;
+            }
 
             // Both words cleared is the match being over, which is a different
             // event from a round ending - there the loser goes negative and

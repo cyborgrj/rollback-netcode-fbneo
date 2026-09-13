@@ -216,6 +216,11 @@ Personagens confirmados:
   ruidoso; foi achado no `--trace`. **19 e 20 estavam trocados** antes (vinham
   da ordem em que o time da CPU entrou). Random Select faz o cursor sortear
   valores, então não confunda os saltos dele com personagens.
+  Luta entre dois humanos (13/09, `rbf-probe-kof98-20260913-162811`):
+  - os slots de time guardam a **ordem de escolha**, não a de luta;
+  - entre duas partidas a vida **não zera** (o perdedor fica negativo, o
+    vencedor mantém a vida) — a partida fecha quando um lado perde os 3;
+  - modo: `0x10B340` / `0x10B540` = 2 em luta quando Extra, 1 quando Advanced.
 - `vsav` (P1 `0xFF841D`, P2 `0xFF881D`): 17 = B.B. Hood, 18 = Demitri,
   19 = J. Talbain, 21 = Victor, 22 = L. Raptor, 23 = Morrigan, 24 = Anakaris,
   27 = Felicia, 28 = Bishamon, 29 = Rikuo, 30 = Sasquatch, 31 = Q-Bee,

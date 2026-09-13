@@ -46,6 +46,15 @@ unsigned char RamProbeRead8(unsigned int nAddr)
 		// vsav shares the life words with sfa2; its pick bytes are elsewhere
 		case 0xFF841D: return (unsigned char)g_char1;
 		case 0xFF881D: return (unsigned char)g_char2;
+		// kof98: life words and the three team slots per side
+		case 0x108238: return (unsigned char)((g_life1 >> 8) & 0xFF);
+		case 0x108239: return (unsigned char)(g_life1 & 0xFF);
+		case 0x108438: return (unsigned char)((g_life2 >> 8) & 0xFF);
+		case 0x108439: return (unsigned char)(g_life2 & 0xFF);
+		case 0x10A84E: case 0x10A84F: case 0x10A850:
+			return (unsigned char)(g_char1 + (nAddr - 0x10A84E));
+		case 0x10A85F: case 0x10A860: case 0x10A861:
+			return (unsigned char)(g_char2 + (nAddr - 0x10A85F));
 	}
 	return 0;
 }
@@ -237,6 +246,47 @@ int main(void)
 	check(w.nGameRows == 1 && w.aGames[0].nP1Char[0] == 19,
 	      "J. Talbain parado em 19 nao vira Demitri (18)");
 	check(w.nGameRows == 1 && w.aGames[0].nWinner == 2, "P1 perdeu a barra toda: P2 venceu");
+
+	// ---- kof98: two games in a row with no clearing between them ----------
+	// 13/09, two humans: the loser's life word stayed negative until the next
+	// fight and the winner kept its life, so "both words at zero" never came
+	// and two games were read as one 5 x 5. A team game ends on the count.
+	printf("\n-- kof98: duas partidas seguidas sem zerar a vida entre elas\n");
+	g_driver = "kof98";
+	MatchScoreStart(3, NULL);
+	const int K = 0x67;
+
+	// 1. Iori/Mature/Vice (27) x Terry/Andy/Joe (3): P1 3 x 2
+	pick(27, 3);
+	live(K, K, 30);
+	live(40, -1, 30);  live(40, K, 30);    // Terry down
+	live(-1, 50, 30);  live(K, 50, 30);    // Iori down
+	live(60, -1, 30);  live(60, K, 30);    // Andy down
+	live(-1, 20, 30);  live(K, 20, 30);    // Mature down
+	live(30, -1, 30);                      // Joe down: whole team
+	live(30, -1, 200);                     // loser stays negative, nothing clears
+
+	// 2. the same P1 team x Kyo/Benimaru/Daimon (0): P2 3 x 2
+	pick(27, 0);
+	live(K, K, 30);
+	live(50, -1, 30);  live(50, K, 30);    // Daimon down
+	live(50, -1, 30);  live(50, K, 30);    // Kyo down
+	live(-1, 40, 30);  live(K, 40, 30);    // Vice down
+	live(-1, 40, 30);  live(K, 40, 30);    // Iori down
+	live(-1, 10, 30);                      // Mature down: whole team
+	live(-1, 10, 100);
+
+	MatchScoreData k;
+	MatchScoreGet(&k);
+	check(k.nGames == 2 && k.nGameRows == 2, "duas partidas, nao uma 5 x 5");
+	check(k.nGameRows == 2 && k.aGames[0].nP1Rounds == 3 && k.aGames[0].nP2Rounds == 2 &&
+	      k.aGames[0].nWinner == 1, "partida 1: P1 3 x 2");
+	check(k.nGameRows == 2 && k.aGames[1].nP1Rounds == 2 && k.aGames[1].nP2Rounds == 3 &&
+	      k.aGames[1].nWinner == 2, "partida 2: P2 3 x 2");
+	check(k.nGameRows == 2 && k.aGames[0].nP2Char[0] == 3 && k.aGames[1].nP2Char[0] == 0 &&
+	      k.aGames[1].nP2Char[2] == 2, "o time do P2 muda de uma partida para a outra");
+	check(k.nP1Rounds == 0 && k.nP2Rounds == 0,
+	      "a vida negativa do perdedor depois do fim nao virou KO da partida seguinte");
 	g_driver = "sfa2";
 
 	printf("\n%s\n", g_fail == 0 ? "tudo certo" : "FALHOU");

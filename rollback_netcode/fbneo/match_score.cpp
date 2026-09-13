@@ -33,6 +33,7 @@ typedef struct {
 	int          nFull;
 	int          bBars;              // vsav: no rounds, score is bars lost
 	int          bCharAlt;           // vsav: the pick byte also reads id+1 at times
+	int          nKOsToWin;          // team games: a game ends when a side lost this many
 } ScoreMap;
 
 static const ScoreMap kMaps[] = {
@@ -56,7 +57,12 @@ static const ScoreMap kMaps[] = {
 	// id plus one with some moves - 19/20, 34/35 - and neither 20 nor 35 is a
 	// character, hence bCharAlt.
 	{ "vsav",  0xFF8450, 0xFF8850, 0xFF841D, 0xFF881D, 1, 0x0120, 1, 1 },
-	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0 },
+	// kof98 is 3 x 3. The team slots hold the three picks in PICK order; the
+	// order they fight in is chosen afterwards and is not what these read.
+	// Between two games against a human the life words never both clear -
+	// the loser's stays negative, the winner keeps its life - so a game ends
+	// on the knockout count instead (two games read as one 5 x 5 on 13/09).
+	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0, 0, 3 },
 };
 
 // ---- state ----------------------------------------------------------------
@@ -312,6 +318,19 @@ void MatchScoreFrame(void)
 	} else {
 		g_p2Hold = 0;
 		if (l2 > 0) g_p2Down = 0;
+	}
+
+	// ---- team games end on the count --------------------------------------
+	// The whole team down is the end of the game, whether or not the driver
+	// clears anything afterwards (kof98 against a human does not). Not while a
+	// knockout is still being held on either side, so the second half of a
+	// double KO lands in the game it happened in. awardGame clears bStarted,
+	// so the loser's word sitting negative until the next fight is ignored.
+	if (g_map->nKOsToWin > 0 &&
+	    (g_d.nP1Rounds >= g_map->nKOsToWin || g_d.nP2Rounds >= g_map->nKOsToWin) &&
+	    !(g_p1Hold > 0 && !g_p1Down) && !(g_p2Hold > 0 && !g_p2Down)) {
+		awardGame();
+		return;
 	}
 
 	// ---- rounds are not games -------------------------------------------

@@ -191,9 +191,22 @@ antes o contrário, tirado da ordem de entrada de um time da CPU). Partida de
 kof98 que já tenha ido para o Django com `choi`/`chang` pode estar com os dois
 invertidos.
 
-Ainda no `kof98`: o modo **Advanced/Extra** não é lido. O byte que alternou
-junto na gravação de 13/09 (`0x10B9E1`) é uma animação que pisca a cada 30
-frames em todas as gravações, não o modo.
+Ainda no `kof98`, achados em 13/09 numa luta entre dois humanos (P1 Extra,
+P2 Advanced), **ainda não enviados ao banco**:
+
+- **Modo Advanced/Extra**: `0x10B340` (P1) / `0x10B540` (P2) valem **2 durante a
+  luta quando o lado é Extra, 1 quando é Advanced** (fora da luta, sempre 1).
+  Conferido nas lutas antigas (os dois Advanced: 1/1). Extra só foi visto do
+  lado P1. Levar ao Django pede campo novo lá, no arquivo de resultado, no
+  launcher e no servidor.
+- **Os slots de time guardam a ordem de ESCOLHA**, não a de luta (o jogador
+  reordena depois). O `player1_character` do report, que é o primeiro slot,
+  pode não ser quem abriu a luta. A ordem de luta ainda não foi achada.
+- **Fim de partida contra humano não zera a vida** — resolvido: time de jogo
+  fecha pela contagem de KOs (`nKOsToWin` em `match_score.cpp`).
+
+(O `0x10B9E1`, que alternou junto com as trocas de modo no menu, é uma
+animação que pisca a cada 30 frames em todas as gravações, não o modo.)
 
 ## Banco: o próximo elo
 
