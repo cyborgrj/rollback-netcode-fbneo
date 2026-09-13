@@ -204,6 +204,29 @@ namespace RbfLauncher
             c.ServerError += msg =>
                 MessageBox.Show(msg, "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Warning);
             c.Disconnected += reason => Disconnect(reason);
+            c.Kicked += OnKicked;
+        }
+
+        /// <summary>The account logged in somewhere else. Not a network drop,
+        /// which keeps the player logged in: this launcher must stop being able
+        /// to challenge or be challenged, or the same account plays on two
+        /// machines at once. So it goes back to the login screen, and logging in
+        /// again here is how the player takes the account back.</summary>
+        private void OnKicked(Rbf.Protocol.KickReason reason, string message)
+        {
+            LauncherLog.Info($"sessao encerrada pelo servidor ({reason}): {message}");
+
+            Disconnect("desconectado");   // "desconectado" = no dialog of its own
+            UserSession.Clear();
+            _loggingOut = true;
+            Close();
+
+            MessageBox.Show(
+                (string.IsNullOrWhiteSpace(message) ? "Sua sessão foi encerrada pelo servidor." : message) +
+                "\n\nPara jogar neste computador, entre de novo — a outra máquina é que será desconectada.",
+                "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            (Application.Current as App)?.ShowLogin();
         }
 
         private void Disconnect(string reason)

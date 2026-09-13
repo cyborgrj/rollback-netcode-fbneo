@@ -127,6 +127,9 @@ namespace RbfLauncher.Net
         public event Action<MatchAborted> MatchAborted;
         public event Action<string> ServerError;                         // message
         public event Action<string> Disconnected;                        // reason
+        /// <summary>The server ended this session on purpose (e.g. the account
+        /// logged in on another machine). Raised before Disconnected.</summary>
+        public event Action<KickReason, string> Kicked;                  // reason, message
         public event Action<ChatMsg> ChatReceived;
         public event Action<ChatLog> ChatLogReceived;
         public event Action<IReadOnlyList<MatchEntry>> MatchesUpdated;
@@ -290,6 +293,12 @@ namespace RbfLauncher.Net
                 case ServerMsg.KindOneofCase.Error:
                     Post(() => ServerError?.Invoke(m.Error.Message));
                     break;
+                case ServerMsg.KindOneofCase.Kicked:
+                {
+                    var k = m.Kicked;
+                    Post(() => Kicked?.Invoke(k.Reason, k.Message));
+                    break;
+                }
             }
         }
 

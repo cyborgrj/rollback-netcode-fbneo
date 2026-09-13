@@ -25,10 +25,14 @@ namespace Rbf.Server
             Session session = null;
             Task pump = null;
             string ip = ParseIp(context.Peer);
+            // The client going away, or - once logged in - the session being
+            // ended by the server (replaced by a login elsewhere).
+            CancellationToken ct = context.CancellationToken;
+            CancellationTokenSource linked = null;
 
             try
             {
-                while (await requestStream.MoveNext(context.CancellationToken).ConfigureAwait(false))
+                while (await requestStream.MoveNext(ct).ConfigureAwait(false))
                 {
                     var msg = requestStream.Current;
 
@@ -79,6 +83,9 @@ namespace Rbf.Server
                             return;
                         }
 
+                        linked = CancellationTokenSource.CreateLinkedTokenSource(
+                            context.CancellationToken, session.Ended.Token);
+                        ct = linked.Token;
                         pump = PumpAsync(session, responseStream, context.CancellationToken);
                         continue;
                     }
@@ -98,6 +105,7 @@ namespace Rbf.Server
                 {
                     try { await pump.ConfigureAwait(false); } catch { /* ignore */ }
                 }
+                linked?.Dispose();
             }
         }
 
@@ -120,6 +128,15 @@ namespace Rbf.Server
 
         private void Dispatch(Session s, ClientMsg m)
         {
+            // A replaced session can have commands in flight between the new
+            // login and its call ending. None of them may act for the account.
+            if (!_hub.IsLive(s))
+            {
+                if (m.KindCase != ClientMsg.KindOneofCase.Ping)
+                    Req(s, $"{m.KindCase} IGNORADO - sessao substituida");
+                return;
+            }
+
             switch (m.KindCase)
             {
                 case ClientMsg.KindOneofCase.JoinRoom:
@@ -159,6 +176,12 @@ namespace Rbf.Server
             }
             catch (OperationCanceledException) { }
             catch (Exception ex) { Console.WriteLine($"! pump: {ex.Message}"); }
+
+            // Out only completes when the server closed the session, and by now
+            // its last message (Kicked) is on the wire. Stop reading the client,
+            // which returns from Connect and ends the call - the client's read
+            // loop sees the end of the stream instead of waiting forever.
+            try { s.Ended.Cancel(); } catch (ObjectDisposedException) { }
         }
 
         /// <summary>"ipv4:1.2.3.4:56789" / "ipv6:[::1]:56789" -> bare address.

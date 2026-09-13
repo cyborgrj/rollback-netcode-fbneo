@@ -30,6 +30,13 @@ namespace Rbf.Server
         public readonly Channel<ServerMsg> Out =
             Channel.CreateUnbounded<ServerMsg>(new UnboundedChannelOptions { SingleReader = true });
 
+        /// <summary>Cancelled once everything queued for this session has been
+        /// written after Close(). LobbyService reads the client's stream with it,
+        /// so a closed session stops being listened to and its gRPC call ends -
+        /// completing Out alone left the call open, the client kept "connected"
+        /// and every command it sent still went through (13/09).</summary>
+        public readonly CancellationTokenSource Ended = new CancellationTokenSource();
+
         public void Send(ServerMsg m) => Out.Writer.TryWrite(m);
         public void Close() => Out.Writer.TryComplete();
     }
@@ -171,15 +178,28 @@ namespace Rbf.Server
                 // Name takeover instead of refusal. A half-open TCP connection can
                 // outlive a crashed client by minutes, and that ghost session would
                 // otherwise hold the name hostage and lock the player out.
+                //
+                // The same path is the account logging in on a second machine,
+                // and there the old session is NOT a ghost: it is a live launcher
+                // that must stop being usable. So it is told why (Kicked, which
+                // sends it back to the login screen) and its call is ended - see
+                // Session.Ended.
                 var ghost = _sessions.Values.FirstOrDefault(
                     x => string.Equals(x.Username, username, StringComparison.OrdinalIgnoreCase));
                 if (ghost != null)
                 {
-                    Console.WriteLine($"~ {username}: replacing stale session {ghost.UserId}");
+                    Console.WriteLine($"~ {username}: replacing session {ghost.UserId} (novo login)");
                     _sessions.Remove(ghost.UserId);
                     CancelChallengesInvolvingLocked(ghost.UserId, Outcome.Cancelled);
                     AbortMatchesInvolvingLocked(ghost.UserId, "adversário reconectou");
-                    ghost.Send(Err("Sua sessão foi substituída por um novo login."));
+                    ghost.Send(new ServerMsg
+                    {
+                        Kicked = new Kicked
+                        {
+                            Reason = KickReason.Replaced,
+                            Message = "Sua conta entrou no Frame Perfect em outro computador.",
+                        }
+                    });
                     ghost.Close();
                 }
 
@@ -207,6 +227,16 @@ namespace Rbf.Server
                                   $"  peer-ip={s.RemoteIp}  (conn {connIp}, reported {lanIp})");
                 return s;
             }
+        }
+
+        /// <summary>True while this exact session is the one registered for its
+        /// id. A replaced session can still have commands in flight; they must
+        /// not act on behalf of an account that now lives somewhere else.</summary>
+        public bool IsLive(Session s)
+        {
+            if (s == null) return false;
+            lock (_gate)
+                return _sessions.TryGetValue(s.UserId, out var cur) && ReferenceEquals(cur, s);
         }
 
         public void Disconnect(Session s)

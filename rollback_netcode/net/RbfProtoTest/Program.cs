@@ -41,6 +41,9 @@ namespace Rbf.ProtoTest
 
         public string Name { get; }
         public string UserId { get; private set; }
+        /// <summary>The server finished the call (the stream ended cleanly or
+        /// with an error) - not the client giving up.</summary>
+        public volatile bool StreamEnded;
 
         public Peer(string host, string name)
         {
@@ -62,9 +65,23 @@ namespace Rbf.ProtoTest
                 }
             }
             catch { /* the stream closing is how a test ends */ }
+            StreamEnded = true;
         }
 
         public void Send(ClientMsg m) => _call.RequestStream.WriteAsync(m).GetAwaiter().GetResult();
+
+        /// <summary>Send that tolerates a call the server already ended.</summary>
+        public bool TrySend(ClientMsg m)
+        {
+            try { Send(m); return true; } catch { return false; }
+        }
+
+        public bool WaitStreamEnd(int timeoutMs)
+        {
+            var until = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (DateTime.UtcNow < until) { if (StreamEnded) return true; Thread.Sleep(25); }
+            return StreamEnded;
+        }
 
         /// <summary>First message of this kind that satisfies want, or null on timeout.</summary>
         public ServerMsg Await(ServerMsg.KindOneofCase kind, Func<ServerMsg, bool> want = null,
@@ -237,6 +254,7 @@ namespace Rbf.ProtoTest
             try
             {
                 TokenIsCheckedByTheLobby(host, django);
+                SameAccountElsewhereEndsTheOldSession(host);
                 FirstToSurvivesTheRoundTrip(host, 5);
                 FirstToSurvivesTheRoundTrip(host, 0);   // "Livre" is a value, not an absence
                 SessionDetailReachesTheArchive(host, archive, django);
@@ -317,6 +335,68 @@ namespace Rbf.ProtoTest
                               .Any(p => p.Username == account && p.Ranking == 1500 &&
                                         p.Nickname == "ArcadeKing"),
                           "nickname e ranking da conta chegaram no roster");
+                }
+            }
+
+            Console.WriteLine();
+        }
+
+        // 13/09: logging in on a second machine left the first one "connected"
+        // and able to challenge. The server did take the name over, but only
+        // closed its outbound queue - the call stayed open, so the old client
+        // never saw the end, and every command it sent still went through.
+        private static void SameAccountElsewhereEndsTheOldSession(string host)
+        {
+            Console.WriteLine("-- mesma conta em outra maquina derruba a sessao antiga");
+
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 4);
+            string account = "dupla" + suffix;
+            Hello HelloFor(string lan) => new Hello
+            {
+                Username = account, ClientVer = "test", LanIp = lan,
+                AccessToken = StubDjango.TokenFor(account),
+            };
+
+            using (var old = new Peer(host, account))
+            using (var other = new Peer(host, "outro" + suffix))
+            {
+                old.Send(new ClientMsg { Hello = HelloFor("192.168.1.20") });
+                other.Send(new ClientMsg { Hello = new Hello
+                {
+                    Username = other.Name, ClientVer = "test", LanIp = "192.168.1.22",
+                    AccessToken = StubDjango.TokenFor(other.Name),
+                }});
+                if (old.Await(ServerMsg.KindOneofCase.Welcome) == null ||
+                    other.Await(ServerMsg.KindOneofCase.Welcome) == null)
+                { Check(false, "os dois entraram"); Console.WriteLine(); return; }
+                string oldId = old.UserId;
+
+                other.Send(new ClientMsg { JoinRoom = new JoinRoom { Game = "sf2ce" } });
+
+                using (var fresh = new Peer(host, account))
+                {
+                    fresh.Send(new ClientMsg { Hello = HelloFor("192.168.1.21") });
+                    Check(fresh.Await(ServerMsg.KindOneofCase.Welcome) != null, "o login novo entrou");
+
+                    var kicked = old.Await(ServerMsg.KindOneofCase.Kicked, null, 3000);
+                    Check(kicked != null && kicked.Kicked.Reason == KickReason.Replaced,
+                          "a sessao antiga recebeu Kicked(REPLACED)");
+                    Check(old.WaitStreamEnd(3000),
+                          "a chamada da sessao antiga terminou (o launcher ve o fim, nao fica 'conectado')");
+
+                    // Whatever the old client still sends must not act for the
+                    // account: the other player in the room must not be challenged.
+                    old.TrySend(new ClientMsg { JoinRoom = new JoinRoom { Game = "sf2ce" } });
+                    old.TrySend(new ClientMsg { Challenge = new Challenge
+                    { TargetUserId = other.UserId, FrameDelay = 2, FirstTo = 3 } });
+                    Check(other.Await(ServerMsg.KindOneofCase.ChallengeIn, null, 800) == null,
+                          "desafio mandado pela sessao antiga nao chegou em ninguem");
+
+                    var roster = other.Await(ServerMsg.KindOneofCase.Roster,
+                        m => m.Roster.Players.Any(p => p.Username == account && p.UserId != oldId));
+                    Check(roster != null &&
+                          roster.Roster.Players.Count(p => p.Username == account) == 1,
+                          "a conta aparece uma vez so no roster, com a sessao nova");
                 }
             }
 
@@ -441,11 +521,13 @@ namespace Rbf.ProtoTest
 
             // P1 Ryu vs P2 E.Honda 2-1, then Ken vs E.Honda 2-0, then Ryu
             // losing 0-2: three games, two different characters on one side.
+            // sf2ce ids as measured on 12/09 (Ryu 0, E. Honda 1, Ken 11) - the
+            // 4/5/6 this used before came from the address that turned out wrong.
             var wanted = new[]
             {
-                new { P1 = 4, P2 = 5, R1 = 2, R2 = 1, W = 1 },
-                new { P1 = 6, P2 = 5, R1 = 2, R2 = 0, W = 1 },
-                new { P1 = 4, P2 = 6, R1 = 0, R2 = 2, W = 2 },
+                new { P1 = 0,  P2 = 1,  R1 = 2, R2 = 1, W = 1 },
+                new { P1 = 11, P2 = 1,  R1 = 2, R2 = 0, W = 1 },
+                new { P1 = 0,  P2 = 11, R1 = 0, R2 = 2, W = 2 },
             };
 
             string suffix = Guid.NewGuid().ToString("N").Substring(0, 4);
@@ -500,32 +582,37 @@ namespace Rbf.ProtoTest
                 Thread.Sleep(900);
             }
 
-            // Each finished game should have become one POST to Django - the
-            // characters change between them, so five games is five rows and
-            // not one summary.
+            // The whole session is ONE POST to Django, with each game inside
+            // fights[] (agreed with the Django side on 12/09). The top-level
+            // score counts games; each fight's score counts rounds.
             var reports = django.Reports;
             if (reports.Count > 0)
             {
-                Check(reports.Count == wanted.Length,
-                      $"{reports.Count} partidas reportadas ao Django (esperado {wanted.Length})");
+                Check(reports.Count == 1, $"{reports.Count} report(s) ao Django pela sessao (esperado 1)");
 
-                bool bodiesOk = reports.Count == wanted.Length;
-                for (int i = 0; bodiesOk && i < wanted.Length; i++)
+                var sent = JsonDocument.Parse(reports[0]).RootElement;
+                Check(sent.GetProperty("game_code").GetString() == "sf2ce" &&
+                      sent.GetProperty("player1_score").GetInt32() == 2 &&
+                      sent.GetProperty("player2_score").GetInt32() == 1,
+                      "o placar do topo e o da sessao, em partidas (2 x 1)");
+
+                var fights = sent.GetProperty("fights");
+                bool fightsOk = fights.GetArrayLength() == wanted.Length;
+                for (int i = 0; fightsOk && i < wanted.Length; i++)
                 {
-                    var sent = JsonDocument.Parse(reports[i]).RootElement;
-                    bodiesOk &= sent.GetProperty("game_code").GetString() == "sf2ce"
-                             && sent.GetProperty("player1_score").GetInt32() == wanted[i].R1
-                             && sent.GetProperty("player2_score").GetInt32() == wanted[i].R2
-                             && sent.GetProperty("duration_seconds").GetInt32() == 60;
+                    var f = fights[i];
+                    fightsOk &= f.GetProperty("fight_number").GetInt32() == i + 1
+                             && f.GetProperty("player1_score").GetInt32() == wanted[i].R1
+                             && f.GetProperty("player2_score").GetInt32() == wanted[i].R2;
                 }
-                Check(bodiesOk, "cada report com o placar e a duracao da sua partida");
+                Check(fightsOk, $"fights[] com as {wanted.Length} lutas, cada uma com seus rounds");
 
-                var first = JsonDocument.Parse(reports[0]).RootElement;
-                Check(first.GetProperty("player1_character").GetString() == "ryu" &&
-                      first.GetProperty("player2_character").GetString() == "e_honda",
+                Check(fights.GetArrayLength() > 0 &&
+                      fights[0].GetProperty("player1_character").GetString() == "ryu" &&
+                      fights[0].GetProperty("player2_character").GetString() == "e_honda",
                       "os ids viraram codigo de personagem no caminho");
-                Check(first.GetProperty("player1_id").GetInt32() > 0 &&
-                      first.GetProperty("player2_id").GetInt32() > 0,
+                Check(sent.GetProperty("player1_id").GetInt32() > 0 &&
+                      sent.GetProperty("player2_id").GetInt32() > 0,
                       "os ids de conta do Django foram junto");
             }
             else

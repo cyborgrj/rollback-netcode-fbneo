@@ -3,7 +3,23 @@
 Coisas conhecidas que não estão feitas, para não se perderem no meio de uma
 conversa. O plano das partes 4 e 5 está em [PLANO-SITE.md](PLANO-SITE.md).
 
-## ⚠️ Mesma conta em duas máquinas: a sessão antiga continua jogando
+## ✅ Mesma conta em duas máquinas: a sessão antiga continua jogando
+
+**Resolvido em 13/09.** Era a hipótese 1: o `Hub.Login` tirava a sessão antiga
+da lista e fechava a **fila de saída** dela, mas o `LobbyService.Connect`
+continuava lendo o que o cliente antigo mandava — a chamada gRPC nunca
+terminava, o launcher nunca via o fim, e cada comando dele passava pelo
+`Dispatch`. Agora:
+
+- protocolo: `ServerMsg.kicked` com `KickReason.REPLACED`;
+- servidor: a sessão tem `Ended`; depois de escrever o `Kicked`, o pump cancela
+  a leitura e a chamada termina; `Dispatch` ignora comando de sessão que não é
+  mais a registrada (`Hub.IsLive`);
+- launcher: `Kicked` → avisa, limpa a `UserSession`, fecha a janela e volta
+  para a tela de login. Queda de rede comum continua só indo para offline;
+- teste: `RbfProtoTest` com duas conexões na mesma conta.
+
+O texto abaixo é o diagnóstico de antes, mantido para referência.
 
 **Relatado em 13/09.** Logar na mesma conta em outra máquina "derruba" a
 primeira, mas ela **continua conectada e fazendo tudo**: desafiar, receber

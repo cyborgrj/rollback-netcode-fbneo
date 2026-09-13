@@ -92,6 +92,7 @@ message ServerMsg {
     ChatMsg         chat             = 10;
     ChatLog         chat_log         = 11;
     MatchList       matches          = 12;
+    Kicked          kicked           = 13;
   }
 }
 
@@ -101,6 +102,20 @@ message Welcome {
   int32  relay_port = 3;   // tcp port of the spectator relay on THIS host, 0 = off
 }
 message LoginRejected { string reason = 1; }
+
+// The server is ending this session on purpose, and the stream closes right
+// after this message. Different from a network drop on purpose: a drop keeps
+// the player logged in and lets them reconnect; REPLACED means the same
+// account logged in somewhere else, and this client must not stay usable - one
+// account playing on two machines at once is exactly what it prevents.
+enum KickReason {
+  KICK_REASON_UNSPECIFIED = 0;
+  KICK_REASON_REPLACED    = 1;   // same account logged in from another client
+}
+message Kicked {
+  KickReason reason  = 1;
+  string     message = 2;   // ready to show the player
+}
 
 enum PlayerState {
   PLAYER_IDLE        = 0;
