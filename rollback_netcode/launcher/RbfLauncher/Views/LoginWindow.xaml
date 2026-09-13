@@ -7,9 +7,9 @@
   <StackPanel Margin="28,26,28,24">
 
     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-      <TextBlock Text="FRAME" FontSize="22" FontWeight="Bold" Foreground="{StaticResource Accent}" />
+      <TextBlock Text="FRAME" FontSize="22" FontWeight="Bold" Foreground="{StaticResource BrandFrame}" />
       <TextBlock Text="PERFECT" FontSize="22" FontWeight="Bold" Margin="7,0,0,0"
-                 Foreground="{StaticResource ChatName3}" />
+                 Foreground="{StaticResource BrandPerfect}" />
     </StackPanel>
     <TextBlock Text="Entre com sua conta para jogar." Foreground="{StaticResource TextDim}"
                FontSize="12" Margin="0,0,0,20" />

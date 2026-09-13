@@ -56,7 +56,7 @@ namespace RbfLauncher
         {
             Core.LauncherLog.Error("erro nao tratado", e.Exception);
             MessageBox.Show(e.Exception.Message + "\n\nDetalhes em rbf-launcher.log, ao lado do launcher.",
-                            "RBF Launcher - erro",
+                            "Frame Perfect - erro",
                             MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         }

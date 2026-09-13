@@ -304,13 +304,13 @@ namespace RbfLauncher.Views
 
             if (_client.RelayPort <= 0)
             {
-                MessageBox.Show("Este servidor não está com o relay de espectador ligado.", "RBF",
+                MessageBox.Show("Este servidor não está com o relay de espectador ligado.", "Frame Perfect",
                                 MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             if (!_roms.RomExists(_game))
             {
-                MessageBox.Show("Você precisa da ROM de " + _game.Title + " para assistir.", "RBF",
+                MessageBox.Show("Você precisa da ROM de " + _game.Title + " para assistir.", "Frame Perfect",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

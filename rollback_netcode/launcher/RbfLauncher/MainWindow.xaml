@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="clr-namespace:RbfLauncher.Views"
-        Title="Rollback FinalBurn Neo by CyborgRJ" Height="720" Width="1040"
+        Title="Frame Perfect" Height="720" Width="1040"
         MinHeight="560" MinWidth="820"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}">
@@ -13,8 +13,8 @@
             BorderThickness="0,0,0,1" Padding="20,12">
       <Grid>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <TextBlock Text="ROLLBACK" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Accent}" />
-          <TextBlock Text="FinalBurn Neo" FontSize="16" Margin="8,0,0,0" Foreground="{StaticResource TextDim}" />
+          <TextBlock Text="FRAME" FontSize="16" FontWeight="Bold" Foreground="{StaticResource BrandFrame}" />
+          <TextBlock Text="PERFECT" FontSize="16" FontWeight="Bold" Margin="6,0,0,0" Foreground="{StaticResource BrandPerfect}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
           <TextBlock x:Name="PlayerLabel" VerticalAlignment="Center" Foreground="{StaticResource TextDim}" Margin="0,0,14,0"

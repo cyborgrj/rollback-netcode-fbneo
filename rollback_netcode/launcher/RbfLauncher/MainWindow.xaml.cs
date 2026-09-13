@@ -177,7 +177,7 @@ namespace RbfLauncher
             };
             c.LoginRejected += reason =>
             {
-                MessageBox.Show("Login recusado: " + reason, "RBF", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Login recusado: " + reason, "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Warning);
                 Disconnect("login recusado");
             };
             c.RosterUpdated += list =>
@@ -198,11 +198,11 @@ namespace RbfLauncher
             c.MatchAborted += ab =>
             {
                 CloseTransientDialogs();
-                MessageBox.Show("Partida cancelada: " + ab.Reason, "RBF",
+                MessageBox.Show("Partida cancelada: " + ab.Reason, "Frame Perfect",
                                 MessageBoxButton.OK, MessageBoxImage.Information);
             };
             c.ServerError += msg =>
-                MessageBox.Show(msg, "RBF", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(msg, "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Warning);
             c.Disconnected += reason => Disconnect(reason);
         }
 
@@ -227,7 +227,7 @@ namespace RbfLauncher
             if (wasOn && !string.IsNullOrEmpty(reason) && reason != "desconectado")
                 MessageBox.Show("Você foi desconectado do servidor (" + reason + ").\n\n" +
                                 "Clique em Conectar para entrar novamente.",
-                                "RBF", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void UpdateHeader()
@@ -288,7 +288,7 @@ namespace RbfLauncher
                 _ => "desafio encerrado"
             };
             var who = string.IsNullOrEmpty(cr.PeerUsername) ? "O jogador" : cr.PeerUsername;
-            MessageBox.Show(who + " " + why + ".", "RBF", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(who + " " + why + ".", "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         // A challenge that both sides committed to (Desafiar / Aceitar) launches
@@ -306,7 +306,7 @@ namespace RbfLauncher
                 _client?.ReportMatch(ms.MatchId, Phase.Failed, "fbneo.exe não encontrado");
                 MessageBox.Show("Partida vs " + ms.PeerUsername +
                                 ": fbneo.exe não encontrado. Ajuste em Configurações.",
-                                "RBF", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -378,7 +378,7 @@ namespace RbfLauncher
             catch (Exception ex)
             {
                 _client?.ReportMatch(ms.MatchId, Phase.Failed, ex.Message);
-                MessageBox.Show("Falha ao abrir o emulador:\n" + ex.Message, "RBF",
+                MessageBox.Show("Falha ao abrir o emulador:\n" + ex.Message, "Frame Perfect",
                                 MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }

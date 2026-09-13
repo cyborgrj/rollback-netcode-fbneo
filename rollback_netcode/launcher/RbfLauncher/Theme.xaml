@@ -13,6 +13,9 @@
   <SolidColorBrush x:Key="Ok"          Color="#3FB950" />
   <SolidColorBrush x:Key="Warn"        Color="#D29922" />
   <SolidColorBrush x:Key="Bad"         Color="#F0554E" />
+  <!-- a marca: FRAME em ciano, PERFECT em lilás -->
+  <SolidColorBrush x:Key="BrandFrame"   Color="#4DD0E1" />
+  <SolidColorBrush x:Key="BrandPerfect" Color="#B0A7FF" />
 
   <!-- Chat name colours. Green is reserved for you (the "Ok" brush above), so
        these sweep the rest of the wheel and deliberately avoid greens. ChatPanel

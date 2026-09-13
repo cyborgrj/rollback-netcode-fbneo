@@ -22,8 +22,9 @@
     <AssemblyName>RbfLauncher</AssemblyName>
     <RootNamespace>RbfLauncher</RootNamespace>
     <Version>0.1.0</Version>
-    <Company>RBF</Company>
-    <Product>Rollback FinalBurn Neo Launcher - CyborgRJ 2026.</Product>
+    <Company>Frame Perfect</Company>
+    <Product>Frame Perfect</Product>
+    <Copyright>CyborgRJ 2026</Copyright>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Desenhado por icon\gerar-icone.ps1. As janelas sem Icon proprio usam
          este tambem, entao ele aparece no exe, na barra de tarefas e no Alt+Tab. -->
