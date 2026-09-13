@@ -263,7 +263,6 @@ namespace RbfLauncher
             string who = _session.DisplayName + "  ·  rank " + _session.Ranking;
             PlayerLabel.Text = on ? "● " + who : who + " · offline";
             var tip = new List<string>();
-            if (_session.DisplayName != _session.Username) tip.Add("conta: " + _session.Username);
             if (on && !string.IsNullOrEmpty(_client.LanIp)) tip.Add("meu IP na rede: " + _client.LanIp);
             PlayerLabel.ToolTip = tip.Count > 0 ? string.Join("\n", tip) : null;
             ConnectButton.Content = on ? "Desconectar" : "Conectar";
@@ -291,7 +290,7 @@ namespace RbfLauncher
             // The server averages both answers into the match frame delay. The
             // session limit is not averaged - it is shown, because accepting a
             // challenge means accepting the rule it came with.
-            var dlg = DelayDialog.ForIncoming(ci.FromUsername, title,
+            var dlg = DelayDialog.ForIncoming(PublicName.Of(ci.FromUsername), title,
                                               ci.SuggestedDelay, ci.FromFrameDelay,
                                               ci.FirstTo, 25, this);
             _openChallenge = dlg;
@@ -310,7 +309,7 @@ namespace RbfLauncher
                 Outcome.Cancelled => "desafio cancelado",
                 _ => "desafio encerrado"
             };
-            var who = string.IsNullOrEmpty(cr.PeerUsername) ? "O jogador" : cr.PeerUsername;
+            var who = string.IsNullOrEmpty(cr.PeerUsername) ? "O jogador" : PublicName.Of(cr.PeerUsername);
             MessageBox.Show(who + " " + why + ".", "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -327,7 +326,7 @@ namespace RbfLauncher
             if (!_emu.EmulatorExists)
             {
                 _client?.ReportMatch(ms.MatchId, Phase.Failed, "fbneo.exe não encontrado");
-                MessageBox.Show("Partida vs " + ms.PeerUsername +
+                MessageBox.Show("Partida vs " + PublicName.Of(ms.PeerUsername) +
                                 ": fbneo.exe não encontrado. Ajuste em Configurações.",
                                 "Frame Perfect", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -355,9 +354,12 @@ namespace RbfLauncher
             // game whether or not anybody is watching, so this must not hang off
             // the relay being configured.
             {
-                string me = _client?.Username ?? "";
-                string p1 = ms.PlayerNum == 1 ? me : ms.PeerUsername;
-                string p2 = ms.PlayerNum == 1 ? ms.PeerUsername : me;
+                // The names on the emulator's bar are seen by both players and
+                // by anyone watching - the login only, never an address.
+                string me = PublicName.Of(_client?.Username);
+                string peer = PublicName.Of(ms.PeerUsername);
+                string p1 = ms.PlayerNum == 1 ? me : peer;
+                string p2 = ms.PlayerNum == 1 ? peer : me;
                 args += string.Format(",p1={0},p2={1}", Sanitize(p1), Sanitize(p2));
             }
 

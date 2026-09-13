@@ -39,8 +39,9 @@ namespace RbfLauncher.Core
         /// <summary>What to show on screen: the nickname when there is one, the
         /// username otherwise. The API sends `nickname: null` for a player who
         /// has not picked one, so this is the normal case, not the edge.</summary>
-        public string DisplayName =>
-            string.IsNullOrWhiteSpace(Nickname) ? Username : Nickname.Trim();
+        /// <summary>The login, which is what the launcher shows for everybody
+        /// (13/09). The e-mail and the nickname stay out of public screens.</summary>
+        public string DisplayName => PublicName.Of(Username);
 
         // ---- the one that is logged in right now ----------------------------
         /// <summary>Null when nobody is logged in. Set by the login flow and

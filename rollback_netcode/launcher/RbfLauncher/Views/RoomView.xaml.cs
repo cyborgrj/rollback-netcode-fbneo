@@ -106,10 +106,10 @@ namespace RbfLauncher.Views
         private UIElement BuildMatchRow(MatchEntry m)
         {
             var vs = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontSize = 14 };
-            vs.Inlines.Add(new System.Windows.Documents.Run(m.P1Username) { FontWeight = FontWeights.SemiBold });
+            vs.Inlines.Add(new System.Windows.Documents.Run(PublicName.Of(m.P1Username)) { FontWeight = FontWeights.SemiBold });
             vs.Inlines.Add(new System.Windows.Documents.Run("   vs   ")
                 { Foreground = (Brush)FindResource("TextDim"), FontSize = 12 });
-            vs.Inlines.Add(new System.Windows.Documents.Run(m.P2Username) { FontWeight = FontWeights.SemiBold });
+            vs.Inlines.Add(new System.Windows.Documents.Run(PublicName.Of(m.P2Username)) { FontWeight = FontWeights.SemiBold });
 
             var t = m.Elapsed;
             string extra = m.Watchable && m.Viewers > 0
@@ -210,7 +210,7 @@ namespace RbfLauncher.Views
             var mine = _roster.FirstOrDefault(x => x.UserId == _client.UserId);
             int suggested = Latency.SuggestDelay(mine != null ? mine.PingMs : 0, p.PingMs);
 
-            var dlg = DelayDialog.ForOutgoing(p.Username, p.PingMs, suggested, Window.GetWindow(this));
+            var dlg = DelayDialog.ForOutgoing(PublicName.Of(p.Username), p.PingMs, suggested, Window.GetWindow(this));
             if (dlg.ShowDialog() == true)
                 _client.SendChallenge(p.UserId, dlg.FrameDelay, dlg.FirstTo);
         }
@@ -222,11 +222,11 @@ namespace RbfLauncher.Views
             // why a lobby keeps statistics at all.
             var name = new TextBlock
             {
-                Text = p.Username,
+                Text = PublicName.Of(p.Username),
                 VerticalAlignment = VerticalAlignment.Center,
                 FontSize = 14,
                 Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = "ver as estatísticas de " + p.Username,
+                ToolTip = "ver as estatísticas de " + PublicName.Of(p.Username),
             };
             name.MouseLeftButtonUp += (s, e) =>
                 StatsWindow.Open(p.Username, _config, Window.GetWindow(this));

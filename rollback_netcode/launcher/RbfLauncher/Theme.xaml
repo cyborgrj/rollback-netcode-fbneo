@@ -50,6 +50,28 @@
     <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
   </Style>
 
+  <!-- tooltip: dark like the rest. The default WPF one is a light box, and
+       the white text inherited from the theme vanished on it. -->
+  <Style TargetType="ToolTip">
+    <Setter Property="Foreground" Value="{StaticResource Text}" />
+    <Setter Property="Background" Value="{StaticResource BgPanelHi}" />
+    <Setter Property="BorderBrush" Value="{StaticResource Stroke}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ToolTip">
+          <Border CornerRadius="4" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- flat button -->
   <Style x:Key="Btn" TargetType="Button">
     <Setter Property="Foreground" Value="{StaticResource Text}" />

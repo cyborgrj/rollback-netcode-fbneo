@@ -73,7 +73,7 @@ namespace RbfLauncher.Views
             }
 
             NameText.Text = st.DisplayName;
-            AccountText.Text = st.DisplayName != st.Username ? "@" + st.Username : "";
+            AccountText.Text = "";   // login only, nothing else about the account
             RankText.Text = st.GlobalRanking.ToString();
 
             BuildSummary(st);

@@ -112,7 +112,10 @@ namespace RbfLauncher.AuthTest
 
             Check(s.AccessToken == "acc-1" && s.RefreshToken == "ref-1", "guardou os dois tokens");
             Check(s.Id == 7 && s.Username == "cyborgrj" && s.Ranking == 1450, "leu o perfil");
-            Check(s.DisplayName == "CyborgRJ", "DisplayName usa o nickname quando existe");
+            Check(s.DisplayName == "cyborgrj",
+                  "DisplayName e o login, mesmo com nickname (so o login aparece para os outros)");
+            Check(PublicName.Of("fulano@exemplo.com") == "fulano" && PublicName.Of("  beltrano ") == "beltrano",
+                  "um nome com cara de e-mail nunca mostra o dominio");
 
             // The order matters: the profile call cannot happen before there is
             // a token to send with it.
@@ -141,7 +144,7 @@ namespace RbfLauncher.AuthTest
 
             var s = Run(stub, api => api.LoginAsync("fulano", "x"));
             Check(s != null && s.DisplayName == "fulano",
-                  "DisplayName cai para o username quando nickname e null");
+                  "DisplayName e o login tambem quando nickname e null");
             Console.WriteLine();
         }
 

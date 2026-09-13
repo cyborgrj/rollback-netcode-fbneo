@@ -49,8 +49,8 @@ namespace RbfLauncher.Core
         public double TotalHoursPlayed;
         public List<GameStats> Games = new List<GameStats>();
 
-        public string DisplayName =>
-            string.IsNullOrWhiteSpace(Nickname) ? Username : Nickname.Trim();
+        /// <summary>The login only - see PublicName.</summary>
+        public string DisplayName => PublicName.Of(Username);
 
         /// <summary>Totals across every game, added up here. Django sends them
         /// per game, and a player looking at their own profile wants the one

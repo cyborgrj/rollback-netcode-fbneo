@@ -175,7 +175,7 @@ namespace RbfLauncher.Views
                 // your own backlog stays green after a reconnect changes your id.
                 bool mine = _client != null &&
                             string.Equals(m.Username, _client.Username, StringComparison.OrdinalIgnoreCase);
-                line.Inlines.Add(new Run(m.Username + ": ")
+                line.Inlines.Add(new Run(Core.PublicName.Of(m.Username) + ": ")
                 {
                     Foreground = mine ? (Brush)FindResource("Ok") : ColorFor(m.Username),
                     FontWeight = FontWeights.SemiBold,
