@@ -60,6 +60,7 @@ OUR_SRC += $(ROOT)/fbneo/ram_probe.cpp
 OUR_SRC += $(ROOT)/fbneo/match_score.cpp
 OUR_SRC += $(ROOT)/fbneo/overlay.cpp
 OUR_SRC += $(ROOT)/fbneo/hud.cpp
+OUR_SRC += $(ROOT)/fbneo/end_notice.cpp
 
 GGPO_SRC :=
 GGPO_SRC += $(GGPO)/lib/ggpo/bitvector.cpp

@@ -17,6 +17,7 @@
 #include "../core/port_map.h"
 #include "match_score.h"
 #include "overlay.h"
+#include "end_notice.h"
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -77,6 +78,8 @@ static int           g_active      = 0;
 static int           g_ringReady   = 0;
 static int           g_peerGone    = 0;   // the opponent left; end the match
 static const char*   g_endReason   = "closed";   // why the session ended
+static int           g_finalP1     = 0;   // games when the first-to was reached,
+static int           g_finalP2     = 0;   // kept for the notice after Stop
 static int           g_analogWarned = 0;
 static FbnHostConfig g_cfg;
 
@@ -359,6 +362,8 @@ static int startCommon(const FbnHostConfig* cfg)
 	g_ringReady   = 0;
 	g_peerGone    = 0;
 	g_endReason   = "closed";
+	g_finalP1     = 0;
+	g_finalP2     = 0;
 	g_watch       = 0;
 	g_watchFrames = 0;
 
@@ -669,6 +674,25 @@ void FbnHostStop(void)
 
 int FbnHostIsActive(void) { return g_active; }
 
+int FbnHostEndedByLimit(void) { return strcmp(g_endReason, "limit") == 0; }
+
+void FbnHostShowLimitNotice(void)
+{
+	wchar_t p1[40], p2[40], body[256], title[64];
+	EndNoticeWiden(g_cfg.szP1Name, L"P1", p1, 40);
+	EndNoticeWiden(g_cfg.szP2Name, L"P2", p2, 40);
+
+	_snwprintf(title, 64, L"Frame Perfect - FT%d encerrada", g_cfg.nFirstTo);
+	_snwprintf(body, 256,
+	           L"A FT%d acabou:  %ls  %d x %d  %ls\n\n"
+	           L"A conexão com o adversário será encerrada "
+	           L"e o emulador vai fechar.",
+	           g_cfg.nFirstTo, p1, g_finalP1, g_finalP2, p2);
+	title[63] = body[255] = 0;
+
+	EndNoticeShow(title, body, 3);
+}
+
 int FbnHostRunFrame(int bDraw)
 {
 	if (!g_active) return -1;
@@ -695,17 +719,26 @@ int FbnHostRunFrame(int bDraw)
 
 	int r = GgpoBridgeTick();
 
+	// The agreed number of games is up. Ending it here rather than trusting
+	// both players to stop is the whole point of agreeing on a number.
+	//
+	// Checked BEFORE the disconnect: the two machines reach the last KO a few
+	// frames apart, and the one that gets there first closes its session. If
+	// this side only learns of that in the same tick it plays the final frame,
+	// the FT still ended normally - it must not be reported as a dropped
+	// connection. (libggpo waits 5 s of silence before calling it a disconnect,
+	// so in practice the lagging side reaches the limit on its own first.)
+	if (MatchScoreLimitReached()) {
+		g_endReason = "limit";
+		MatchScoreGames(&g_finalP1, &g_finalP2);
+		RbfLog("first to %d reached (%d x %d) - ending the session.",
+		       g_cfg.nFirstTo, g_finalP1, g_finalP2);
+		return -1;
+	}
+
 	// Checked after the tick, so the frame that carried the disconnect event
 	// still completes and the score includes it.
 	if (g_peerGone) return -1;
-
-	// The agreed number of games is up. Ending it here rather than trusting
-	// both players to stop is the whole point of agreeing on a number.
-	if (MatchScoreLimitReached()) {
-		g_endReason = "limit";
-		RbfLog("first to %d reached - ending the session.", g_cfg.nFirstTo);
-		return -1;
-	}
 
 	if (r == GGPO_BRIDGE_OK)      return 1;
 	if (r == GGPO_BRIDGE_SKIPPED) return 0;

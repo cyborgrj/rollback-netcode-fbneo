@@ -73,6 +73,13 @@ void FbnHostStop(void);
 int  FbnHostIsActive(void);    // a match OR a spectated stream is running
 int  FbnHostIsWatching(void);
 
+// After the session ends: 1 when it ended because the agreed first-to was
+// reached (not a disconnect or a failed sync). Valid until the next start.
+int  FbnHostEndedByLimit(void);
+// The "FT acabou" notice with the final score, closing itself after a few
+// seconds. Blocks. Call after FbnHostStop(), only when FbnHostEndedByLimit().
+void FbnHostShowLimitNotice(void);
+
 // Bracket FBNeo GetInput() call. Before fills the driver input bytes with a
 // sentinel; after takes this machine-s copy of the controls and works out which
 // driver player they belong to. Both are no-ops outside a match.

@@ -1,0 +1,16 @@
+diff --git a/src/burner/win32/run.cpp b/src/burner/win32/run.cpp
+--- a/src/burner/win32/run.cpp
++++ b/src/burner/win32/run.cpp
+@@ -347,7 +347,11 @@
+ 				// running after the session died looks exactly like a match still
+ 				// in progress, and is how two machines end up playing different
+ 				// games without either player realising.
+-				if (!bWasWatching) {
++				if (!bWasWatching && FbnHostEndedByLimit()) {
++					// The FT is over: not an error. Says so, with the score,
++					// and closes itself after 3 s.
++					FbnHostShowLimitNotice();
++				} else if (!bWasWatching) {
+ 					MessageBox(NULL, nRan == 0
+ 						? _T("Nao foi possivel sincronizar com o adversario.\n\n")
+ 						  _T("O motivo esta em rbf-netplay.log, ao lado do emulador.")
