@@ -93,6 +93,36 @@ caminho bom — mas quem trocar de blitter de propósito, não.
 Plano: `GetDC` na superfície final da família DirectDraw e desenhar com GDI ali,
 na resolução da janela. Aí não importa o blitter e não depende de DLL nenhuma.
 
+## ⚠️ sfa2: rounds contam, partida nunca fecha (0 x 0 online)
+
+**Relatado em 13/09.** Sessão FT3 online (`71b664d1fa44`): o log terminou em
+`score: sfa2 0 x 0 (0 partidas)` com `partida interrompida no meio: 0 x 4
+rounds`. A vida é lida certo — 4 rounds do P2 são duas partidas vencidas —,
+mas nenhuma partida foi fechada, então nada foi pontuado nem chegou ao FT3.
+
+**Causa provável:** a regra que fecha uma partida é "as duas palavras de vida
+em zero por 12 frames" (`match_score.cpp`). Ela vale no `sf2ce` e no `ssf2t`
+(sessões online com FT3 fechado no log), mas **nunca foi vista no sfa2**:
+
+- `--trace 0xFF8450/0xFF8850` na gravação `rbf-probe-sfa2-20260910-210025`:
+  o perdedor vai a `0xFFxx` (negativo) e na luta seguinte os dois voltam a
+  `0x0090`. Em momento nenhum os dois ficam em zero.
+- O `ProbeAnalyze --score` dizia "1 partida" nessa gravação porque ele também
+  fecha a partida **quando a gravação acaba** — não pelo zeramento.
+- O `ScoreSelfTest` usa os endereços do sfa2, mas **fabrica** o zeramento.
+
+Ou seja, o sfa2 parecia validado e não estava. Todas as gravações dele são
+contra a CPU, onde a gravação parou no último KO.
+
+**Próximo passo:** gravação `calibrar-sfa2.cmd` opção 3 — duas partidas
+completas seguidas entre dois humanos — e ver no `--trace` o que as palavras de
+vida fazem entre uma partida e a outra. Com isso escolher a regra do sfa2:
+zeramento com outra duração/valor, ou "alguém chegou aos rounds da partida"
+(cuidado com o KO duplo, que é o motivo de a regra atual não ser essa).
+
+Ao corrigir: fazer o `ProbeAnalyze` **não** fechar partida no fim da gravação
+quando o jogo não mostrou o fim dela, senão ele volta a esconder o problema.
+
 ## vsav: personagem do P2 não é legível
 
 No Vampire Savior o endereço simétrico ao do personagem do P1 (`0xFF841D`) é um
