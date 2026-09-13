@@ -72,6 +72,8 @@ namespace RbfLauncher.AuthTest
             NicknameNullFallsBackToUsername();
             WrongPassword();
             ServerDown();
+            ServerSilent();
+            CallerCancelStillCancels();
             ServerError();
             ExpiredTokenIsRenewed();
             RefusedRefreshLogsOut();
@@ -175,6 +177,53 @@ namespace RbfLauncher.AuthTest
             Check(ex != null && !ex.BadCredentials, "nao confundiu queda com senha errada");
             Check(ex != null && ex.Message.Contains(Base),
                   "a mensagem diz qual endereco nao respondeu");
+            Console.WriteLine();
+        }
+
+        // 13/09: Django rodando so em 127.0.0.1 no host. Da VM o pacote some,
+        // nada responde, e o HttpClient desiste em 15 s com um
+        // TaskCanceledException - que o launcher mostrava como "Falha
+        // inesperada: Uma tarefa foi cancelada".
+        private static void ServerSilent()
+        {
+            Console.WriteLine("-- API que nunca responde (timeout)");
+
+            var stub = new StubApi
+            {
+                Handler = (req, body) => throw new TaskCanceledException("Uma tarefa foi cancelada.")
+            };
+
+            var ex = Fails(stub, api => api.LoginAsync("cyborgrj", "x"));
+            Check(ex != null, "timeout vira aviso do launcher, nao 'falha inesperada'");
+            Check(ex != null && !ex.BadCredentials, "nao confundiu timeout com senha errada");
+            Check(ex != null && ex.Message.Contains("não respondeu") && ex.Message.Contains(Base),
+                  "a mensagem diz que nao respondeu, e qual endereco");
+            Console.WriteLine();
+        }
+
+        private static void CallerCancelStillCancels()
+        {
+            Console.WriteLine("-- cancelamento pedido por quem chamou");
+
+            var stub = new StubApi
+            {
+                Handler = (req, body) => throw new TaskCanceledException()
+            };
+
+            bool cancelled = false;
+            try
+            {
+                using (var cts = new CancellationTokenSource())
+                using (var api = new AuthApi(Base, stub))
+                {
+                    cts.Cancel();
+                    api.LoginAsync("cyborgrj", "x", cts.Token).GetAwaiter().GetResult();
+                }
+            }
+            catch (OperationCanceledException) { cancelled = true; }
+            catch (Exception ex) { Console.WriteLine("    (" + ex.GetType().Name + ")"); }
+
+            Check(cancelled, "continua saindo como cancelamento, sem aviso nenhum");
             Console.WriteLine();
         }
 

@@ -70,7 +70,7 @@ namespace RbfLauncher.Core
                     resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
                 }
             }
-            catch (Exception ex) when (!(ex is OperationCanceledException))
+            catch (Exception ex) when (!ct.IsCancellationRequested)
             {
                 throw Unreachable(ex);
             }
@@ -163,7 +163,7 @@ namespace RbfLauncher.Core
                 using (var req = new HttpRequestMessage(HttpMethod.Get, Url(path)))
                     resp = await _http.SendAsync(req, ct).ConfigureAwait(false);
             }
-            catch (Exception ex) when (!(ex is OperationCanceledException))
+            catch (Exception ex) when (!ct.IsCancellationRequested)
             {
                 throw Unreachable(ex);
             }
@@ -231,7 +231,7 @@ namespace RbfLauncher.Core
                     return await _http.SendAsync(req, ct).ConfigureAwait(false);
                 }
             }
-            catch (Exception ex) when (!(ex is OperationCanceledException))
+            catch (Exception ex) when (!ct.IsCancellationRequested)
             {
                 throw Unreachable(ex);
             }
@@ -279,14 +279,23 @@ namespace RbfLauncher.Core
                     return true;
                 }
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
             catch { return false; }
         }
 
         // ---- helpers -------------------------------------------------------
+        /// <summary>Also the timeout. On .NET Framework, HttpClient.Timeout
+        /// surfaces as a TaskCanceledException, and the catches above used to
+        /// let every cancellation through as "not ours" - so a server that
+        /// never answered (a firewall dropping packets, Django bound to
+        /// 127.0.0.1 on another machine) reached the player as "Falha
+        /// inesperada: Uma tarefa foi cancelada", which says nothing. Only a
+        /// cancellation the caller asked for is passed through now.</summary>
         private AuthException Unreachable(Exception ex) =>
             new AuthException(
-                $"Não consegui falar com o servidor do Frame Perfect ({BaseUrl}).\n" +
+                (ex is OperationCanceledException
+                    ? $"O servidor do Frame Perfect não respondeu em {(int)_http.Timeout.TotalSeconds} s ({BaseUrl}).\n"
+                    : $"Não consegui falar com o servidor do Frame Perfect ({BaseUrl}).\n") +
                 "Confira se ele está no ar e se o endereço em Configurações está certo.",
                 false, ex);
 

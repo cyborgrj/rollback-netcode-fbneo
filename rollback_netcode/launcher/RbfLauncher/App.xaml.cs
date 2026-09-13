@@ -21,6 +21,13 @@ namespace RbfLauncher
             catch { /* value not supported on this OS - system default stays */ }
 
             DispatcherUnhandledException += OnUnhandled;
+            // Background threads (the lobby read loop, downloads) do not go
+            // through the dispatcher; without this their crash leaves no trace.
+            AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
+                Core.LauncherLog.Error("erro nao tratado fora da interface", ev.ExceptionObject as Exception);
+
+            Core.LauncherLog.Info("launcher iniciado, versao " +
+                                  typeof(App).Assembly.GetName().Version);
 
             // The login window is a dialog shown before any main window exists,
             // so the default "quit when the last window closes" would end the
@@ -47,7 +54,9 @@ namespace RbfLauncher
 
         private void OnUnhandled(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
-            MessageBox.Show(e.Exception.Message, "RBF Launcher - erro",
+            Core.LauncherLog.Error("erro nao tratado", e.Exception);
+            MessageBox.Show(e.Exception.Message + "\n\nDetalhes em rbf-launcher.log, ao lado do launcher.",
+                            "RBF Launcher - erro",
                             MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         }

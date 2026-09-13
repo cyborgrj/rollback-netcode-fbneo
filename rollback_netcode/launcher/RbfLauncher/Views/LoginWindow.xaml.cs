@@ -82,13 +82,16 @@ namespace RbfLauncher.Views
             }
             catch (AuthException ex)
             {
+                LauncherLog.Error($"login de '{user}' em {api} falhou: {ex.Message}", ex.InnerException);
                 Fail(ex.Message);
                 if (ex.BadCredentials) { PassBox.Clear(); PassBox.Focus(); }
                 else ServerExpander.IsExpanded = true;
             }
             catch (Exception ex)
             {
-                Fail("Falha inesperada no login: " + ex.Message);
+                LauncherLog.Error($"login de '{user}' em {api}: falha inesperada", ex);
+                Fail("Falha inesperada no login: " + ex.Message +
+                     "\nDetalhes em rbf-launcher.log, ao lado do launcher.");
             }
             finally
             {
