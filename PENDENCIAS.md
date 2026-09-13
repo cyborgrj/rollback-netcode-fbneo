@@ -3,6 +3,48 @@
 Coisas conhecidas que não estão feitas, para não se perderem no meio de uma
 conversa. O plano das partes 4 e 5 está em [PLANO-SITE.md](PLANO-SITE.md).
 
+## ⚠️ Mesma conta em duas máquinas: a sessão antiga continua jogando
+
+**Relatado em 13/09.** Logar na mesma conta em outra máquina "derruba" a
+primeira, mas ela **continua conectada e fazendo tudo**: desafiar, receber
+desafio. É uma conta jogando em dois lugares ao mesmo tempo — isso não pode.
+
+**O que deve acontecer:** a máquina antiga é substituída e **volta para a tela
+de login** (a tela inicial do launcher), com um aviso do tipo "sua conta entrou
+em outro computador". Nada de desafio nem sala até logar de novo. Se o usuário
+quiser, loga e assume de volta (e aí é a outra máquina que sai).
+
+**O que o código faz hoje:**
+
+- Servidor (`Hub.cs`, `Login`, "Name takeover"): acha a sessão com o mesmo
+  nome, tira de `_sessions`, cancela desafios e partidas, manda
+  `Err("Sua sessão foi substituída por um novo login.")` e chama
+  `ghost.Close()`. Ou seja, a intenção já existe.
+- Launcher: `ServerError` só mostra um MessageBox; sair do lobby só acontece
+  pelo evento `Disconnected` (`LobbyClient.ReadLoopAsync` terminar), e mesmo
+  assim `MainWindow.Disconnect()` só volta para "offline" com o botão
+  **Conectar** — nunca para o login.
+
+**Hipóteses para verificar primeiro:**
+
+1. `ghost.Close()` não encerra o stream gRPC de verdade → o `ReadLoopAsync`
+   do launcher antigo nunca termina, ele segue mostrando "●" e mandando
+   comandos. Checar também se o `LobbyService` ainda processa mensagens de uma
+   sessão que já saiu de `_sessions` (desafiar com um `UserId` removido).
+2. Ou o launcher reconecta sozinho e derruba o outro, em pingue-pongue.
+
+**Como corrigir:**
+
+- Servidor: sessão substituída tem o stream **finalizado** de fato, e qualquer
+  mensagem de um `UserId` fora de `_sessions` é ignorada/recusada.
+- Protocolo: um motivo explícito em vez de texto solto (ex.: `Kicked { reason:
+  REPLACED }`), para o launcher distinguir "outra máquina entrou" de queda de
+  rede — queda de rede continua só indo para offline, sem perder o login.
+- Launcher: ao receber `REPLACED`, fecha o lobby, limpa `UserSession`, fecha a
+  `MainWindow` e abre a `LoginWindow` com o aviso.
+- Teste: duas instâncias do launcher na mesma conta (pode ser na mesma
+  máquina); a primeira precisa cair no login e não conseguir desafiar.
+
 ## Launcher: cair do servidor deixa a sala mentindo
 
 Ao perder a conexão, `MainWindow.Disconnect()` limpa a lista de jogadores. A
