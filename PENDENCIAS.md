@@ -123,12 +123,17 @@ zeramento com outra duração/valor, ou "alguém chegou aos rounds da partida"
 Ao corrigir: fazer o `ProbeAnalyze` **não** fechar partida no fim da gravação
 quando o jogo não mostrou o fim dela, senão ele volta a esconder o problema.
 
-## vsav: personagem do P2 não é legível
+## ✅ vsav: personagem do P2 — resolvido em 13/09
 
-No Vampire Savior o endereço simétrico ao do personagem do P1 (`0xFF841D`) é um
-campo de animação. Resolve-se sozinho na primeira partida entre **dois humanos**,
-quando as duas structs são de jogadores de verdade — hoje as gravações foram
-todas contra a CPU. Nada a fazer de propósito.
+Era `0xFF881D`, o simétrico do P1 mesmo. Parecia campo de animação porque ele
+**pisca para id+1** com alguns golpes (Lilith 34/35, J. Talbain 19/20 — e 20 e
+35 não são personagem nenhum), e as gravações antigas eram contra a CPU. Uma
+luta entre dois humanos (Rikuo × Lilith, J. Talbain × B.B. Hood) confirmou.
+
+Consequência que valia para todos os jogos: o leitor guardava a **última**
+leitura antes do KO, e no Talbain ela era 20. Agora vale a mais lida na
+partida, e no vsav uma leitura de v conta também para v-1 (`bestOf` em
+`match_score.cpp`; a Lilith passou 42% da luta em 35).
 
 ## Servidor: udp/50054 não respondeu no último teste
 

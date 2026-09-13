@@ -391,7 +391,9 @@ namespace Rbf.Server.VerifyTest
             Check(Characters.Code("vsav", 17) == "bb_hood" && Characters.Code("vsav", 33) == "hsien_ko" &&
                   Characters.Code("vsav", 31) == "q_bee" && Characters.Code("vsav", 19) == "j_talbain",
                   "o elenco do vsav, do passeio pela colmeia: dois pontos, e hifen vira underscore");
-            Check(Characters.Code("vsav", 20) == "20", "id do vsav fora do elenco (Rikuo?) vai como numero");
+            Check(Characters.Code("vsav", 29) == "rikuo", "Rikuo, da luta entre dois humanos");
+            Check(Characters.Code("vsav", 20) == "20",
+                  "20 e o pisca do J. Talbain, nao personagem: vai como numero");
             Check(Characters.Code("sfa2", 10) == "m_bison", "idem para M. Bison");
 
             // O elenco do sf2ce foi medido no cursor da tela de selecao em 12/09;

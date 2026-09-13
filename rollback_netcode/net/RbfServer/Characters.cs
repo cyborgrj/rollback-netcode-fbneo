@@ -75,16 +75,16 @@ namespace Rbf.Server
             // ProbeAnalyze --match. 0xFFB89D follows the cursor in the SAME
             // numbering the pick byte 0xFF841D is written in at fight start -
             // 22 and 36 were known from two fights on 10/09, and came out as
-            // L. Raptor and Jedah here too. The ids are not contiguous (20, 25,
-            // 26, 29, 32, 35 unused), so Rikuo/Aulbath, never reached in the
-            // walk, is left out rather than guessed.
+            // L. Raptor and Jedah here too. Rikuo/Aulbath (29) came from a
+            // fight between two humans the same day, read off the pick byte.
+            // The ids are not contiguous (20, 25, 26, 32, 35 unused).
             ["vsav"] = new Dictionary<int, string>
             {
                 [17] = "B.B. Hood",  [18] = "Demitri",   [19] = "J. Talbain",
                 [21] = "Victor",     [22] = "L. Raptor", [23] = "Morrigan",
                 [24] = "Anakaris",   [27] = "Felicia",   [28] = "Bishamon",
-                [30] = "Sasquatch",  [31] = "Q-Bee",     [33] = "Hsien-Ko",
-                [34] = "Lilith",     [36] = "Jedah",
+                [29] = "Rikuo",      [30] = "Sasquatch", [31] = "Q-Bee",
+                [33] = "Hsien-Ko",   [34] = "Lilith",    [36] = "Jedah",
             },
         };
 

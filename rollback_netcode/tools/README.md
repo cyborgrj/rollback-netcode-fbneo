@@ -207,12 +207,14 @@ Personagens confirmados:
 - `kof98`: 0 = Kyo, 1 = Benimaru, 2 = Daimon, 18 = Kim, 19 = Choi, 20 = Chang,
   27 = Iori, 28 = Mature, 29 = Vice. (19 e 20 saíram da ordem em que o time da
   CPU entrou na luta — vale reconfirmar.)
-- `vsav` (só o lado P1): 17 = B.B. Hood, 18 = Demitri, 19 = J. Talbain,
-  21 = Victor, 22 = L. Raptor, 23 = Morrigan, 24 = Anakaris, 27 = Felicia,
-  28 = Bishamon, 30 = Sasquatch, 31 = Q-Bee, 33 = Hsien-Ko, 34 = Lilith,
-  36 = Jedah. Falta Rikuo (Aulbath) e os escondidos. Achado em 13/09 com
-  `--match` no passeio pela colmeia: `0xFFB89D` segue o cursor na mesma
-  numeração do `0xFF841D` (os ids 22 e 36 já eram conhecidos de duas lutas).
+- `vsav` (P1 `0xFF841D`, P2 `0xFF881D`): 17 = B.B. Hood, 18 = Demitri,
+  19 = J. Talbain, 21 = Victor, 22 = L. Raptor, 23 = Morrigan, 24 = Anakaris,
+  27 = Felicia, 28 = Bishamon, 29 = Rikuo, 30 = Sasquatch, 31 = Q-Bee,
+  33 = Hsien-Ko, 34 = Lilith, 36 = Jedah. Faltam só os escondidos. Achado em
+  13/09: `--match` no passeio pela colmeia (`0xFFB89D` segue o cursor na mesma
+  numeração da escolha), Rikuo e o lado P2 com `--pick` numa luta entre dois
+  humanos. **O byte pisca para id+1** com alguns golpes (19/20, 34/35) — por
+  isso `--constin` não acha nada nele e o leitor usa a leitura mais frequente.
 
 **O que falta:** o personagem do P2 no `vsav`. `0xFF881C`, que seria o simétrico,
 oscila entre dois valores vizinhos o tempo todo — é campo de animação, não id. O

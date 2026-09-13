@@ -32,6 +32,7 @@ typedef struct {
 	int          nCharCount;
 	int          nFull;
 	int          bBars;              // vsav: no rounds, score is bars lost
+	int          bCharAlt;           // vsav: the pick byte also reads id+1 at times
 } ScoreMap;
 
 static const ScoreMap kMaps[] = {
@@ -48,7 +49,13 @@ static const ScoreMap kMaps[] = {
 	// Zangief, 1 x 2) and one between two humans (Fei Long vs M. Bison, 2 x 1).
 	{ "ssf2t", 0xFF8478, 0xFF8878, 0xFF87DF, 0xFF8BDF, 1, 0x0090, 0 },
 	{ "sfa2",  0xFF8450, 0xFF8850, 0xFF8482, 0xFF8882, 1, 0x0090, 0 },
-	{ "vsav",  0xFF8450, 0xFF8850, 0xFF841D, 0,        1, 0x0120, 1 },
+	// vsav P2 is 0xFF881D, the P1 slot plus the 0x400 between the two player
+	// structs. It used to look like an animation field because every recording
+	// was against the CPU; a fight between two humans on 13/09 (Rikuo x Lilith,
+	// J. Talbain x B.B. Hood) showed 34 and 17 in it. Both sides flicker to the
+	// id plus one with some moves - 19/20, 34/35 - and neither 20 nor 35 is a
+	// character, hence bCharAlt.
+	{ "vsav",  0xFF8450, 0xFF8850, 0xFF841D, 0xFF881D, 1, 0x0120, 1, 1 },
 	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0 },
 };
 
@@ -64,6 +71,13 @@ static long long g_gameStart = 0;   // live frame the current game began on
 static int  g_matchHold = 0;   // consecutive live frames with both words cleared
 static int  g_matchOver = 0;   // this clearing has already been counted
 static int  g_firstTo   = 0;   // games that end the session; 0 = free play
+
+// How often each value was read for each side and slot during the current
+// game. The character is the value seen most, not the last one: vsav's pick
+// byte flickers with some moves (J. Talbain reads 19/20/19... through a whole
+// round, and his last reading before the KO was 20). Kept out of MatchScoreData
+// because that struct is copied by value.
+static int  g_hist[2][MATCH_SCORE_MAX_CHARS][256];
 
 // vsav has no rounds: the score of a game is how many of the two bars each
 // side lost. Two when the gauge went negative, one when they finished at half
@@ -99,6 +113,7 @@ static void awardGame(void)
 		g_gameStart = 0;
 		memset(g_d.nP1Char, 0, sizeof(g_d.nP1Char));
 		memset(g_d.nP2Char, 0, sizeof(g_d.nP2Char));
+		memset(g_hist, 0, sizeof(g_hist));
 		g_d.bHaveP1Char = g_d.bHaveP2Char = 0;
 		g_d.bStarted = 0;
 		return;
@@ -139,6 +154,7 @@ static void awardGame(void)
 	// we failed to read has to report nothing rather than repeat the last one.
 	memset(g_d.nP1Char, 0, sizeof(g_d.nP1Char));
 	memset(g_d.nP2Char, 0, sizeof(g_d.nP2Char));
+	memset(g_hist, 0, sizeof(g_hist));
 	g_d.bHaveP1Char = g_d.bHaveP2Char = 0;
 	g_d.bStarted = 0;      // the next fight has to announce itself the same way
 }
@@ -164,10 +180,36 @@ static int lifeAt(unsigned int nAddr)
 	return (short)((hi << 8) | lo);
 }
 
-static void readChars(unsigned int nAddr, int* pOut, int nCount, int* pbHave)
+// The character read most often this game.
+//
+// With bAlt, a reading of v also counts for v-1: vsav flickers the pick byte
+// to id+1 (Lilith spent 42% of a fight reading 35), and a plain majority would
+// name a character that spent more than half the fight in that state wrongly -
+// or worse, give Demitri (18, flickering to 19) to J. Talbain (19). A tie goes
+// to the value read more on its own, which is what keeps a byte that never
+// flickers from being handed to the id below it.
+static int bestOf(const int* h, int bAlt)
+{
+	int best = 0, bestScore = -1, bestOwn = -1;
+	for (int c = 0; c < 256; c++) {
+		const int own   = h[c];
+		const int score = own + ((bAlt && c < 255) ? h[c + 1] : 0);
+		if (score > bestScore || (score == bestScore && own > bestOwn)) {
+			best = c; bestScore = score; bestOwn = own;
+		}
+	}
+	return best;
+}
+
+// The character is the value seen most during the game - see g_hist.
+static void readChars(int nSide, unsigned int nAddr, int* pOut, int nCount, int* pbHave, int bAlt)
 {
 	if (!nAddr) return;
-	for (int i = 0; i < nCount; i++) pOut[i] = RamProbeRead8(nAddr + i);
+	for (int i = 0; i < nCount && i < MATCH_SCORE_MAX_CHARS; i++) {
+		int* h = g_hist[nSide][i];
+		h[RamProbeRead8(nAddr + i)]++;
+		pOut[i] = bestOf(h, bAlt);
+	}
 	*pbHave = 1;
 }
 
@@ -185,6 +227,7 @@ int MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*))
 	g_map = NULL;
 	g_firstTo = (nFirstTo > 0 && nFirstTo < 100) ? nFirstTo : 0;
 	memset(&g_d, 0, sizeof(g_d));
+	memset(g_hist, 0, sizeof(g_hist));
 	g_p1Hold = g_p2Hold = 0;
 	g_p1Down = g_p2Down = 0;
 	g_p1Low = g_p2Low = 0x7FFFFFFF;
@@ -236,10 +279,11 @@ void MatchScoreFrame(void)
 		if (!g_d.nStartFrame) g_d.nStartFrame = g_frame;
 	}
 
-	// Both alive: the character fields are filled in and not yet overwritten.
+	// Both alive: the character fields are filled in and not yet overwritten
+	// with the next opponent. Counted every frame, the most frequent wins.
 	if (l1 > 0 && l2 > 0) {
-		readChars(g_map->nCharP1, g_d.nP1Char, g_map->nCharCount, &g_d.bHaveP1Char);
-		readChars(g_map->nCharP2, g_d.nP2Char, g_map->nCharCount, &g_d.bHaveP2Char);
+		readChars(0, g_map->nCharP1, g_d.nP1Char, g_map->nCharCount, &g_d.bHaveP1Char, g_map->bCharAlt);
+		readChars(1, g_map->nCharP2, g_d.nP2Char, g_map->nCharCount, &g_d.bHaveP2Char, g_map->bCharAlt);
 	}
 
 	// Zero is the cleared struct, not a life total.

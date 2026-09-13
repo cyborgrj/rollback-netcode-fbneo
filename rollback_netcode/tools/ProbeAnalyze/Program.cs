@@ -110,6 +110,20 @@ internal static class Program
                 return 0;
             }
 
+            // --pick 1600-4300:34,7300-10400:17
+            int iPick = args.ToList().IndexOf("--pick");
+            if (iPick >= 0 && iPick + 1 < args.Length)
+            {
+                var want = args[iPick + 1].Split(',').Select(s =>
+                {
+                    var wv = s.Split(':');
+                    var fr = wv[0].Split('-');
+                    return (uint.Parse(fr[0]), uint.Parse(fr[1]), byte.Parse(wv[1]));
+                }).ToList();
+                Pick(files.First(f => f != args[iPick + 1]), want);
+                return 0;
+            }
+
             int iTrace = args.ToList().IndexOf("--trace");
             if (iTrace >= 0 && iTrace + 1 < args.Length)
             {
@@ -239,6 +253,7 @@ internal static class Program
     {
         Console.WriteLine("ProbeAnalyze <file.rbfp>                 summary + round-counter candidates");
         Console.WriteLine("ProbeAnalyze <file.rbfp> --match A,B,C,...  address whose plateaus repeat like the names");
+        Console.WriteLine("ProbeAnalyze <file.rbfp> --pick f1-f2:val,f3-f4:val  address holding val for most of each window");
         Console.WriteLine("ProbeAnalyze <file.rbfp> --trace <addr>  every value that address took");
         Console.WriteLine("ProbeAnalyze <file.rbfp> --dump <addr> [n]  bytes around an address, per sample");
         Console.WriteLine("ProbeAnalyze <a.rbfp> <b.rbfp> --chars   character-id candidates");
@@ -681,6 +696,8 @@ internal static class Program
         // vsav has no rounds: one gauge worth two 144-unit bars, no refill, no
         // round break. The score there is how many bars each side lost.
         public bool Bars;
+        // vsav: the pick byte flickers to id+1 with some moves.
+        public bool CharAlt;
     }
 
     private static readonly GameMap[] Maps =
@@ -691,8 +708,10 @@ internal static class Program
                       CharP1 = 0xFF87DF, CharP2 = 0xFF8BDF, Full = 0x90 },
         new GameMap { Game = "sfa2",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
                       CharP1 = 0xFF8482, CharP2 = 0xFF8882, Full = 0x90 },
+        // P2 found 13/09 in a fight between two humans; both sides flicker
+        // to id+1 (see match_score.cpp).
         new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
-                      CharP1 = 0xFF841D, CharP2 = 0,       Full = 0x120, Bars = true },
+                      CharP1 = 0xFF841D, CharP2 = 0xFF881D, Full = 0x120, Bars = true, CharAlt = true },
         new GameMap { Game = "kof98", LifeP1 = 0x108238, LifeP2 = 0x108438,
                       CharP1 = 0x10A84E, CharP2 = 0x10A85F, CharCount = 3, Full = 0x67 },
     };
@@ -706,6 +725,21 @@ internal static class Program
         var v = new List<string>();
         for (uint k = 0; k < n; k++) v.Add(ram[h.IndexOf(a + k)].ToString());
         return string.Join("/", v);
+    }
+
+    // Counts one reading and returns the most frequent so far. With alt, a
+    // reading of v also counts for v-1, ties going to the value read more on
+    // its own - the same rule as bestOf() in match_score.cpp.
+    private static string MostSeen(Dictionary<string, int> seen, string v, bool alt)
+    {
+        seen[v] = seen.TryGetValue(v, out int c) ? c + 1 : 1;
+        if (!alt) return seen.OrderByDescending(kv => kv.Value).First().Key;
+
+        int Own(int id) => seen.TryGetValue(id.ToString(), out int n) ? n : 0;
+        var ids = seen.Keys.Select(k => int.TryParse(k, out int n) ? n : -1).Where(n => n >= 0)
+                      .SelectMany(n => new[] { n, n - 1 }).Where(n => n >= 0).Distinct();
+        if (!ids.Any()) return v;
+        return ids.OrderByDescending(id => Own(id) + Own(id + 1)).ThenByDescending(Own).First().ToString();
     }
 
     private static void Score(string path)
@@ -722,6 +756,8 @@ internal static class Program
         bool p1Down = false, p2Down = false;
         int p1Low = int.MaxValue, p2Low = int.MaxValue;
         string c1 = "?", c2 = "?";
+        var seen1 = new Dictionary<string, int>();   // readings of the current game
+        var seen2 = new Dictionary<string, int>();
         bool started = false;
         uint startFrame = 0, endFrame = 0;
 
@@ -742,13 +778,21 @@ internal static class Program
                 r1 = p2Down ? 2 : (p2Low <= m.Full / 2 ? 1 : 0);
                 r2 = p1Down ? 2 : (p1Low <= m.Full / 2 ? 1 : 0);
             }
-            if (r1 > r2) p1Games++; else if (r2 > r1) p2Games++;
-            games.Add((c1, c2, r1, r2, startFrame, frame));
+            // Nobody won a round: a quit to the select screen, or the few seconds
+            // between two vsav fights where the bars flash full and clear again.
+            // match_score.cpp drops these; so must this, or the two disagree on
+            // how many games a session had.
+            if (r1 > 0 || r2 > 0)
+            {
+                if (r1 > r2) p1Games++; else if (r2 > r1) p2Games++;
+                games.Add((c1, c2, r1, r2, startFrame, frame));
+            }
 
             p1Won = p2Won = 0;
             p1Down = p2Down = false;
             p1Low = p2Low = int.MaxValue;
             c1 = c2 = "?";           // both sides pick again
+            seen1.Clear(); seen2.Clear();
             started = false;
             startFrame = endFrame = 0;
         }
@@ -766,15 +810,17 @@ internal static class Program
             }
             if (!started) return;
 
-            // Read the characters on every frame where both sides are alive,
-            // and keep the last such reading. Capturing once at the start is
-            // wrong twice over: sf2ce fills the field a moment AFTER the bars
-            // go full, and the arcade writes the NEXT opponent into it as soon
-            // as the match is over. Between those two, the field is stable.
+            // Read the characters on every frame where both sides are alive, and
+            // keep the value seen MOST. Capturing once at the start is wrong -
+            // sf2ce fills the field a moment AFTER the bars go full - and so is
+            // keeping the last reading: vsav's pick byte flickers mid-fight
+            // (J. Talbain goes 19/20/19 with some moves; the last reading before
+            // his KO was 20). The arcade writing the NEXT opponent in once the
+            // match is over does not count either, since by then a side is dead.
             if (l1 > 0 && l2 > 0)
             {
-                c1 = Who(h, ram, m.CharP1, m.CharCount);
-                c2 = Who(h, ram, m.CharP2, m.CharCount);
+                c1 = MostSeen(seen1, Who(h, ram, m.CharP1, m.CharCount), m.CharAlt);
+                c2 = MostSeen(seen2, Who(h, ram, m.CharP2, m.CharCount), m.CharAlt);
             }
 
             // Zero is the struct being cleared at the end of the match, not a
@@ -825,6 +871,58 @@ internal static class Program
             Console.WriteLine($"    {i + 1,2}. P1[{g.C1}] {g.R1} x {g.R2} P2[{g.C2}]   {w,-6} " +
                               $"(f{g.From}..f{g.To})");
         }
+    }
+
+    // Addresses that held a known value for most of each given window.
+    //
+    // --constin wants the byte to stand still for the whole fight, and a pick
+    // byte does not always: vsav's flickers with some moves (J. Talbain reads
+    // 19, 20, 19... for a whole round). So this counts, per window, the samples
+    // where the byte had the expected value, and keeps addresses that had it in
+    // at least half of every window. Two fights with different characters on
+    // the same side are what make the answer unique.
+    private static void Pick(string path, List<(uint From, uint To, byte V)> want)
+    {
+        var hit = new int[want.Count][];
+        var total = new int[want.Count];
+
+        var h = Walk(path, (sample, frame, ram) =>
+        {
+            for (int w = 0; w < want.Count; w++)
+            {
+                if (frame < want[w].From || frame > want[w].To) continue;
+                hit[w] ??= new int[ram.Length];
+                total[w]++;
+                byte v = want[w].V;
+                var arr = hit[w];
+                for (int i = 0; i < ram.Length; i++) if (ram[i] == v) arr[i]++;
+            }
+        });
+
+        Console.WriteLine($"{Path.GetFileName(path)} ({h.Game}) - " +
+                          string.Join(", ", want.Select((x, k) => $"f{x.From}-{x.To} = {x.V} ({total[k]} amostras)")));
+        Console.WriteLine();
+
+        if (total.Any(t => t == 0)) { Console.WriteLine("  alguma janela nao tem amostra nenhuma."); return; }
+
+        var rows = new List<(uint addr, int min, string pcts)>();
+        int len = hit[0].Length;
+        for (int i = 0; i < len; i++)
+        {
+            int min = 100;
+            var p = new List<string>();
+            for (int w = 0; w < want.Count; w++)
+            {
+                int pct = hit[w][i] * 100 / total[w];
+                min = Math.Min(min, pct);
+                p.Add(pct + "%");
+            }
+            if (min >= 50) rows.Add((h.AddrOf(i), min, string.Join("  ", p)));
+        }
+
+        if (rows.Count == 0) { Console.WriteLine("  nenhum endereco teve esses valores na maior parte das janelas."); return; }
+        foreach (var r in rows.OrderByDescending(r => r.min).ThenBy(r => r.addr).Take(30))
+            Console.WriteLine($"  0x{r.addr:X6}   {r.pcts}");
     }
 
     // Addresses whose plateaus repeat the way the walked names repeat.

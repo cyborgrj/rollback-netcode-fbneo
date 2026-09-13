@@ -43,14 +43,18 @@ unsigned char RamProbeRead8(unsigned int nAddr)
 		case 0xFF8851: return (unsigned char)(g_life2 & 0xFF);
 		case 0xFF8482: return (unsigned char)g_char1;
 		case 0xFF8882: return (unsigned char)g_char2;
+		// vsav shares the life words with sfa2; its pick bytes are elsewhere
+		case 0xFF841D: return (unsigned char)g_char1;
+		case 0xFF881D: return (unsigned char)g_char2;
 	}
 	return 0;
 }
 
 int RamProbeAttach(void (*pfnLog)(const char*)) { (void)pfnLog; return RAM_PROBE_OK; }
 
-// match_score.cpp asks the driver for its name.
-char* BurnDrvGetTextA(unsigned int i) { (void)i; return (char*)"sfa2"; }
+// match_score.cpp asks the driver for its name. sfa2 unless a test says so.
+static const char* g_driver = "sfa2";
+char* BurnDrvGetTextA(unsigned int i) { (void)i; return (char*)g_driver; }
 
 } // extern "C"
 
@@ -189,7 +193,53 @@ int main(void)
 		printf("\n%s\n", buf);
 	}
 
-	printf("%s\n", g_fail == 0 ? "tudo certo" : "FALHOU");
+	// ---- a pick byte that flickers ----------------------------------------
+	// vsav, 13/09: J. Talbain's byte read 19/20/19... through the fight, and
+	// the last reading before his KO was 20. Keeping the last reading named
+	// the wrong character; the value seen most is the one that was picked.
+	printf("\n-- byte do personagem que pisca no meio da luta\n");
+	MatchScoreStart(0, NULL);
+
+	pick(19, 17);
+	live(FULL, FULL, 60);
+	g_char1 = 20;              // a move flips it...
+	live(40, 40, 20);          // ...right up to the knockout
+	live(-1, 40, 30);
+	endOfGame();
+
+	MatchScoreData v;
+	MatchScoreGet(&v);
+	check(v.nGameRows == 1 && v.aGames[0].nP1Char[0] == 19,
+	      "vale o valor mais lido (19), nao o ultimo antes do KO (20)");
+	check(v.nGameRows == 1 && v.aGames[0].nP2Char[0] == 17,
+	      "o lado que nao pisca continua certo");
+
+	// ---- vsav: the flicker goes to id+1, and can be the majority ----------
+	// Lilith (34) read 35 for 42% of a real fight. Here it is 2/3 of the
+	// fight: a plain majority would say 35, which is nobody. And J. Talbain
+	// (19) holding still must not be handed to Demitri (18) just because a
+	// reading of 19 also counts as "18 flickering".
+	printf("\n-- vsav: o pisca vai para id+1 e pode ser maioria\n");
+	g_driver = "vsav";
+	MatchScoreStart(0, NULL);
+
+	pick(19, 34);
+	live(0x120, 0x120, 20);
+	g_char2 = 35;
+	live(0x120, 100, 40);
+	live(-1, 100, 30);         // P1 loses the gauge
+	endOfGame();
+
+	MatchScoreData w;
+	MatchScoreGet(&w);
+	check(w.nGameRows == 1 && w.aGames[0].nP2Char[0] == 34,
+	      "Lilith que leu 35 na maior parte da luta continua 34");
+	check(w.nGameRows == 1 && w.aGames[0].nP1Char[0] == 19,
+	      "J. Talbain parado em 19 nao vira Demitri (18)");
+	check(w.nGameRows == 1 && w.aGames[0].nWinner == 2, "P1 perdeu a barra toda: P2 venceu");
+	g_driver = "sfa2";
+
+	printf("\n%s\n", g_fail == 0 ? "tudo certo" : "FALHOU");
 	printf("%d checagens, %d falhas\n", g_pass + g_fail, g_fail);
 	return g_fail == 0 ? 0 : 1;
 }
