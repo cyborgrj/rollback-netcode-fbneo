@@ -711,7 +711,7 @@ internal static class Program
         new GameMap { Game = "ssf2t", LifeP1 = 0xFF8478, LifeP2 = 0xFF8878,
                       CharP1 = 0xFF87DF, CharP2 = 0xFF8BDF, Full = 0x90 },
         new GameMap { Game = "sfa2",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
-                      CharP1 = 0xFF8482, CharP2 = 0xFF8882, Full = 0x90 },
+                      CharP1 = 0xFF8482, CharP2 = 0xFF8882, Full = 0x90, KOsToWin = 2 },
         // P2 found 13/09 in a fight between two humans; both sides flicker
         // to id+1 (see match_score.cpp).
         new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
@@ -787,6 +787,8 @@ internal static class Program
         var seen2 = new Dictionary<string, int>();
         var order1 = new List<int>(); var order2 = new List<int>();   // as fought
         var mode1 = new int[3];       var mode2 = new int[3];         // [1] Adv, [2] Extra
+        var bouts = new List<string>();                              // knockouts, current game
+        var gameBouts = new List<string>();                          // one line per closed game
         bool started = false;
         uint startFrame = 0, endFrame = 0;
 
@@ -816,6 +818,7 @@ internal static class Program
                 if (r1 > r2) p1Games++; else if (r2 > r1) p2Games++;
                 games.Add((AsFought(c1, order1) + ModeTag(mode1), AsFought(c2, order2) + ModeTag(mode2),
                            r1, r2, startFrame, frame));
+                gameBouts.Add(string.Join("  ", bouts));
             }
 
             p1Won = p2Won = 0;
@@ -825,6 +828,7 @@ internal static class Program
             seen1.Clear(); seen2.Clear();
             order1.Clear(); order2.Clear();
             Array.Clear(mode1, 0, 3); Array.Clear(mode2, 0, 3);
+            bouts.Clear();
             started = false;
             startFrame = endFrame = 0;
         }
@@ -869,11 +873,20 @@ internal static class Program
             // animation. It only counts again once that side has life back -
             // and "back" means above zero, because zero is the struct being
             // cleared when the match is over, not a new round.
+            int won1Before = p1Won, won2Before = p2Won;
             if (l1 < 0) { if (!p1Down) { p1Down = true; p2Won++; endFrame = frame; } }
             else if (l1 > 0) p1Down = false;
 
             if (l2 < 0) { if (!p2Down) { p2Down = true; p1Won++; endFrame = frame; } }
             else if (l2 > 0) p2Down = false;
+
+            // Team games: who fought whom in each knockout (bestOf-free, like
+            // match_score.cpp: the fighter bytes as they are on that sample).
+            if (m.CurP1 != 0 && m.CurP2 != 0 && (p1Won != won1Before || p2Won != won2Before))
+            {
+                bool w1 = p1Won != won1Before, w2 = p2Won != won2Before;
+                bouts.Add($"{ram[h.IndexOf(m.CurP1)]}{(w1 && w2 ? "=" : w1 ? ">" : "<")}{ram[h.IndexOf(m.CurP2)]}");
+            }
 
             // Team games end on the count - kof98 against a human never clears
             // both words between games. Same rule as match_score.cpp.
@@ -914,6 +927,8 @@ internal static class Program
             string w = g.R1 > g.R2 ? "P1" : g.R2 > g.R1 ? "P2" : "empate";
             Console.WriteLine($"    {i + 1,2}. P1[{g.C1}] {g.R1} x {g.R2} P2[{g.C2}]   {w,-6} " +
                               $"(f{g.From}..f{g.To})");
+            if (i < gameBouts.Count && gameBouts[i].Length > 0)
+                Console.WriteLine($"          lutas (P1 > P2 = P1 venceu): {gameBouts[i]}");
         }
     }
 

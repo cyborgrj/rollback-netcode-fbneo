@@ -321,6 +321,7 @@ namespace Rbf.Server.VerifyTest
                   "jogo de um personagem nao carrega campo extra nenhum");
             Check(!f1.TryGetProperty("player1_mode", out _) && !f1.TryGetProperty("player2_mode", out _),
                   "jogo sem modo nao manda player1_mode / player2_mode");
+            Check(!f1.TryGetProperty("rounds", out _), "jogo de um personagem nao manda rounds[]");
             Console.WriteLine();
         }
 
@@ -368,6 +369,12 @@ namespace Rbf.Server.VerifyTest
                 P2Team = new[] { "kim", "choi", "chang" },
                 P1Rounds = 3, P2Rounds = 1, WinnerId = 1,
                 P1Mode = "extra", P2Mode = "advanced",
+                Rounds =
+                {
+                    new RoundReport { Number = 1, P1Character = "kyo", P2Character = "kim",  WinnerId = 1 },
+                    new RoundReport { Number = 2, P1Character = "kyo", P2Character = "choi", WinnerId = 2 },
+                    new RoundReport { Number = 3, P1Character = "benimaru", P2Character = "choi", WinnerId = null },
+                },
             });
             Report(stub, s);
 
@@ -380,6 +387,13 @@ namespace Rbf.Server.VerifyTest
             Check(f.TryGetProperty("player1_mode", out var m1) && m1.GetString() == "extra" &&
                   f.TryGetProperty("player2_mode", out var m2) && m2.GetString() == "advanced",
                   "o modo de cada lado (Advanced/Extra) vai dentro da luta");
+            Check(f.TryGetProperty("rounds", out var rounds) && rounds.GetArrayLength() == 3 &&
+                  rounds[1].GetProperty("round_number").GetInt32() == 2 &&
+                  rounds[1].GetProperty("player1_character").GetString() == "kyo" &&
+                  rounds[1].GetProperty("player2_character").GetString() == "choi" &&
+                  rounds[1].GetProperty("winner_id").GetInt32() == 2 &&
+                  rounds[2].GetProperty("winner_id").ValueKind == JsonValueKind.Null,
+                  "rounds[] luta a luta: quem x quem e quem venceu (nulo no KO duplo)");
             Console.WriteLine();
         }
 

@@ -32,6 +32,8 @@ namespace RbfLauncher.Core
             /// <summary>"advanced" / "extra" (kof98), empty when the game has no mode.</summary>
             public string P1Mode = "";
             public string P2Mode = "";
+            /// <summary>Team games: each knockout as { p1 char, p2 char, winner }.</summary>
+            public List<int[]> Bouts = new List<int[]>();
         }
 
         public string MatchId  = "";
@@ -128,6 +130,14 @@ namespace RbfLauncher.Core
                     case "p1chars": g.P1Chars = Ints(v); break;
                     case "p2chars": g.P2Chars = Ints(v); break;
                     case "frames":  g.Frames = Int(v); break;
+                    case "lutas":
+                        // lutas=27-3-1,27-4-2  (p1 char - p2 char - winner)
+                        foreach (var item in v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            var n = item.Split('-');
+                            if (n.Length == 3) g.Bouts.Add(new[] { Int(n[0]), Int(n[1]), Int(n[2]) });
+                        }
+                        break;
                     case "p1modo":  g.P1Mode = Mode(v); break;
                     case "p2modo":  g.P2Mode = Mode(v); break;
                     case "vencedor":

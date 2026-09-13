@@ -655,6 +655,13 @@ namespace Rbf.Server
                     WinnerId    = g.Winner == 1 ? p1Account : g.Winner == 2 ? p2Account : (int?)null,
                     P1Mode      = g.P1Mode ?? "",
                     P2Mode      = g.P2Mode ?? "",
+                    Rounds      = g.Bouts.Select((b, i) => new RoundReport
+                    {
+                        Number      = i + 1,
+                        P1Character = Characters.Code(game, b.P1Char),
+                        P2Character = Characters.Code(game, b.P2Char),
+                        WinnerId    = b.Winner == 1 ? p1Account : b.Winner == 2 ? p2Account : (int?)null,
+                    }).ToList(),
                 });
             }
 

@@ -447,6 +447,8 @@ namespace RbfLauncher
                     };
                     pg.P1Chars.AddRange(g.P1Chars);
                     pg.P2Chars.AddRange(g.P2Chars);
+                    foreach (var b in g.Bouts)
+                        pg.Bouts.Add(new Rbf.Protocol.Bout { P1Char = b[0], P2Char = b[1], Winner = b[2] });
                     msg.GamesPlayed.Add(pg);
                 }
 

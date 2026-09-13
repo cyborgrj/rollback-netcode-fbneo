@@ -111,6 +111,24 @@ na resolução da janela. Aí não importa o blitter e não depende de DLL nenhu
 
 ## ⚠️ sfa2: rounds contam, partida nunca fecha (0 x 0 online)
 
+**Corrigido em 13/09, falta confirmar online.** Segunda sessão online com o
+mesmo sintoma (`cb0203120a95`: 2 x 3 rounds, nenhuma partida). Nas duas, o
+humano do lado P1 perdeu; na gravação local em que as vidas zeravam, o P1
+venceu. Seja qual for o motivo, a partida do sfa2 agora fecha **ao segundo
+round vencido** (`nKOsToWin = 2`), igual ao kof98 com três — o zeramento,
+quando vier, encontra a partida já fechada. ScoreSelfTest cobre duas partidas
+seguidas sem zerar; a gravação local continua dando 2 x 1 e 2 x 0.
+
+## ⚠️ Servidor fica com a primeira leitura da sessão, mesmo se ela tiver menos
+
+Sessão kof98 `47d12a3beef3` (13/09) caiu por desconexão depois de uma partida
+completa: este emulador gravou 0 x 3, o da VM gravou "interrompida" — e o da
+VM chegou primeiro, então o servidor arquivou a sessão sem partida nenhuma. O
+`Hub.ReportResult` deveria preferir a leitura com mais partidas (ou juntar as
+duas), não a que chegou antes.
+
+## (histórico) sfa2: o diagnóstico antes da correção
+
 **Relatado em 13/09.** Sessão FT3 online (`71b664d1fa44`): o log terminou em
 `score: sfa2 0 x 0 (0 partidas)` com `partida interrompida no meio: 0 x 4
 rounds`. A vida é lida certo — 4 rounds do P2 são duas partidas vencidas —,

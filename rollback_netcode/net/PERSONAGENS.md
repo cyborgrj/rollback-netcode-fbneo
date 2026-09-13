@@ -207,6 +207,48 @@ Nada é lido ainda; nenhuma partida de kof2002 chega com placar nem personagem.
 
 ---
 
+## Luta a luta do kof98 — `rounds[]` dentro de cada luta
+
+No kof98 cada partida tem até 5 confrontos (3 × 3). A partir desta versão,
+cada item de `fights[]` de kof98 traz `rounds`, um item por KO, em ordem:
+
+```json
+{
+  "fight_number": 1,
+  "player1_character": "iori",
+  "player2_character": "terry",
+  "player1_characters": ["iori", "mature", "vice"],
+  "player2_characters": ["terry", "andy", "joe"],
+  "player1_score": 3,
+  "player2_score": 2,
+  "winner_id": 1,
+  "player1_mode": "extra",
+  "player2_mode": "advanced",
+  "rounds": [
+    { "round_number": 1, "player1_character": "iori",   "player2_character": "terry", "winner_id": 1 },
+    { "round_number": 2, "player1_character": "iori",   "player2_character": "andy",  "winner_id": 4 },
+    { "round_number": 3, "player1_character": "mature", "player2_character": "andy",  "winner_id": 1 },
+    { "round_number": 4, "player1_character": "mature", "player2_character": "joe",   "winner_id": 4 },
+    { "round_number": 5, "player1_character": "vice",   "player2_character": "joe",   "winner_id": 1 }
+  ]
+}
+```
+
+- `player1_character` / `player2_character` de cada round: os dois que estavam
+  em cena no KO. Mesma regra de código das tabelas acima.
+- `winner_id`: id da conta de quem venceu aquele confronto (o mesmo do
+  `player1_id` ou `player2_id`); **`null` num KO duplo**.
+- `player1_score` / `player2_score` da luta continuam sendo os KOs de cada
+  lado — é o número de rounds que cada um venceu.
+- **Ausente** nos jogos de um personagem (sf2ce, ssf2t, sfa2, vsav): lá o
+  personagem não muda dentro da luta, e `player1_character` já diz tudo.
+
+Sugestão para o Django: um modelo `MatchRound` ligado a `MatchFight`
+(`round_number`, `player1_character`, `player2_character`, `winner` nulo),
+criado a partir de `item.get('rounds', [])`. Sugestão para o site: na luta do
+kof98, listar os confrontos em linha — "Iori × Terry → Iori" — em vez de só o
+primeiro personagem de cada time.
+
 ## Modo Advanced/Extra do kof98 — já é enviado
 
 A partir desta versão do lobby, cada item de `fights[]` de kof98 traz:

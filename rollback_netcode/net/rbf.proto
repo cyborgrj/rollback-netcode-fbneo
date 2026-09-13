@@ -228,6 +228,15 @@ message MatchGame {
   // no such mode. Team games send p1_chars/p2_chars in the order fought.
   string p1_mode  = 8;
   string p2_mode  = 9;
+  // Team games (kof98): every knockout of the game, in order. Empty otherwise.
+  repeated Bout bouts = 10;
+}
+
+// One knockout inside a team game: the two characters on screen and who won.
+message Bout {
+  int32 p1_char = 1;
+  int32 p2_char = 2;
+  int32 winner  = 3;   // 1 = p1, 2 = p2, 0 = double KO
 }
 
 message Pong { int64 t = 1; }

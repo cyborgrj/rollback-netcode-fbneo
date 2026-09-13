@@ -65,6 +65,16 @@ enum MatchScoreResult {
 	MATCH_SCORE_ERR_NO_MAP   = -2    // this driver is not one we can read
 };
 
+// Team games: one knockout - the two characters that were on screen and who
+// won it. A 3 x 3 game is at most five of these, plus any double KO.
+#define MATCH_SCORE_MAX_BOUTS 8
+
+typedef struct MatchBout {
+	int nP1Char;
+	int nP2Char;
+	int nWinner;      // 1 = P1, 2 = P2, 0 = double KO
+} MatchBout;
+
 // One finished game: who used what, and how many rounds each side took.
 typedef struct MatchGameRow {
 	int nP1Char[MATCH_SCORE_MAX_CHARS];
@@ -79,6 +89,9 @@ typedef struct MatchGameRow {
 	// it was not read), 1 = Advanced, 2 = Extra.
 	int nP1Mode;
 	int nP2Mode;
+	// Team games only (0 otherwise): every knockout of the game, in order.
+	int       nBouts;
+	MatchBout aBouts[MATCH_SCORE_MAX_BOUTS];
 } MatchGameRow;
 
 #define MATCH_MODE_NONE     0

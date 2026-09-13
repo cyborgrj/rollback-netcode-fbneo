@@ -25,12 +25,25 @@ namespace Rbf.Server
         /// mode, and then the key is not sent at all.</summary>
         public string P1Mode = "";
         public string P2Mode = "";
+        /// <summary>Team games: each knockout. Empty for everything else, and
+        /// then "rounds" is not sent.</summary>
+        public List<RoundReport> Rounds = new List<RoundReport>();
         public int    P1Rounds;
         public int    P2Rounds;
         /// <summary>Null on a draw. A double KO at match point belongs to
         /// neither side, and inventing a winner there would quietly corrupt
         /// both players' records.</summary>
         public int?   WinnerId;
+    }
+
+    /// <summary>One knockout inside a team game (kof98): who was on screen on
+    /// each side, and who won it.</summary>
+    internal sealed class RoundReport
+    {
+        public int    Number;            // 1-based, in the order they happened
+        public string P1Character = "";
+        public string P2Character = "";
+        public int?   WinnerId;          // null on a double KO
     }
 
     /// <summary>A whole session, ready to be posted: the totals, and every
@@ -197,6 +210,14 @@ namespace Rbf.Server
             if (f.P2Team != null) d["player2_characters"] = f.P2Team;
             if (!string.IsNullOrEmpty(f.P1Mode)) d["player1_mode"] = f.P1Mode;
             if (!string.IsNullOrEmpty(f.P2Mode)) d["player2_mode"] = f.P2Mode;
+            if (f.Rounds.Count > 0)
+                d["rounds"] = f.Rounds.Select(r => new Dictionary<string, object>
+                {
+                    ["round_number"]      = r.Number,
+                    ["player1_character"] = r.P1Character,
+                    ["player2_character"] = r.P2Character,
+                    ["winner_id"]         = r.WinnerId,
+                }).ToList();
             return d;
         }
 

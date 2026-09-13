@@ -307,6 +307,46 @@ int main(void)
 	      "jogo sem modo (sfa2) nao inventa um");
 	check(k.nP1Rounds == 0 && k.nP2Rounds == 0,
 	      "a vida negativa do perdedor depois do fim nao virou KO da partida seguinte");
+
+	// Who fought whom, knockout by knockout.
+	check(k.nGameRows == 2 && k.aGames[0].nBouts == 5 &&
+	      k.aGames[0].aBouts[0].nP1Char == 27 && k.aGames[0].aBouts[0].nP2Char == 3 &&
+	      k.aGames[0].aBouts[0].nWinner == 1 &&
+	      k.aGames[0].aBouts[1].nP1Char == 27 && k.aGames[0].aBouts[1].nP2Char == 4 &&
+	      k.aGames[0].aBouts[1].nWinner == 2 &&
+	      k.aGames[0].aBouts[4].nP1Char == 29 && k.aGames[0].aBouts[4].nP2Char == 5 &&
+	      k.aGames[0].aBouts[4].nWinner == 1,
+	      "partida 1 luta a luta: Iori>Terry, Andy>Iori ... Vice>Joe");
+	check(k.nGameRows == 2 && k.aGames[1].nBouts == 5 &&
+	      k.aGames[1].aBouts[0].nP1Char == 29 && k.aGames[1].aBouts[0].nP2Char == 2 &&
+	      k.aGames[1].aBouts[2].nP1Char == 29 && k.aGames[1].aBouts[2].nP2Char == 1 &&
+	      k.aGames[1].aBouts[2].nWinner == 2 &&
+	      k.aGames[1].aBouts[4].nP1Char == 28 && k.aGames[1].aBouts[4].nWinner == 2,
+	      "partida 2 luta a luta: Vice>Daimon, Vice>Kyo, Benimaru>Vice ... Benimaru>Mature");
+	check(d.nGameRows == 3 && d.aGames[0].nBouts == 0, "jogo de um personagem nao anota luta a luta");
+
+	// ---- sfa2 online: two games with no clearing between them ---------------
+	// 13/09: online the life words never both cleared between games, and two
+	// sessions ended with rounds counted and nothing awarded. A game is two
+	// rounds, so it ends on the count.
+	printf("\n-- sfa2 online: duas partidas sem zerar a vida entre elas\n");
+	g_driver = "sfa2";
+	MatchScoreStart(3, NULL);
+
+	pick(9, 7);                      // Rose x Guy
+	round_(1); round_(2); round_(1); // P2 2 x 1, no clearing afterwards
+	pick(5, 9);                      // Adon x Rose
+	round_(2); round_(2);            // P1 2 x 0
+	live(40, -1, 100);
+
+	MatchScoreData o;
+	MatchScoreGet(&o);
+	check(o.nGames == 2 && o.nGameRows == 2, "duas partidas contadas sem zerar a vida");
+	check(o.nGameRows == 2 && o.aGames[0].nP1Rounds == 1 && o.aGames[0].nP2Rounds == 2 &&
+	      o.aGames[0].nWinner == 2 && o.aGames[0].nP1Char[0] == 9, "partida 1: Rose 1 x 2 Guy");
+	check(o.nGameRows == 2 && o.aGames[1].nP1Rounds == 2 && o.aGames[1].nWinner == 1 &&
+	      o.aGames[1].nP1Char[0] == 5, "partida 2: Adon 2 x 0 Rose, com o personagem novo");
+	check(o.nP1Rounds == 0 && o.nP2Rounds == 0, "nada sobrou pendurado depois da segunda");
 	g_driver = "sfa2";
 
 	printf("\n%s\n", g_fail == 0 ? "tudo certo" : "FALHOU");

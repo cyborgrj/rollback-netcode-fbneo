@@ -51,7 +51,12 @@ static const ScoreMap kMaps[] = {
 	// cursor, not the pick. Confirmed on a fight against the CPU (Ryu vs
 	// Zangief, 1 x 2) and one between two humans (Fei Long vs M. Bison, 2 x 1).
 	{ "ssf2t", 0xFF8478, 0xFF8878, 0xFF87DF, 0xFF8BDF, 1, 0x0090, 0 },
-	{ "sfa2",  0xFF8450, 0xFF8850, 0xFF8482, 0xFF8882, 1, 0x0090, 0 },
+	// sfa2 online never clears both life words between games either (13/09:
+	// 0 x 4 and 2 x 3 rounds, nothing awarded, in two sessions where the
+	// human on P1 lost). Offline, with P1 winning, it did clear. A game is two
+	// rounds, so it ends on the count - the clearing, when it comes, finds a
+	// game already awarded and is ignored.
+	{ "sfa2",  0xFF8450, 0xFF8850, 0xFF8482, 0xFF8882, 1, 0x0090, 0, 0, 2 },
 	// vsav P2 is 0xFF881D, the P1 slot plus the 0x400 between the two player
 	// structs. It used to look like an animation field because every recording
 	// was against the CPU; a fight between two humans on 13/09 (Rikuo x Lilith,
@@ -100,6 +105,8 @@ static int  g_hist[2][MATCH_SCORE_MAX_CHARS][256];
 static int  g_order[2][MATCH_SCORE_MAX_CHARS];
 static int  g_orderN[2];
 static int  g_modeCount[2][3];
+static MatchBout g_bouts[MATCH_SCORE_MAX_BOUTS];   // knockouts of the current game
+static int  g_nBouts;
 
 static void resetExtras(void)
 {
@@ -107,6 +114,8 @@ static void resetExtras(void)
 	memset(g_order, 0, sizeof(g_order));
 	memset(g_orderN, 0, sizeof(g_orderN));
 	memset(g_modeCount, 0, sizeof(g_modeCount));
+	memset(g_bouts, 0, sizeof(g_bouts));
+	g_nBouts = 0;
 }
 
 // The team as fought: members in the order they came on, then any who never
@@ -186,6 +195,8 @@ static void awardGame(void)
 		if (g_map && g_map->nCurP2 && g_d.bHaveP2Char) orderedTeam(1, g_d.nP2Char, row->nP2Char);
 		row->nP1Mode = modeOf(0);
 		row->nP2Mode = modeOf(1);
+		row->nBouts  = g_nBouts;
+		memcpy(row->aBouts, g_bouts, sizeof(row->aBouts));
 		row->bHaveP1Char = g_d.bHaveP1Char;
 		row->bHaveP2Char = g_d.bHaveP2Char;
 		row->nP1Rounds   = p1;
@@ -373,12 +384,15 @@ void MatchScoreFrame(void)
 	if (l1 > 0 && l1 < g_p1Low) g_p1Low = l1;
 	if (l2 > 0 && l2 < g_p2Low) g_p2Low = l2;
 
+	int koP1 = 0, koP2 = 0;   // a knockout was counted on this frame
+
 	if (l1 < 0) {
 		if (g_p1Hold < SCORE_HOLD_FRAMES) g_p1Hold++;
 		if (g_p1Hold >= SCORE_HOLD_FRAMES && !g_p1Down) {
 			g_p1Down = 1;
 			g_d.nP2Rounds++;
 			g_d.nEndFrame = g_frame;
+			koP1 = 1;
 		}
 	} else {
 		g_p1Hold = 0;
@@ -391,10 +405,22 @@ void MatchScoreFrame(void)
 			g_p2Down = 1;
 			g_d.nP1Rounds++;
 			g_d.nEndFrame = g_frame;
+			koP2 = 1;
 		}
 	} else {
 		g_p2Hold = 0;
 		if (l2 > 0) g_p2Down = 0;
+	}
+
+	// ---- team games: who fought whom ---------------------------------------
+	// A team game shows one character a side, so the game row alone says only
+	// the teams. Each knockout is written down with the two fighters that
+	// were on screen - they still are, on the frame it is counted.
+	if ((koP1 || koP2) && g_map->nCurP1 && g_map->nCurP2 && g_nBouts < MATCH_SCORE_MAX_BOUTS) {
+		MatchBout* b = &g_bouts[g_nBouts++];
+		b->nP1Char = RamProbeRead8(g_map->nCurP1);
+		b->nP2Char = RamProbeRead8(g_map->nCurP2);
+		b->nWinner = (koP1 && koP2) ? 0 : koP2 ? 1 : 2;
 	}
 
 	// ---- team games end on the count --------------------------------------
@@ -515,6 +541,15 @@ static void writeGameRow(FILE* f, int nIndex, const MatchGameRow* g, int nCharCo
 	if (g->bHaveP2Char) {
 		fprintf(f, "p2chars=");
 		for (int i = 0; i < nCharCount; i++) fprintf(f, i ? ",%d" : "%d", g->nP2Char[i]);
+		fputc(' ', f);
+	}
+	// Team games: lutas=27-3-1,27-4-2 - P1 character, P2 character, winner
+	// (1, 2, or 0 for a double KO), one per knockout in order.
+	if (g->nBouts > 0) {
+		fprintf(f, "lutas=");
+		for (int i = 0; i < g->nBouts && i < MATCH_SCORE_MAX_BOUTS; i++)
+			fprintf(f, i ? ",%d-%d-%d" : "%d-%d-%d",
+			        g->aBouts[i].nP1Char, g->aBouts[i].nP2Char, g->aBouts[i].nWinner);
 		fputc(' ', f);
 	}
 	// Only where the game has a mode, so every other game's line is unchanged.
