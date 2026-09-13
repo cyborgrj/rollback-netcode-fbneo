@@ -240,9 +240,19 @@ A suspeita natural era "foi algo no codigo novo". Testado direto:
 O veredito vai para o **arquivo**, nao para o codigo. E tentar de novo **nao
 adianta** — a primeira versao desta secao dizia que sim, e estava errada.
 
-Consequencia pratica: **nesta maquina, qualquer build novo do emulador vai ser
-barrado** enquanto nao houver assinatura. Compilar continua funcionando; o que e
-barrado e executar. Caminhos sem gastar e sem mexer no sistema:
+**Atualizacao, 13/09 01:17 — voltou ao normal sozinho.** Um build novo (hash
+`A71D1956…`), arquivo que o Windows nunca tinha visto, abriu na primeira
+tentativa, sem nenhum evento de bloqueio no Code Integrity. O que falhava de
+madrugada (arquivo novo, mesmo com codigo identico) deixou de falhar. Tudo indica
+uma condicao temporaria do lado da Microsoft; a conclusao escrita antes aqui,
+"qualquer build novo sera barrado nesta maquina", nao se sustentou.
+
+Sobre abrir o emulador sem argumentos antes do launcher: nao foi isso. O build de
+01:17 nao tem evento de bloqueio nem na primeira abertura, e o Windows decide pelo
+arquivo (hash, assinatura, reputacao), nao pelos argumentos da linha de comando.
+
+Sem assinatura, isso pode voltar a acontecer, com voce ou com um usuario. Se
+acontecer, os caminhos sem gastar e sem mexer no sistema:
 
 - testar builds novos numa maquina sem o Smart App Control ligado (as VMs de
   teste, ou a `.16`) — compilar aqui e rodar la;
