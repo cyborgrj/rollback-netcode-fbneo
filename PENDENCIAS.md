@@ -133,15 +133,19 @@ Um pipe nomeado ou um arquivo append-only que o launcher acompanhe resolveria.
 
 Não é urgente: o dado é o mesmo nos dois casos, muda só a resistência a crash.
 
-## `ssf2t` e `kof2002`: no menu, mas sem placar
+## `kof2002`: no menu, mas sem placar
 
-Os dois entraram na biblioteca em 13/09 (arte e link de ROM prontos), e dá para
-jogar online neles normalmente — o rollback não depende de ler RAM nenhuma.
+Entrou na biblioteca em 13/09 (arte e link de ROM prontos), e dá para jogar
+online nele normalmente — o rollback não depende de ler RAM nenhuma.
 
-O que NÃO funciona neles: placar, personagem, ELO, estatística. Nenhum dos dois
-tem endereço de vida mapeado, então a sessão não é pontuada e nada é reportado
-ao Django. A barra mostra `-` no lugar do placar, em vez de um `0 x 0` que
-pareceria placar de verdade.
+O que NÃO funciona: placar, personagem, ELO, estatística. Não tem endereço de
+vida mapeado, então a sessão não é pontuada e nada é reportado ao Django. A
+barra mostra `-` no lugar do placar, em vez de um `0 x 0` que pareceria placar
+de verdade.
+
+O `ssf2t` saiu desta lista no mesmo dia: mapeado com as três gravações e
+conferido nas duas lutas. Falta só o Akuma no elenco (ninguém o escolheu numa
+gravação) e, se um dia importar, o byte que distingue as versões "old".
 
 Para fechar isso, o caminho é o mesmo dos outros quatro (`tools/README.md`):
 

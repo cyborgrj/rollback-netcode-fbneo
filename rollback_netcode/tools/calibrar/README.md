@@ -41,8 +41,12 @@ O caminho completo, com os comandos do `ProbeAnalyze`, está em
 | `sfa2` | ✅ | ✅ elenco completo |
 | `kof98` | ✅ | ⚠️ 9 de ~38 nomes |
 | `vsav` | ✅ | ⚠️ só o lado P1 |
+| `ssf2t` | ✅ | ✅ 16 de 17 (falta o Akuma) |
 | `kof2002` | ❌ | ❌ |
-| `ssf2t` | ❌ | ❌ |
 
-Os dois de baixo dá para jogar online normalmente — o rollback não lê RAM
-nenhuma. O que falta neles é placar, personagem, ELO e estatística.
+O `kof2002` dá para jogar online normalmente — o rollback não lê RAM nenhuma. O
+que falta nele é placar, personagem, ELO e estatística.
+
+O `ssf2t` foi o primeiro jogo mapeado com as três gravações desde o começo, em
+13/09, e fechou na primeira tentativa. De quebra ele confirmou o `sf2ce`: um
+passeio independente, noutra placa, deu os mesmos ids para os mesmos doze.

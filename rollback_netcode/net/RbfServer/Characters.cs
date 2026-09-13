@@ -44,6 +44,23 @@ namespace Rbf.Server
                 [8] = "M. Bison", [9] = "Sagat",   [10] = "Balrog", [11] = "Vega",
             },
 
+            // The sf2ce twelve keep their ids, and the four Super newcomers
+            // follow - which is its own confirmation: an independent walk on a
+            // different board landed on the same numbers for the same people.
+            //
+            // Akuma is almost certainly 16 but nobody has picked him on a
+            // recording, so he is not here. The "old" versions (old Sagat and
+            // so on) share the id of the new one; telling them apart would need
+            // one more recording to find the flag byte, and for now they count
+            // as the same character, which is what was asked for.
+            ["ssf2t"] = new Dictionary<int, string>
+            {
+                [0] = "Ryu",     [1] = "E. Honda", [2] = "Blanka",  [3] = "Guile",
+                [4] = "Ken",     [5] = "Chun Li",  [6] = "Zangief", [7] = "Dhalsim",
+                [8] = "M. Bison", [9] = "Sagat",   [10] = "Balrog", [11] = "Vega",
+                [12] = "Cammy",  [13] = "T. Hawk", [14] = "Fei Long", [15] = "Dee Jay",
+            },
+
             // Incomplete. 19 and 20 came from the order a CPU team entered the
             // fight, which is weaker evidence than a human picking them.
             ["kof98"] = new Dictionary<int, string>

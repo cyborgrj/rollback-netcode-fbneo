@@ -273,14 +273,16 @@ for completado. Django precisa da mesma lista:
 
 | jogo | código |
 |------|--------|
-| `sf2ce` | 4 `ryu` · 5 `e_honda` · 6 `ken` — o resto vai como número |
+| `sf2ce` | 0 `ryu` · 1 `e_honda` · 2 `blanka` · 3 `guile` · 4 `ken` · 5 `chun_li` · 6 `zangief` · 7 `dhalsim` · 8 `m_bison` · 9 `sagat` · 10 `balrog` · 11 `vega` |
+| `ssf2t` | os mesmos 0–11 do `sf2ce`, mais 12 `cammy` · 13 `t_hawk` · 14 `fei_long` · 15 `dee_jay` — Akuma ainda vai como número |
 | `sfa2` | 0 `ryu` · 1 `ken` · 2 `akuma` · 3 `nash` · 4 `chun_li` · 5 `adon` · 6 `sodom` · 7 `guy` · 8 `birdie` · 9 `rose` · 10 `m_bison` · 11 `sagat` · 12 `dan` · 13 `sakura` · 14 `rolento` · 15 `dhalsim` · 16 `zangief` · 17 `gen` |
 | `kof98` | 0 `kyo` · 1 `benimaru` · 2 `daimon` · 18 `kim` · 19 `choi` · 20 `chang` · 27 `iori` · 28 `mature` · 29 `vice` |
 | `vsav` | 22 `l_raptor` · 36 `jedah` — e o lado do P2 ainda não é legível |
 
-`ssf2t` e `kof2002` ainda não têm endereços mapeados: o emulador não lê placar
-nem personagem neles, então não há o que reportar. Entram quando passarem pelo
-mesmo trabalho que os quatro atuais (ver `tools/README.md`).
+`kof2002` ainda não tem endereços mapeados: o emulador não lê placar nem
+personagem nele, então não há o que reportar. Entra quando passar pelas três
+gravações de `tools/calibrar/` — o `ssf2t` passou por elas em 13/09 e fechou de
+primeira.
 
 ## Testes
 
