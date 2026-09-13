@@ -41,13 +41,12 @@ O caminho completo, com os comandos do `ProbeAnalyze`, está em
 | `sfa2` | ✅ | ✅ elenco completo |
 | `kof98` | ✅ | ⚠️ 9 de ~38 nomes |
 | `vsav` | ✅ | ⚠️ só o lado P1 |
-| `ssf2t` | 🗄️ mapeado e guardado | 🗄️ 16 de 17, guardado |
+| `ssf2t` | ✅ | ✅ 16 de 17 (falta o Akuma) |
 | `kof2002` | ❌ | ❌ |
 
-Os dois estão **fora da biblioteca por enquanto** (13/09): o build do emulador
-com o mapa do `ssf2t` foi barrado pelo Smart App Control por falta de
-assinatura, e a decisão foi voltar em vez de comprar certificado agora.
+O `kof2002` dá para jogar online normalmente — o rollback não lê RAM nenhuma. O
+que falta nele é placar, personagem, ELO e estatística.
 
-O mapa do `ssf2t` não se perdeu — está no commit `44c5f34`, com as três
-gravações que o confirmaram. Os scripts daqui continuam valendo para quando os
-dois voltarem.
+O `ssf2t` foi o primeiro jogo mapeado com as três gravações desde o começo, em
+13/09, e fechou na primeira tentativa. De quebra ele confirmou o `sf2ce`: um
+passeio independente, noutra placa, deu os mesmos ids para os mesmos doze.

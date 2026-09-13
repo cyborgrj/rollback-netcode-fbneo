@@ -676,6 +676,8 @@ internal static class Program
     {
         new GameMap { Game = "sf2ce", LifeP1 = 0xFF83E8, LifeP2 = 0xFF86E8,
                       CharP1 = 0xFF864F, CharP2 = 0xFF894F, Full = 0x90 },
+        new GameMap { Game = "ssf2t", LifeP1 = 0xFF8478, LifeP2 = 0xFF8878,
+                      CharP1 = 0xFF87DF, CharP2 = 0xFF8BDF, Full = 0x90 },
         new GameMap { Game = "sfa2",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
                       CharP1 = 0xFF8482, CharP2 = 0xFF8882, Full = 0x90 },
         new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,

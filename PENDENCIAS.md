@@ -133,29 +133,21 @@ Um pipe nomeado ou um arquivo append-only que o launcher acompanhe resolveria.
 
 Não é urgente: o dado é o mesmo nos dois casos, muda só a resistência a crash.
 
-## `ssf2t` e `kof2002`: fora por enquanto, e o mapa do `ssf2t` está guardado
+## `kof2002`: no menu, mas sem placar
 
-Os dois chegaram a entrar na biblioteca em 13/09 e saíram no mesmo dia, de
-propósito: o build do emulador que trazia o mapa do `ssf2t` foi bloqueado pelo
-Smart App Control, e sem certificado de assinatura a decisão foi voltar ao
-estado anterior em vez de pagar um agora.
+Entrou na biblioteca em 13/09 (arte e link de ROM prontos), e dá para jogar
+online nele normalmente — o rollback não depende de ler RAM nenhuma.
 
-**Nada foi perdido.** A arte continua em `rollback_netcode/src/`, os scripts de
-calibragem em `tools/calibrar/`, as gravações no `D:\RBF`, e o mapeamento
-completo do `ssf2t` — vida, personagem e elenco de 16, conferidos numa luta
-contra a CPU e numa entre humanos — está no commit `44c5f34`. A biblioteca está
-no `edadeca`. Para trazer os dois de volta:
+O que NÃO funciona: placar, personagem, ELO, estatística. Não tem endereço de
+vida mapeado, então a sessão não é pontuada e nada é reportado ao Django. A
+barra mostra `-` no lugar do placar, em vez de um `0 x 0` que pareceria placar
+de verdade.
 
-```bash
-git revert <o commit que desfez os dois>
-```
-
-⚠️ O bloqueio **não foi por causa do código** — o experimento da seção do Smart
-App Control abaixo mostra isso direto: o mesmo código com um byte a mais também é
-barrado. Trazer os dois de volta é seguro no dia em que houver assinatura, ou
-para testar numa máquina sem o Smart App Control ligado.
-
-O `kof2002` continua sem nada mapeado.
+O `ssf2t` foi mapeado no mesmo dia com as três gravações de `tools/calibrar/` e
+conferido nas duas lutas. Os dois jogos saíram por algumas horas por causa do
+bloqueio do Smart App Control e voltaram quando o bloqueio passou (ver a seção
+dele abaixo) — o bloqueio nunca teve relação com o código. Falta só o Akuma no
+elenco do `ssf2t`.
 
 ## Armadilha: lobby em 127.0.0.1 mata a partida
 

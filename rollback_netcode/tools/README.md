@@ -149,6 +149,7 @@ Endereços de CPU:
 | jogo | vida P1 | vida P2 | passo | cheia | personagem P1 | personagem P2 |
 |------|---------|---------|-------|-------|----------------|----------------|
 | `sf2ce` | `0xFF83E8` | `0xFF86E8` | `0x300` | `0x0090` (144) | `0xFF864F` | `0xFF894F` |
+| `ssf2t` | `0xFF8478` | `0xFF8878` | `0x400` | `0x0090` (144) | `0xFF87DF` | `0xFF8BDF` |
 | `sfa2`  | `0xFF8450` | `0xFF8850` | `0x400` | `0x0090` (144) | `0xFF8482` | `0xFF8882` |
 | `vsav`  | `0xFF8450` | `0xFF8850` | `0x400` | `0x0120` (288) | `0xFF841C` (16 bits) | **falta** |
 | `kof98` | `0x108238` | `0x108438` | `0x200` | `0x0067` (103) | `0x10A84E`+3 | `0x10A85F`+3 |
@@ -181,6 +182,13 @@ Personagens confirmados:
   certos, `0xFF864F` / `0xFF894F`, sairam do `--walk` na tela de selecao e
   foram confirmados em tres lutas de resultado conhecido, uma delas entre dois
   humanos.
+- `ssf2t`: os mesmos 0–11 do `sf2ce` e mais 12 Cammy, 13 T. Hawk, 14 Fei Long,
+  15 Dee Jay. Falta o Akuma (quase certamente 16, ninguém o escolheu numa
+  gravação). As versões "old" têm o mesmo id da nova e contam como o mesmo
+  personagem por enquanto. Primeiro jogo mapeado com as três gravações de
+  `calibrar/` desde o começo: o personagem ficou em `0xFF87DF` / `0xFF8BDF`, e o
+  `0xFF84F1`, que também segue o cursor, **volta a zero quando a luta começa** —
+  é o cursor, não a escolha. Sem a luta entre humanos, os dois pareciam iguais.
 - `sfa2`: **elenco completo.** Esse byte acompanha o cursor **ao vivo** na tela de
   seleção, então três passeios pelo grid bastaram.
 

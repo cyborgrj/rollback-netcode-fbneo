@@ -394,10 +394,19 @@ int OverlayGetLine(OverlayLine* out)
 	out->rgbBar    = OV_BAR;
 	out->nBarAlpha = OV_BAR_A;
 
-	int nP1 = 0, nP2 = 0;
-	MatchScoreGames(&nP1, &nP2);
-	snprintf(out->szS1, sizeof(out->szS1), "%d", nP1);
-	snprintf(out->szS2, sizeof(out->szS2), "%d", nP2);
+	if (MatchScoreIsActive()) {
+		int nP1 = 0, nP2 = 0;
+		MatchScoreGames(&nP1, &nP2);
+		snprintf(out->szS1, sizeof(out->szS1), "%d", nP1);
+		snprintf(out->szS2, sizeof(out->szS2), "%d", nP2);
+	} else {
+		// No RAM map for this game, so there is no score to show. A zero here
+		// would be a claim - it looks exactly like "nobody has won yet", and
+		// stays 0 x 0 for the whole session while people actually play. A dash
+		// says the truth: this one is not being counted.
+		snprintf(out->szS1, sizeof(out->szS1), "-");
+		snprintf(out->szS2, sizeof(out->szS2), "-");
+	}
 	if (g_ft) snprintf(out->szFt, sizeof(out->szFt), "FT%d", g_ft);
 
 	strncpy(out->szP1, g_p1[0] ? g_p1 : "P1", sizeof(out->szP1) - 1);
