@@ -133,12 +133,27 @@ Um pipe nomeado ou um arquivo append-only que o launcher acompanhe resolveria.
 
 Não é urgente: o dado é o mesmo nos dois casos, muda só a resistência a crash.
 
-## Jogos sem endereços mapeados
+## `ssf2t` e `kof2002`: no menu, mas sem placar
 
-O usuário citou `ssf2t` e `kof2002` na lista de `game_code`. Nenhum dos dois tem
-endereço de vida nem de personagem mapeado, então o emulador não lê placar neles
-e não há o que reportar. Entram quando passarem pelo mesmo trabalho dos quatro
-atuais — o caminho está em `tools/README.md`.
+Os dois entraram na biblioteca em 13/09 (arte e link de ROM prontos), e dá para
+jogar online neles normalmente — o rollback não depende de ler RAM nenhuma.
+
+O que NÃO funciona neles: placar, personagem, ELO, estatística. Nenhum dos dois
+tem endereço de vida mapeado, então a sessão não é pontuada e nada é reportado
+ao Django. A barra mostra `-` no lugar do placar, em vez de um `0 x 0` que
+pareceria placar de verdade.
+
+Para fechar isso, o caminho é o mesmo dos outros quatro (`tools/README.md`):
+
+1. `-rbfprobe` numa partida inteira, contra a CPU, para achar a barra de vida
+   com `--activity` e `--health`;
+2. `-rbfprobe` num passeio pela tela de seleção, com a ordem anotada, e
+   `--walk` para o elenco;
+3. uma luta entre DOIS humanos para confirmar o endereço do personagem dos dois
+   lados — foi o que pegou o erro do `sf2ce`.
+
+O `kof2002` é 3x3 como o `kof98`, então o personagem lá são três bytes em
+sequência.
 
 ## Armadilha: lobby em 127.0.0.1 mata a partida
 

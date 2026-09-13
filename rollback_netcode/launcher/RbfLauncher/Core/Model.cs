@@ -27,10 +27,12 @@ namespace RbfLauncher.Core
     {
         public static readonly IReadOnlyList<GameInfo> All = new[]
         {
-            new GameInfo { ShortName = "vsav",  Title = "Vampire Savior" },
-            new GameInfo { ShortName = "kof98", Title = "The King of Fighters '98" },
-            new GameInfo { ShortName = "sfa2",  Title = "Street Fighter Alpha 2" },
-            new GameInfo { ShortName = "sf2ce", Title = "Street Fighter II': Champion Edition" },
+            new GameInfo { ShortName = "vsav",    Title = "Vampire Savior" },
+            new GameInfo { ShortName = "kof98",   Title = "The King of Fighters '98" },
+            new GameInfo { ShortName = "kof2002", Title = "The King of Fighters 2002" },
+            new GameInfo { ShortName = "sfa2",    Title = "Street Fighter Alpha 2" },
+            new GameInfo { ShortName = "sf2ce",   Title = "Street Fighter II': Champion Edition" },
+            new GameInfo { ShortName = "ssf2t",   Title = "Super Street Fighter II Turbo" },
         };
     }
 
