@@ -277,7 +277,7 @@ for completado. Django precisa da mesma lista:
 | `ssf2t` | os mesmos 0–11 do `sf2ce`, mais 12 `cammy` · 13 `t_hawk` · 14 `fei_long` · 15 `dee_jay` — Akuma ainda vai como número |
 | `sfa2` | 0 `ryu` · 1 `ken` · 2 `akuma` · 3 `nash` · 4 `chun_li` · 5 `adon` · 6 `sodom` · 7 `guy` · 8 `birdie` · 9 `rose` · 10 `m_bison` · 11 `sagat` · 12 `dan` · 13 `sakura` · 14 `rolento` · 15 `dhalsim` · 16 `zangief` · 17 `gen` |
 | `kof98` | 0 `kyo` · 1 `benimaru` · 2 `daimon` · 18 `kim` · 19 `choi` · 20 `chang` · 27 `iori` · 28 `mature` · 29 `vice` |
-| `vsav` | 22 `l_raptor` · 36 `jedah` — e o lado do P2 ainda não é legível |
+| `vsav` | 17 `bb_hood` · 18 `demitri` · 19 `j_talbain` · 21 `victor` · 22 `l_raptor` · 23 `morrigan` · 24 `anakaris` · 27 `felicia` · 28 `bishamon` · 30 `sasquatch` · 31 `q_bee` · 33 `hsien_ko` · 34 `lilith` · 36 `jedah` — falta Rikuo (Aulbath); o lado do P2 ainda não é legível |
 
 `kof2002` ainda não tem endereços mapeados: o emulador não lê placar nem
 personagem nele, então não há o que reportar. Entra quando passar pelas três

@@ -388,6 +388,10 @@ namespace Rbf.Server.VerifyTest
                   "o elenco do ssf2t, confirmado em luta de dois humanos");
             Check(Characters.Code("ssf2t", 16) == "16", "Akuma ainda nao gravado vai como numero");
             Check(Characters.Code("vsav", 22) == "l_raptor", "ponto e espaco viram um underscore so");
+            Check(Characters.Code("vsav", 17) == "bb_hood" && Characters.Code("vsav", 33) == "hsien_ko" &&
+                  Characters.Code("vsav", 31) == "q_bee" && Characters.Code("vsav", 19) == "j_talbain",
+                  "o elenco do vsav, do passeio pela colmeia: dois pontos, e hifen vira underscore");
+            Check(Characters.Code("vsav", 20) == "20", "id do vsav fora do elenco (Rikuo?) vai como numero");
             Check(Characters.Code("sfa2", 10) == "m_bison", "idem para M. Bison");
 
             // O elenco do sf2ce foi medido no cursor da tela de selecao em 12/09;
@@ -478,7 +482,7 @@ namespace Rbf.Server.VerifyTest
             {
                 GameCode = "vsav", P1AccountId = p1, P2AccountId = p2,
                 P1Games = 1, P2Games = 0, WinnerId = p1, DurationSeconds = 71,
-                P1Character = "jedah", P2Character = "17",
+                P1Character = "jedah", P2Character = "20",
             };
             semNome.Fights.Add(new FightReport { Number = 1, P1Character = "jedah", P2Character = "17",
                                                  P1Rounds = 2, P2Rounds = 0, WinnerId = p1 });

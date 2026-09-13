@@ -100,6 +100,16 @@ internal static class Program
 
             if (files.Count < 1) { Usage(); return 1; }
 
+            // The name list is not a file, even though it does not start with
+            // "--" - it is the argument right after the flag.
+            int iMatch = args.ToList().IndexOf("--match");
+            if (iMatch >= 0 && iMatch + 1 < args.Length)
+            {
+                var names = args[iMatch + 1].Split(',').Select(s => s.Trim()).Where(s => s.Length > 0).ToList();
+                Match(files.First(f => f != args[iMatch + 1]), names);
+                return 0;
+            }
+
             int iTrace = args.ToList().IndexOf("--trace");
             if (iTrace >= 0 && iTrace + 1 < args.Length)
             {
@@ -228,6 +238,7 @@ internal static class Program
     private static void Usage()
     {
         Console.WriteLine("ProbeAnalyze <file.rbfp>                 summary + round-counter candidates");
+        Console.WriteLine("ProbeAnalyze <file.rbfp> --match A,B,C,...  address whose plateaus repeat like the names");
         Console.WriteLine("ProbeAnalyze <file.rbfp> --trace <addr>  every value that address took");
         Console.WriteLine("ProbeAnalyze <file.rbfp> --dump <addr> [n]  bytes around an address, per sample");
         Console.WriteLine("ProbeAnalyze <a.rbfp> <b.rbfp> --chars   character-id candidates");
@@ -813,6 +824,84 @@ internal static class Program
             string w = g.R1 > g.R2 ? "P1" : g.R2 > g.R1 ? "P2" : "empate";
             Console.WriteLine($"    {i + 1,2}. P1[{g.C1}] {g.R1} x {g.R2} P2[{g.C2}]   {w,-6} " +
                               $"(f{g.From}..f{g.To})");
+        }
+    }
+
+    // Addresses whose plateaus repeat the way the walked names repeat.
+    //
+    // --walk prints sequences and leaves the matching to a person, which works
+    // for a grid walked left to right. vsav's select screen is a hive: the
+    // cursor doubles back, the same character comes up twice, and reading
+    // twenty sequences by eye for "the 10th equals the 15th" is how an address
+    // gets picked by wishful thinking. So this checks it: for every pair of
+    // stops, same name must mean same value and different names different
+    // values. Values themselves are free - only the pattern is compared.
+    //
+    // Any run of consecutive plateaus can be the walk, since the byte may also
+    // move before the select screen and after the timer runs out. Exact
+    // matches come first; then the ones off by a pair or two, because the
+    // order written down from memory may have one stop wrong.
+    private static void Match(string path, List<string> names)
+    {
+        var rec = Load(path);
+        int n = names.Count;
+        var key = names.Select(s => new string(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray())).ToList();
+
+        Console.WriteLine($"{Path.GetFileName(path)} ({rec.H.Game}) - {n} paradas: {string.Join(", ", names)}");
+        Console.WriteLine();
+
+        var hits = new List<(int bad, uint addr, List<(byte v, uint f)> run, string why)>();
+        for (int i = 0; i < rec.Tracks.Length; i++)
+        {
+            var t = rec.Tracks[i];
+            if (t.Noisy || t.Trans == null || t.Changes < n - 1) continue;
+
+            var plats = new List<(byte v, uint f)> { (t.First, rec.Frames[0]) };
+            foreach (int e in t.Trans)
+            {
+                byte v = (byte)(e & 0xFF);
+                if (v != plats[plats.Count - 1].v) plats.Add((v, rec.Frames[e >> 8]));
+            }
+            if (plats.Count < n) continue;
+
+            int bestBad = int.MaxValue, bestAt = 0;
+            string bestWhy = "";
+            for (int s = 0; s + n <= plats.Count; s++)
+            {
+                int bad = 0;
+                var why = new List<string>();
+                for (int a = 0; a < n && bad <= 2; a++)
+                    for (int b = a + 1; b < n && bad <= 2; b++)
+                    {
+                        bool sameName = key[a] == key[b];
+                        bool sameVal = plats[s + a].v == plats[s + b].v;
+                        if (sameName == sameVal) continue;
+                        bad++;
+                        why.Add(sameName
+                            ? $"{names[a]} (#{a + 1}) e (#{b + 1}) deviam ser iguais"
+                            : $"{names[a]} (#{a + 1}) e {names[b]} (#{b + 1}) deram o mesmo valor");
+                    }
+                if (bad < bestBad) { bestBad = bad; bestAt = s; bestWhy = string.Join("; ", why); }
+                if (bad == 0) break;
+            }
+            if (bestBad <= 2)
+                hits.Add((bestBad, rec.AddrOf(i), plats.GetRange(bestAt, n), bestWhy));
+        }
+
+        if (hits.Count == 0)
+        {
+            Console.WriteLine("  nenhum endereco repete os valores do jeito que os nomes se repetem.");
+            return;
+        }
+
+        foreach (var h in hits.OrderBy(x => x.bad).ThenBy(x => x.addr).Take(20))
+        {
+            Console.WriteLine(h.bad == 0
+                ? $"  0x{h.addr:X6}   EXATO"
+                : $"  0x{h.addr:X6}   {h.bad} par(es) fora: {h.why}");
+            for (int k = 0; k < n; k++)
+                Console.WriteLine($"      {k + 1,2}. {names[k],-12} = {h.run[k].v,3} (0x{h.run[k].v:X2})   desde f{h.run[k].f}");
+            Console.WriteLine();
         }
     }
 

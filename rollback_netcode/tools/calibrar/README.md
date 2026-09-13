@@ -40,7 +40,7 @@ O caminho completo, com os comandos do `ProbeAnalyze`, está em
 | `sf2ce` | ✅ | ✅ elenco completo |
 | `sfa2` | ⚠️ rounds sim, fim de partida não (versus) | ✅ elenco completo |
 | `kof98` | ✅ | ⚠️ 9 de ~38 nomes |
-| `vsav` | ✅ | ⚠️ só o lado P1 |
+| `vsav` | ✅ | ⚠️ 14 de 15 nomes (falta Rikuo), só o lado P1 |
 | `ssf2t` | ✅ | ✅ 16 de 17 (falta o Akuma) |
 | `kof2002` | ❌ | ❌ |
 
