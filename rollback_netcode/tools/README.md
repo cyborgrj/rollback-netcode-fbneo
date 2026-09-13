@@ -204,9 +204,18 @@ Personagens confirmados:
   Os 18 personagens ocupam os ids 0..17 sem buraco e sem repetição, o que é a
   própria verificação: qualquer erro de leitura teria deixado um valor de fora e
   outro em dobro.
-- `kof98`: 0 = Kyo, 1 = Benimaru, 2 = Daimon, 18 = Kim, 19 = Choi, 20 = Chang,
-  27 = Iori, 28 = Mature, 29 = Vice. (19 e 20 saíram da ordem em que o time da
-  CPU entrou na luta — vale reconfirmar.)
+- `kof98` (times em `0x10A84E`+3 / `0x10A85F`+3): 0 Kyo, 1 Benimaru,
+  2 Daimon, 3 Terry, 4 Andy, 5 Joe, 6 Ryo, 7 Robert, 8 Yuri, 9 Leona, 10 Ralf,
+  11 Clark, 12 Athena, 13 Kensou, 14 Chin, 15 Chizuru, 16 Mai, 17 King, 18 Kim,
+  19 Chang, 20 Choi, 21 Yashiro, 22 Shermie, 23 Chris, 24 Yamazaki,
+  25 Blue Mary, 26 Billy, 27 Iori, 28 Mature, 29 Vice, 30 Heidern, 31 Takuma,
+  32 Saisyu, 33 Heavy D!, 34 Lucky, 35 Brian, 36 Rugal, 37 Shingo. Achado em
+  13/09 com dois passeios pela grade (modo Advanced): o cursor `0x1007D7` guarda
+  a posição, e **id = posição + 6** — conferido nos sete ids já lidos em luta.
+  O cursor muda mais de 48 vezes na gravação, então o `--match` o descarta como
+  ruidoso; foi achado no `--trace`. **19 e 20 estavam trocados** antes (vinham
+  da ordem em que o time da CPU entrou). Random Select faz o cursor sortear
+  valores, então não confunda os saltos dele com personagens.
 - `vsav` (P1 `0xFF841D`, P2 `0xFF881D`): 17 = B.B. Hood, 18 = Demitri,
   19 = J. Talbain, 21 = Victor, 22 = L. Raptor, 23 = Morrigan, 24 = Anakaris,
   27 = Felicia, 28 = Bishamon, 29 = Rikuo, 30 = Sasquatch, 31 = Q-Bee,

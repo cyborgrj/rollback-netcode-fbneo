@@ -276,7 +276,7 @@ for completado. Django precisa da mesma lista:
 | `sf2ce` | 0 `ryu` · 1 `e_honda` · 2 `blanka` · 3 `guile` · 4 `ken` · 5 `chun_li` · 6 `zangief` · 7 `dhalsim` · 8 `m_bison` · 9 `sagat` · 10 `balrog` · 11 `vega` |
 | `ssf2t` | os mesmos 0–11 do `sf2ce`, mais 12 `cammy` · 13 `t_hawk` · 14 `fei_long` · 15 `dee_jay` — Akuma ainda vai como número |
 | `sfa2` | 0 `ryu` · 1 `ken` · 2 `akuma` · 3 `nash` · 4 `chun_li` · 5 `adon` · 6 `sodom` · 7 `guy` · 8 `birdie` · 9 `rose` · 10 `m_bison` · 11 `sagat` · 12 `dan` · 13 `sakura` · 14 `rolento` · 15 `dhalsim` · 16 `zangief` · 17 `gen` |
-| `kof98` | 0 `kyo` · 1 `benimaru` · 2 `daimon` · 18 `kim` · 19 `choi` · 20 `chang` · 27 `iori` · 28 `mature` · 29 `vice` |
+| `kof98` | 0 `kyo` · 1 `benimaru` · 2 `daimon` · 3 `terry` · 4 `andy` · 5 `joe` · 6 `ryo` · 7 `robert` · 8 `yuri` · 9 `leona` · 10 `ralf` · 11 `clark` · 12 `athena` · 13 `kensou` · 14 `chin` · 15 `chizuru` · 16 `mai` · 17 `king` · 18 `kim` · 19 `chang` · 20 `choi` · 21 `yashiro` · 22 `shermie` · 23 `chris` · 24 `yamazaki` · 25 `blue_mary` · 26 `billy` · 27 `iori` · 28 `mature` · 29 `vice` · 30 `heidern` · 31 `takuma` · 32 `saisyu` · 33 `heavy_d` · 34 `lucky` · 35 `brian` · 36 `rugal` · 37 `shingo` — **19 e 20 trocaram em 13/09** (antes: 19 `choi`, 20 `chang`) |
 | `vsav` | 17 `bb_hood` · 18 `demitri` · 19 `j_talbain` · 21 `victor` · 22 `l_raptor` · 23 `morrigan` · 24 `anakaris` · 27 `felicia` · 28 `bishamon` · 29 `rikuo` · 30 `sasquatch` · 31 `q_bee` · 33 `hsien_ko` · 34 `lilith` · 36 `jedah` — os dois lados |
 
 `kof2002` ainda não tem endereços mapeados: o emulador não lê placar nem

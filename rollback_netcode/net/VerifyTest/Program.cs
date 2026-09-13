@@ -392,6 +392,11 @@ namespace Rbf.Server.VerifyTest
                   Characters.Code("vsav", 31) == "q_bee" && Characters.Code("vsav", 19) == "j_talbain",
                   "o elenco do vsav, do passeio pela colmeia: dois pontos, e hifen vira underscore");
             Check(Characters.Code("vsav", 29) == "rikuo", "Rikuo, da luta entre dois humanos");
+            Check(Characters.Code("kof98", 19) == "chang" && Characters.Code("kof98", 20) == "choi",
+                  "kof98: Chang 19 e Choi 20, pelo cursor (a tabela antiga tinha trocado)");
+            Check(Characters.Code("kof98", 33) == "heavy_d" && Characters.Code("kof98", 25) == "blue_mary" &&
+                  Characters.Code("kof98", 37) == "shingo",
+                  "kof98: elenco inteiro ate o Shingo (37)");
             Check(Characters.Code("vsav", 20) == "20",
                   "20 e o pisca do J. Talbain, nao personagem: vai como numero");
             Check(Characters.Code("sfa2", 10) == "m_bison", "idem para M. Bison");

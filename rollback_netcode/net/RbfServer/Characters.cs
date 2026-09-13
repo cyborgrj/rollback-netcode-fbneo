@@ -61,13 +61,28 @@ namespace Rbf.Server
                 [12] = "Cammy",  [13] = "T. Hawk", [14] = "Fei Long", [15] = "Dee Jay",
             },
 
-            // Incomplete. 19 and 20 came from the order a CPU team entered the
-            // fight, which is weaker evidence than a human picking them.
+            // kof98 (13/09): two walks over the select grid (Advanced), traced
+            // at the cursor byte 0x1007D7 - pick id = cursor position + 6.
+            // Checked against the seven ids already read off the team slots in
+            // fights (0, 1, 2, 18, 27, 28, 29), and both walks agreed, repeats
+            // included. The old table had Choi 19 / Chang 20, taken from the
+            // order a CPU team entered the fight; the cursor passes Kim, Chang,
+            // Choi in that order, so it was the other way round.
             ["kof98"] = new Dictionary<int, string>
             {
-                [0] = "Kyo", [1] = "Benimaru", [2] = "Daimon",
-                [18] = "Kim", [19] = "Choi", [20] = "Chang",
-                [27] = "Iori", [28] = "Mature", [29] = "Vice",
+                [0]  = "Kyo",      [1]  = "Benimaru", [2]  = "Daimon",
+                [3]  = "Terry",    [4]  = "Andy",     [5]  = "Joe",
+                [6]  = "Ryo",      [7]  = "Robert",   [8]  = "Yuri",
+                [9]  = "Leona",    [10] = "Ralf",     [11] = "Clark",
+                [12] = "Athena",   [13] = "Kensou",   [14] = "Chin",
+                [15] = "Chizuru",  [16] = "Mai",      [17] = "King",
+                [18] = "Kim",      [19] = "Chang",    [20] = "Choi",
+                [21] = "Yashiro",  [22] = "Shermie",  [23] = "Chris",
+                [24] = "Yamazaki", [25] = "Blue Mary",[26] = "Billy",
+                [27] = "Iori",     [28] = "Mature",   [29] = "Vice",
+                [30] = "Heidern",  [31] = "Takuma",   [32] = "Saisyu",
+                [33] = "Heavy D",  [34] = "Lucky",    [35] = "Brian",
+                [36] = "Rugal",    [37] = "Shingo",
             },
 
             // Incomplete, and P2 cannot be read at all yet - see PENDENCIAS.md.

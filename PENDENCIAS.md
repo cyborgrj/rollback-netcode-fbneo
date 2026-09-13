@@ -181,10 +181,19 @@ pé e se a porta continua aberta no painel do Lightsail.
 
 ## Elenco de personagens incompleto
 
-`sfa2` (18 de 18) e `sf2ce` (12 de 12) estão completos. Faltam nomes em `kof98`
-(9 de ~38) e `vsav`. O banco guarda o **id numérico** desde o começo, então os
-nomes podem ser preenchidos depois e as partidas antigas passam a mostrá-los.
-Cada partida de `kof98` entrega seis ids de uma vez.
+`sfa2` (18 de 18), `sf2ce` (12 de 12), `vsav` (15 de 15) e, desde 13/09,
+`kof98` (38 de 38) estão completos. Falta o Akuma do `ssf2t` e o `kof2002`
+inteiro. O banco guarda o **id numérico** desde o começo, então os nomes podem
+ser preenchidos depois e as partidas antigas passam a mostrá-los.
+
+⚠️ `kof98`: **19 e 20 trocaram de nome** em 13/09 (agora 19 Chang, 20 Choi;
+antes o contrário, tirado da ordem de entrada de um time da CPU). Partida de
+kof98 que já tenha ido para o Django com `choi`/`chang` pode estar com os dois
+invertidos.
+
+Ainda no `kof98`: o modo **Advanced/Extra** não é lido. O byte que alternou
+junto na gravação de 13/09 (`0x10B9E1`) é uma animação que pisca a cada 30
+frames em todas as gravações, não o modo.
 
 ## Banco: o próximo elo
 
