@@ -150,9 +150,10 @@ no `edadeca`. Para trazer os dois de volta:
 git revert <o commit que desfez os dois>
 ```
 
-⚠️ O bloqueio **não foi por causa do código** (ver a seção do Smart App Control
-abaixo). Trazer de volta é seguro no dia em que houver assinatura — ou em que o
-build passar pela checagem da nuvem, que é o que acontecia até então.
+⚠️ O bloqueio **não foi por causa do código** — o experimento da seção do Smart
+App Control abaixo mostra isso direto: o mesmo código com um byte a mais também é
+barrado. Trazer os dois de volta é seguro no dia em que houver assinatura, ou
+para testar numa máquina sem o Smart App Control ligado.
 
 O `kof2002` continua sem nada mapeado.
 
@@ -224,6 +225,36 @@ Opcoes, para pessoa fisica no Brasil (pesquisado em 13/09/2026):
 editor do Frame Perfect, e assinar software pessoal com ele quase certamente
 fere a politica da empresa.
 
-Decisao em 13/09: **nao comprar agora**. Enquanto isso, se um build for barrado,
-tentar abrir de novo — o resultado nao fica guardado, e a proxima tentativa
-refaz a checagem.
+Decisao em 13/09: **nao comprar agora**.
+
+### O experimento que fechou a questao (13/09, 01:05)
+
+A suspeita natural era "foi algo no codigo novo". Testado direto:
+
+| teste | resultado |
+|-------|-----------|
+| build de 12/09 10:11, o arquivo original | **abre** |
+| o MESMO build com 1 byte a mais no fim (codigo identico, arquivo novo) | **bloqueado** — nuvem consultada, nada suspeito |
+| build de 13/09 00:41, aberto de novo sem mudar nada | **bloqueado** de novo |
+
+O veredito vai para o **arquivo**, nao para o codigo. E tentar de novo **nao
+adianta** — a primeira versao desta secao dizia que sim, e estava errada.
+
+Consequencia pratica: **nesta maquina, qualquer build novo do emulador vai ser
+barrado** enquanto nao houver assinatura. Compilar continua funcionando; o que e
+barrado e executar. Caminhos sem gastar e sem mexer no sistema:
+
+- testar builds novos numa maquina sem o Smart App Control ligado (as VMs de
+  teste, ou a `.16`) — compilar aqui e rodar la;
+- continuar usando nesta maquina o build de 12/09 10:11, que o Windows ja aceita.
+
+⚠️ **Mas esse build de 10:11 tem dois defeitos que sujam o banco**, porque e
+anterior a duas correcoes:
+
+- le o personagem do `sf2ce` no endereco errado (`0xFF83D9` / `0xFF86D9`,
+  corrigido em `6db8f1e`), entao partida de `sf2ce` gravada com ele vai para o
+  Django com **personagem errado**;
+- conta desistencia 0 x 0 como partida empatada (corrigido em `8f6eb66`).
+
+Para teste de rede e de interface ele serve. Para partida que vai valer no
+ranking, nao.
