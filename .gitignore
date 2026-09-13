@@ -18,6 +18,8 @@
 [Oo]bj/
 out/
 publish/
+# backups numerados dos builds (build/publicar-launcher.ps1)
+backups/
 publish-server/
 *.user
 rbf-launcher.json
