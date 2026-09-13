@@ -33,12 +33,10 @@ namespace Rbf.Server
             // (ProbeAnalyze --walk) against a written-down walking order. It is
             // the classic SF2 ordering: the eight originals, then the bosses.
             //
-            // ⚠️ The emulator cannot produce these ids yet. The address it
-            // reads during a fight (0xFF83D9) is NOT this field - it gave 4 and
-            // 6 for a Ryu vs Ken match, which under this table is Ken vs
-            // Zangief. So sf2ce characters are switched OFF in match_score.cpp
-            // until a two-player recording pins the right address; this table
-            // is ready for when it does.
+            // Confirmed end to end: three fights of known characters read
+            // back right through 0xFF864F / 0xFF894F, one of them between two
+            // humans. The addresses matter as much as the names - see
+            // match_score.cpp for the pair that was wrong.
             ["sf2ce"] = new Dictionary<int, string>
             {
                 [0] = "Ryu",     [1] = "E. Honda", [2] = "Blanka",  [3] = "Guile",

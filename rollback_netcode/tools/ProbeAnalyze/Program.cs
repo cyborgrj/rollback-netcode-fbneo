@@ -675,7 +675,7 @@ internal static class Program
     private static readonly GameMap[] Maps =
     {
         new GameMap { Game = "sf2ce", LifeP1 = 0xFF83E8, LifeP2 = 0xFF86E8,
-                      CharP1 = 0xFF83D9, CharP2 = 0xFF86D9, Full = 0x90 },
+                      CharP1 = 0xFF864F, CharP2 = 0xFF894F, Full = 0x90 },
         new GameMap { Game = "sfa2",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
                       CharP1 = 0xFF8482, CharP2 = 0xFF8882, Full = 0x90 },
         new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,

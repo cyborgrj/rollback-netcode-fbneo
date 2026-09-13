@@ -148,7 +148,7 @@ Endereços de CPU:
 
 | jogo | vida P1 | vida P2 | passo | cheia | personagem P1 | personagem P2 |
 |------|---------|---------|-------|-------|----------------|----------------|
-| `sf2ce` | `0xFF83E8` | `0xFF86E8` | `0x300` | `0x0090` (144) | `0xFF83D9` | `0xFF86D9` |
+| `sf2ce` | `0xFF83E8` | `0xFF86E8` | `0x300` | `0x0090` (144) | `0xFF864F` | `0xFF894F` |
 | `sfa2`  | `0xFF8450` | `0xFF8850` | `0x400` | `0x0090` (144) | `0xFF8482` | `0xFF8882` |
 | `vsav`  | `0xFF8450` | `0xFF8850` | `0x400` | `0x0120` (288) | `0xFF841C` (16 bits) | **falta** |
 | `kof98` | `0x108238` | `0x108438` | `0x200` | `0x0067` (103) | `0x10A84E`+3 | `0x10A85F`+3 |
@@ -166,11 +166,21 @@ Dois jogos fogem do formato "melhor de três":
 
 Personagens confirmados:
 
-- `sf2ce`: 4 = Ryu, 6 = Ken. ⚠️ **O resto do elenco nao esta mapeado.** O 5
-  foi dado como E.Honda a partir de uma gravacao contra a CPU e, em 12/09, uma
-  partida entre humanos leu 5 para o Guile. Nenhuma ordenacao continua encaixa
-  4=Ryu, 6=Ken com Honda E Guile no 5 - entao o elenco inteiro daqui e suspeito,
-  nao so incompleto. Refazer com o passeio pela tela de selecao, igual ao sfa2.
+- `sf2ce`: **elenco completo**, na ordenacao classica do SF2.
+
+  | id | | id | | id | |
+  |----|--|----|--|----|--|
+  | 0 | Ryu | 4 | Ken | 8 | M. Bison |
+  | 1 | E. Honda | 5 | Chun Li | 9 | Sagat |
+  | 2 | Blanka | 6 | Zangief | 10 | Balrog |
+  | 3 | Guile | 7 | Dhalsim | 11 | Vega |
+
+  ⚠️ O personagem do `sf2ce` **nao** fica no offset espelhado dentro da struct
+  de vida. `0xFF83D9` / `0xFF86D9` foram tomados por ele a partir de gravacoes
+  contra a CPU e estavam errados - davam 4 e 6 para uma luta Ryu vs Ken. Os
+  certos, `0xFF864F` / `0xFF894F`, sairam do `--walk` na tela de selecao e
+  foram confirmados em tres lutas de resultado conhecido, uma delas entre dois
+  humanos.
 - `sfa2`: **elenco completo.** Esse byte acompanha o cursor **ao vivo** na tela de
   seleção, então três passeios pelo grid bastaram.
 
