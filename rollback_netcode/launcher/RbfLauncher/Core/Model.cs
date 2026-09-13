@@ -87,15 +87,18 @@ namespace RbfLauncher.Core
             string.IsNullOrWhiteSpace(ApiBaseUrl)
                 ? DefaultApiBaseUrl : ApiBaseUrl.Trim().TrimEnd('/');
 
-        /// <summary>O site público (as páginas de perfil). Vazio = o mesmo
-        /// endereço da API, que é como está hoje em desenvolvimento; quando o
-        /// site ganhar domínio próprio, basta preencher em Configurações.</summary>
+        /// <summary>O site público (as páginas de perfil) - o frontend React,
+        /// que NÃO é o Django: em desenvolvimento é o Vite, na porta padrão
+        /// 5173. Quando o site ganhar domínio próprio, basta trocar em
+        /// Configurações.</summary>
         [JsonPropertyName("siteBaseUrl")]
-        public string SiteBaseUrl { get; set; } = "";
+        public string SiteBaseUrl { get; set; } = DefaultSiteBaseUrl;
+
+        public const string DefaultSiteBaseUrl = "http://localhost:5173";
 
         public string ResolvedSiteBaseUrl =>
             string.IsNullOrWhiteSpace(SiteBaseUrl)
-                ? ResolvedApiBaseUrl : SiteBaseUrl.Trim().TrimEnd('/');
+                ? DefaultSiteBaseUrl : SiteBaseUrl.Trim().TrimEnd('/');
 
         /// <summary>{site}/player/{username} - a página completa do jogador.</summary>
         public string PlayerProfileUrl(string username) =>
