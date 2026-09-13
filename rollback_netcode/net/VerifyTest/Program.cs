@@ -384,9 +384,6 @@ namespace Rbf.Server.VerifyTest
             // O elenco do sf2ce so tem tres nomes confirmados ate agora.
             Check(Characters.Code("sf2ce", 4) == "ken", "id conhecido vira codigo");
             Check(Characters.Code("sf2ce", 3) == "guile", "o elenco do sf2ce, confirmado em luta de dois humanos");
-            Check(Characters.Code("ssf2t", 14) == "fei_long" && Characters.Code("ssf2t", 8) == "m_bison",
-                  "o elenco do ssf2t, confirmado em luta de dois humanos");
-            Check(Characters.Code("ssf2t", 16) == "16", "Akuma ainda nao gravado vai como numero");
             Check(Characters.Code("vsav", 22) == "l_raptor", "ponto e espaco viram um underscore so");
             Check(Characters.Code("sfa2", 10) == "m_bison", "idem para M. Bison");
 

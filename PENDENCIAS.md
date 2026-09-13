@@ -71,7 +71,7 @@ pé e se a porta continua aberta no painel do Lightsail.
 
 ## Elenco de personagens incompleto
 
-`sfa2` está completo (18 de 18). Faltam nomes em `sf2ce` (3 de 12), `kof98`
+`sfa2` (18 de 18) e `sf2ce` (12 de 12) estão completos. Faltam nomes em `kof98`
 (9 de ~38) e `vsav`. O banco guarda o **id numérico** desde o começo, então os
 nomes podem ser preenchidos depois e as partidas antigas passam a mostrá-los.
 Cada partida de `kof98` entrega seis ids de uma vez.
@@ -133,31 +133,28 @@ Um pipe nomeado ou um arquivo append-only que o launcher acompanhe resolveria.
 
 Não é urgente: o dado é o mesmo nos dois casos, muda só a resistência a crash.
 
-## `kof2002`: no menu, mas sem placar
+## `ssf2t` e `kof2002`: fora por enquanto, e o mapa do `ssf2t` está guardado
 
-Entrou na biblioteca em 13/09 (arte e link de ROM prontos), e dá para jogar
-online nele normalmente — o rollback não depende de ler RAM nenhuma.
+Os dois chegaram a entrar na biblioteca em 13/09 e saíram no mesmo dia, de
+propósito: o build do emulador que trazia o mapa do `ssf2t` foi bloqueado pelo
+Smart App Control, e sem certificado de assinatura a decisão foi voltar ao
+estado anterior em vez de pagar um agora.
 
-O que NÃO funciona: placar, personagem, ELO, estatística. Não tem endereço de
-vida mapeado, então a sessão não é pontuada e nada é reportado ao Django. A
-barra mostra `-` no lugar do placar, em vez de um `0 x 0` que pareceria placar
-de verdade.
+**Nada foi perdido.** A arte continua em `rollback_netcode/src/`, os scripts de
+calibragem em `tools/calibrar/`, as gravações no `D:\RBF`, e o mapeamento
+completo do `ssf2t` — vida, personagem e elenco de 16, conferidos numa luta
+contra a CPU e numa entre humanos — está no commit `44c5f34`. A biblioteca está
+no `edadeca`. Para trazer os dois de volta:
 
-O `ssf2t` saiu desta lista no mesmo dia: mapeado com as três gravações e
-conferido nas duas lutas. Falta só o Akuma no elenco (ninguém o escolheu numa
-gravação) e, se um dia importar, o byte que distingue as versões "old".
+```bash
+git revert <o commit que desfez os dois>
+```
 
-Para fechar isso, o caminho é o mesmo dos outros quatro (`tools/README.md`):
+⚠️ O bloqueio **não foi por causa do código** (ver a seção do Smart App Control
+abaixo). Trazer de volta é seguro no dia em que houver assinatura — ou em que o
+build passar pela checagem da nuvem, que é o que acontecia até então.
 
-1. `-rbfprobe` numa partida inteira, contra a CPU, para achar a barra de vida
-   com `--activity` e `--health`;
-2. `-rbfprobe` num passeio pela tela de seleção, com a ordem anotada, e
-   `--walk` para o elenco;
-3. uma luta entre DOIS humanos para confirmar o endereço do personagem dos dois
-   lados — foi o que pegou o erro do `sf2ce`.
-
-O `kof2002` é 3x3 como o `kof98`, então o personagem lá são três bytes em
-sequência.
+O `kof2002` continua sem nada mapeado.
 
 ## Armadilha: lobby em 127.0.0.1 mata a partida
 
@@ -180,3 +177,53 @@ Resolvido dos dois lados:
 
 ⚠️ Continua valendo a regra geral: **use o endereco de rede da maquina, nao
 `127.0.0.1`**, sempre que o adversario estiver em outra maquina.
+
+## Smart App Control: executavel sem assinatura pode ser barrado
+
+Em 13/09 o Windows 11 recusou abrir um build novo do `fbneo64d.exe` com "uma
+politica de controle de aplicativo bloqueou esse arquivo". O que os registros
+mostraram:
+
+- o Smart App Control esta ligado nesta maquina desde 09/08 — nao mudou;
+- nenhum build anterior tinha sido barrado;
+- o evento do bloqueio (Code Integrity, id 3118) diz `IsUnfriendlyFile = false`
+  e nenhuma ameaca: **o Windows nao achou o arquivo perigoso**;
+- ele pediu a checagem de reputacao na nuvem e ela **nao aconteceu**
+  (`DefenderMadeCloudCall = false`), com a protecao na nuvem ligada e normal.
+
+Ou seja: todo build e um arquivo que o Windows nunca viu; sem assinatura ele
+depende dessa checagem funcionar e dizer "seguro" naquele momento. Ate entao
+funcionava; dessa vez nao. **Nao foi o codigo** — foi ser um arquivo novo.
+
+O que isso significa para quem baixar o Frame Perfect: na primeira vez que abrir
+cada versao, a mesma checagem. Na maioria das vezes passa; quando nao passa, o
+usuario ve o bloqueio e nao tem o que fazer sem mexer no sistema.
+
+### A unica solucao sem o usuario mexer em nada: assinar
+
+O FBNeo do Fightcade abre sempre porque e assinado. So tres arquivos nossos nao
+tem assinatura — todo o resto (DLLs da Microsoft, Google, .NET) ja vem assinado:
+
+```
+fbneo64d.exe    launcher\RbfLauncher.exe    launcher\RbfProtocol.dll
+```
+
+O `signtool.exe` ja esta instalado. Com um certificado, a assinatura entra no
+build e todo build sai assinado.
+
+Opcoes, para pessoa fisica no Brasil (pesquisado em 13/09/2026):
+
+| opcao | serve? |
+|-------|--------|
+| Azure Artifact Signing | nao — pessoa fisica so EUA e Canada |
+| SignPath Foundation (gratis) | nao — exige licenca OSI em tudo, e a do FBNeo e nao-comercial |
+| Certum Open Source (nuvem) | talvez — mais barato, mas pode recusar por causa da licenca do FBNeo |
+| OV individual na nuvem (ex.: Certum) | sim, ~€189/ano |
+
+**Nao usar o certificado do trabalho.** Ele poe o nome do empregador como
+editor do Frame Perfect, e assinar software pessoal com ele quase certamente
+fere a politica da empresa.
+
+Decisao em 13/09: **nao comprar agora**. Enquanto isso, se um build for barrado,
+tentar abrir de novo — o resultado nao fica guardado, e a proxima tentativa
+refaz a checagem.

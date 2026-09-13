@@ -41,12 +41,6 @@ static const ScoreMap kMaps[] = {
 	// walking the select-screen cursor and then confirmed against three fights
 	// whose characters were known - including one between two humans.
 	{ "sf2ce", 0xFF83E8, 0xFF86E8, 0xFF864F, 0xFF894F, 1, 0x0090, 0 },
-	// ssf2t (CPS2): the sfa2 layout - life structs 0x400 apart, full 0x0090 -
-	// with the character in its own slot. 0xFF84F1 also follows the select
-	// cursor, but resets to zero the moment the fight starts: that one is the
-	// cursor, not the pick. Confirmed on a fight against the CPU (Ryu vs
-	// Zangief, 1 x 2) and one between two humans (Fei Long vs M. Bison, 2 x 1).
-	{ "ssf2t", 0xFF8478, 0xFF8878, 0xFF87DF, 0xFF8BDF, 1, 0x0090, 0 },
 	{ "sfa2",  0xFF8450, 0xFF8850, 0xFF8482, 0xFF8882, 1, 0x0090, 0 },
 	{ "vsav",  0xFF8450, 0xFF8850, 0xFF841D, 0,        1, 0x0120, 1 },
 	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0 },
