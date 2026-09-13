@@ -229,7 +229,7 @@ namespace RbfLauncher.Views
                 ToolTip = "ver as estatísticas de " + p.Username,
             };
             name.MouseLeftButtonUp += (s, e) =>
-                StatsWindow.Open(p.Username, _config.ResolvedApiBaseUrl, Window.GetWindow(this));
+                StatsWindow.Open(p.Username, _config, Window.GetWindow(this));
 
             int nBars = Latency.Bars(p.PingMs);
             Brush barOn = nBars >= 3 ? (Brush)FindResource("Ok")

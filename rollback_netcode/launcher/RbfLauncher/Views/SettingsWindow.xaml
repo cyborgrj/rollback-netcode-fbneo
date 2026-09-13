@@ -10,6 +10,10 @@
                Foreground="{StaticResource TextDim}" />
     <TextBox x:Name="ApiBox" Margin="0,4,0,16" Padding="6,5" />
 
+    <TextBlock Text="Site  —  páginas de perfil (vazio = mesmo endereço da API)"
+               Foreground="{StaticResource TextDim}" />
+    <TextBox x:Name="SiteBox" Margin="0,4,0,16" Padding="6,5" />
+
     <TextBlock Text="Lobby (IP ou host)  —  usado no &quot;Conectar&quot;" Foreground="{StaticResource TextDim}" />
     <Grid Margin="0,4,0,16">
       <Grid.ColumnDefinitions>

@@ -13,6 +13,7 @@ namespace RbfLauncher.Views
             InitializeComponent();
             _config = config;
             ApiBox.Text = config.ResolvedApiBaseUrl;
+            SiteBox.Text = config.SiteBaseUrl ?? "";
             HostBox.Text = config.ServerHost;
             PortBox.Text = config.ServerPort.ToString();
             EmuBox.Text = config.EmulatorPath;
@@ -34,6 +35,7 @@ namespace RbfLauncher.Views
         private void Save_Click(object sender, RoutedEventArgs e)
         {
             if (!string.IsNullOrWhiteSpace(ApiBox.Text)) _config.ApiBaseUrl = ApiBox.Text.Trim();
+            _config.SiteBaseUrl = SiteBox.Text?.Trim() ?? "";
             if (!string.IsNullOrWhiteSpace(HostBox.Text)) _config.ServerHost = HostBox.Text.Trim();
             if (int.TryParse(PortBox.Text?.Trim(), out int port) && port >= 1 && port <= 65535) _config.ServerPort = port;
             _config.EmulatorPath = string.IsNullOrWhiteSpace(EmuBox.Text) ? "fbneo.exe" : EmuBox.Text.Trim();

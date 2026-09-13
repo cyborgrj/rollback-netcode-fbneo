@@ -87,6 +87,20 @@ namespace RbfLauncher.Core
             string.IsNullOrWhiteSpace(ApiBaseUrl)
                 ? DefaultApiBaseUrl : ApiBaseUrl.Trim().TrimEnd('/');
 
+        /// <summary>O site público (as páginas de perfil). Vazio = o mesmo
+        /// endereço da API, que é como está hoje em desenvolvimento; quando o
+        /// site ganhar domínio próprio, basta preencher em Configurações.</summary>
+        [JsonPropertyName("siteBaseUrl")]
+        public string SiteBaseUrl { get; set; } = "";
+
+        public string ResolvedSiteBaseUrl =>
+            string.IsNullOrWhiteSpace(SiteBaseUrl)
+                ? ResolvedApiBaseUrl : SiteBaseUrl.Trim().TrimEnd('/');
+
+        /// <summary>{site}/player/{username} - a página completa do jogador.</summary>
+        public string PlayerProfileUrl(string username) =>
+            ResolvedSiteBaseUrl + "/player/" + Uri.EscapeDataString(username ?? "");
+
         private static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions { WriteIndented = true };
 
         public static string ConfigPath => Path.Combine(AppContext.BaseDirectory, "rbf-launcher.json");

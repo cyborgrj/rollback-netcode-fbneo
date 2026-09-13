@@ -14,12 +14,15 @@ namespace RbfLauncher.Views
     {
         private readonly string _username;
         private readonly string _apiBaseUrl;
+        private readonly string _profileUrl;
 
-        public StatsWindow(string username, string apiBaseUrl)
+        public StatsWindow(string username, AppConfig config)
         {
             InitializeComponent();
             _username = username ?? "";
-            _apiBaseUrl = apiBaseUrl;
+            _apiBaseUrl = config.ResolvedApiBaseUrl;
+            _profileUrl = config.PlayerProfileUrl(_username);
+            ProfileButton.ToolTip = _profileUrl;
 
             Title = "Estatísticas — " + _username;
             NameText.Text = _username;
@@ -30,10 +33,26 @@ namespace RbfLauncher.Views
             Loaded += async (s, e) => await Load();
         }
 
-        public static void Open(string username, string apiBaseUrl, Window owner)
+        public static void Open(string username, AppConfig config, Window owner)
         {
-            var w = new StatsWindow(username, apiBaseUrl) { Owner = owner };
+            var w = new StatsWindow(username, config) { Owner = owner };
             w.ShowDialog();
+        }
+
+        /// <summary>Opens the player's page in the default browser. The quick
+        /// summary stays here; everything else lives on the site.</summary>
+        private void Profile_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(
+                    new System.Diagnostics.ProcessStartInfo(_profileUrl) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Não consegui abrir o navegador.\n\n" + _profileUrl + "\n\n" + ex.Message,
+                                "Perfil", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private async System.Threading.Tasks.Task Load()

@@ -141,7 +141,7 @@ namespace RbfLauncher
 
         private void PlayerLabel_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            StatsWindow.Open(_session.Username, _config.ResolvedApiBaseUrl, this);
+            StatsWindow.Open(_session.Username, _config, this);
         }
 
         private void LogoutButton_Click(object sender, RoutedEventArgs e)
