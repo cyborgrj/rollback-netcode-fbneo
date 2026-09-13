@@ -237,49 +237,87 @@ namespace Rbf.Server.VerifyTest
         private static VerifyResult Verify(StubDjango stub, string token) =>
             new TokenVerifier(Api, Key, stub).VerifyAsync(token).GetAwaiter().GetResult();
 
-        // ---- reporting a finished game --------------------------------------
+        // ---- reporting a finished session -----------------------------------
         private const string Created =
-            "{\"status\":\"recorded\",\"match_id\":42,\"elo_update\":{" +
+            "{\"status\":\"recorded\",\"match_id\":42,\"fights_recorded\":3,\"elo_update\":{" +
             "\"player1\":{\"before\":1000,\"after\":1025,\"diff\":25}," +
             "\"player2\":{\"before\":1050,\"after\":1025,\"diff\":-25}}}";
 
+        /// <summary>The session from 12/09, as it would be reported: three
+        /// fights, the character changing on one side partway through.</summary>
+        private static MatchReport Sessao()
+        {
+            var r = new MatchReport
+            {
+                GameCode = "sf2ce", P1AccountId = 1, P2AccountId = 2,
+                P1Games = 2, P2Games = 1, WinnerId = 1, DurationSeconds = 375,
+                P1Character = "guile", P2Character = "ken",
+            };
+            r.Fights.Add(new FightReport { Number = 1, P1Character = "ryu",   P2Character = "ken",
+                                           P1Rounds = 2, P2Rounds = 1, WinnerId = 1 });
+            r.Fights.Add(new FightReport { Number = 2, P1Character = "guile", P2Character = "ken",
+                                           P1Rounds = 0, P2Rounds = 2, WinnerId = 2 });
+            r.Fights.Add(new FightReport { Number = 3, P1Character = "guile", P2Character = "ken",
+                                           P1Rounds = 2, P2Rounds = 0, WinnerId = 1 });
+            return r;
+        }
+
         private static void PartidaReportada()
         {
-            Console.WriteLine("-- uma partida terminada vai para o Django");
+            Console.WriteLine("-- a sessao inteira vai num POST so");
 
             var stub = new StubDjango
             {
                 Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, Created)
             };
 
-            var res = Report(stub, new MatchReport
-            {
-                GameCode = "sf2ce", P1AccountId = 1, P2AccountId = 2,
-                P1Character = "ryu", P2Character = "guile",
-                P1Score = 2, P2Score = 1, WinnerId = 1, DurationSeconds = 185,
-            });
+            var res = Report(stub, Sessao());
 
             Check(res.Ok, "aceito");
             Check(res.MatchId == 42, "leu o match_id");
+            Check(res.FightsRecorded == 3, "leu quantas lutas o Django gravou");
             Check(res.P1Elo != null && res.P1Elo.After == 1025 && res.P1Elo.Diff == 25, "leu o ELO do p1");
             Check(res.P2Elo != null && res.P2Elo.Diff == -25, "leu o ELO do p2");
 
             Check(stub.Paths.Count == 1 && stub.Paths[0] == "POST /api/internal/matches/report/",
-                  "bateu na rota combinada");
+                  "um POST so para a sessao inteira");
             Check(stub.Keys[0] == Key, "mandou o X-API-KEY");
 
             var sent = JsonDocument.Parse(stub.Bodies[0]).RootElement;
             Check(sent.GetProperty("game_code").GetString() == "sf2ce" &&
                   sent.GetProperty("player1_id").GetInt32() == 1 &&
                   sent.GetProperty("player2_id").GetInt32() == 2 &&
-                  sent.GetProperty("player1_character").GetString() == "ryu" &&
-                  sent.GetProperty("player2_character").GetString() == "guile" &&
                   sent.GetProperty("player1_score").GetInt32() == 2 &&
                   sent.GetProperty("player2_score").GetInt32() == 1 &&
                   sent.GetProperty("winner_id").GetInt32() == 1 &&
-                  sent.GetProperty("duration_seconds").GetInt32() == 185,
-                  "o corpo saiu exatamente no formato combinado");
-            Check(!sent.TryGetProperty("player1_characters", out _),
+                  sent.GetProperty("duration_seconds").GetInt32() == 375,
+                  "o cabecalho da sessao saiu no formato combinado");
+
+            // O placar de cima e em PARTIDAS; o de dentro de cada luta e em
+            // ROUNDS. Trocar os dois e o erro silencioso desse formato.
+            Check(sent.GetProperty("player1_character").GetString() == "guile" &&
+                  sent.GetProperty("player2_character").GetString() == "ken",
+                  "os personagens de cima sao os da ultima luta");
+
+            var fights = sent.GetProperty("fights");
+            Check(fights.GetArrayLength() == 3, "as tres lutas foram junto");
+
+            var f1 = fights[0];
+            Check(f1.GetProperty("fight_number").GetInt32() == 1 &&
+                  f1.GetProperty("player1_character").GetString() == "ryu" &&
+                  f1.GetProperty("player2_character").GetString() == "ken" &&
+                  f1.GetProperty("player1_score").GetInt32() == 2 &&
+                  f1.GetProperty("player2_score").GetInt32() == 1 &&
+                  f1.GetProperty("winner_id").GetInt32() == 1,
+                  "a luta 1 com o placar de rounds dela");
+
+            // O motivo de tudo isso existir: a luta 1 e a 2 nao tem o mesmo
+            // personagem, e um reporte so de totais daria o ultimo as duas.
+            Check(f1.GetProperty("player1_character").GetString() !=
+                  fights[1].GetProperty("player1_character").GetString(),
+                  "o personagem muda de uma luta para a outra");
+
+            Check(!f1.TryGetProperty("player1_characters", out _),
                   "jogo de um personagem nao carrega campo extra nenhum");
             Console.WriteLine();
         }
@@ -289,17 +327,23 @@ namespace Rbf.Server.VerifyTest
             Console.WriteLine("-- empate (duplo KO no match point)");
 
             var stub = new StubDjango { Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, Created) };
-            Report(stub, new MatchReport
+
+            var s = new MatchReport
             {
                 GameCode = "sfa2", P1AccountId = 1, P2AccountId = 2,
+                P1Games = 1, P2Games = 1, WinnerId = null, DurationSeconds = 190,
                 P1Character = "ryu", P2Character = "ken",
-                P1Score = 1, P2Score = 1, WinnerId = null, DurationSeconds = 90,
-            });
+            };
+            s.Fights.Add(new FightReport { Number = 1, P1Character = "ryu", P2Character = "ken",
+                                           P1Rounds = 1, P2Rounds = 1, WinnerId = null });
+            Report(stub, s);
 
             var sent = JsonDocument.Parse(stub.Bodies[0]).RootElement;
-            // Inventing a winner here corromperia a ficha dos dois jogadores.
+            // Inventar vencedor aqui corromperia a ficha dos dois jogadores.
             Check(sent.GetProperty("winner_id").ValueKind == JsonValueKind.Null,
-                  "winner_id vai nulo em vez de chutar um vencedor");
+                  "winner_id da sessao vai nulo em vez de chutar um vencedor");
+            Check(sent.GetProperty("fights")[0].GetProperty("winner_id").ValueKind == JsonValueKind.Null,
+                  "e o da luta tambem");
             Console.WriteLine();
         }
 
@@ -308,21 +352,28 @@ namespace Rbf.Server.VerifyTest
             Console.WriteLine("-- kof98, que e 3x3 e nao cabe em um personagem por lado");
 
             var stub = new StubDjango { Handler = (r, b) => StubDjango.Json(HttpStatusCode.Created, Created) };
-            Report(stub, new MatchReport
+
+            var s = new MatchReport
             {
                 GameCode = "kof98", P1AccountId = 1, P2AccountId = 2,
+                P1Games = 1, P2Games = 0, WinnerId = 1, DurationSeconds = 124,
                 P1Character = "kyo", P2Character = "kim",
+            };
+            s.Fights.Add(new FightReport
+            {
+                Number = 1, P1Character = "kyo", P2Character = "kim",
                 P1Team = new[] { "kyo", "benimaru", "daimon" },
                 P2Team = new[] { "kim", "choi", "chang" },
-                P1Score = 3, P2Score = 1, WinnerId = 1, DurationSeconds = 124,
+                P1Rounds = 3, P2Rounds = 1, WinnerId = 1,
             });
+            Report(stub, s);
 
-            var sent = JsonDocument.Parse(stub.Bodies[0]).RootElement;
-            Check(sent.GetProperty("player1_character").GetString() == "kyo",
+            var f = JsonDocument.Parse(stub.Bodies[0]).RootElement.GetProperty("fights")[0];
+            Check(f.GetProperty("player1_character").GetString() == "kyo",
                   "player1_character e o personagem de ponta, entao o matchup continua legivel");
-            Check(sent.TryGetProperty("player1_characters", out var team) &&
+            Check(f.TryGetProperty("player1_characters", out var team) &&
                   team.GetArrayLength() == 3 && team[2].GetString() == "daimon",
-                  "o time inteiro viaja num campo extra");
+                  "o time inteiro viaja dentro da luta");
             Console.WriteLine();
         }
 
@@ -382,34 +433,59 @@ namespace Rbf.Server.VerifyTest
             var api = new MatchReporter(url, key);
             if (!api.Enabled) { Console.WriteLine("!! url ou chave vazia"); return 1; }
 
+            // Uma sessao de tres lutas com troca de personagem no meio, que e o
+            // caso que o formato existe para carregar.
+            var normal = new MatchReport
+            {
+                GameCode = "sf2ce", P1AccountId = p1, P2AccountId = p2,
+                P1Games = 2, P2Games = 1, WinnerId = p1, DurationSeconds = 375,
+                P1Character = "guile", P2Character = "ken",
+            };
+            normal.Fights.Add(new FightReport { Number = 1, P1Character = "ryu",   P2Character = "ken",
+                                                P1Rounds = 2, P2Rounds = 1, WinnerId = p1 });
+            normal.Fights.Add(new FightReport { Number = 2, P1Character = "guile", P2Character = "ken",
+                                                P1Rounds = 0, P2Rounds = 2, WinnerId = p2 });
+            normal.Fights.Add(new FightReport { Number = 3, P1Character = "guile", P2Character = "ken",
+                                                P1Rounds = 2, P2Rounds = 0, WinnerId = p1 });
+
+            var empate = new MatchReport
+            {
+                GameCode = "sfa2", P1AccountId = p1, P2AccountId = p2,
+                P1Games = 0, P2Games = 0, WinnerId = null, DurationSeconds = 96,
+                P1Character = "chun_li", P2Character = "m_bison",
+            };
+            empate.Fights.Add(new FightReport { Number = 1, P1Character = "chun_li", P2Character = "m_bison",
+                                                P1Rounds = 1, P2Rounds = 1, WinnerId = null });
+
+            var kof = new MatchReport
+            {
+                GameCode = "kof98", P1AccountId = p1, P2AccountId = p2,
+                P1Games = 1, P2Games = 0, WinnerId = p1, DurationSeconds = 240,
+                P1Character = "iori", P2Character = "kim",
+            };
+            kof.Fights.Add(new FightReport
+            {
+                Number = 1, P1Character = "iori", P2Character = "kim",
+                P1Team = new[] { "iori", "mature", "vice" },
+                P2Team = new[] { "kim", "choi", "chang" },
+                P1Rounds = 3, P2Rounds = 2, WinnerId = p1,
+            });
+
+            var semNome = new MatchReport
+            {
+                GameCode = "vsav", P1AccountId = p1, P2AccountId = p2,
+                P1Games = 1, P2Games = 0, WinnerId = p1, DurationSeconds = 71,
+                P1Character = "jedah", P2Character = "17",
+            };
+            semNome.Fights.Add(new FightReport { Number = 1, P1Character = "jedah", P2Character = "17",
+                                                 P1Rounds = 2, P2Rounds = 0, WinnerId = p1 });
+
             var casos = new (string Nome, MatchReport R)[]
             {
-                ("partida normal", new MatchReport
-                {
-                    GameCode = "sf2ce", P1AccountId = p1, P2AccountId = p2,
-                    P1Character = "ryu", P2Character = "e_honda",
-                    P1Score = 2, P2Score = 1, WinnerId = p1, DurationSeconds = 185,
-                }),
-                ("empate (duplo KO)", new MatchReport
-                {
-                    GameCode = "sfa2", P1AccountId = p1, P2AccountId = p2,
-                    P1Character = "chun_li", P2Character = "m_bison",
-                    P1Score = 1, P2Score = 1, WinnerId = null, DurationSeconds = 96,
-                }),
-                ("time de kof", new MatchReport
-                {
-                    GameCode = "kof98", P1AccountId = p1, P2AccountId = p2,
-                    P1Character = "iori", P2Character = "kim",
-                    P1Team = new[] { "iori", "mature", "vice" },
-                    P2Team = new[] { "kim", "choi", "chang" },
-                    P1Score = 3, P2Score = 2, WinnerId = p1, DurationSeconds = 240,
-                }),
-                ("personagem sem nome ainda", new MatchReport
-                {
-                    GameCode = "vsav", P1AccountId = p1, P2AccountId = p2,
-                    P1Character = "jedah", P2Character = "17",
-                    P1Score = 2, P2Score = 0, WinnerId = p1, DurationSeconds = 71,
-                }),
+                ("sessao de tres lutas", normal),
+                ("empate (duplo KO)",    empate),
+                ("time de kof",          kof),
+                ("personagem sem nome",  semNome),
             };
 
             foreach (var c in casos)
@@ -420,7 +496,7 @@ namespace Rbf.Server.VerifyTest
                     Check(false, c.Nome + ": " + res.Detail);
                     continue;
                 }
-                Check(true, $"{c.Nome} -> match #{res.MatchId}" +
+                Check(true, $"{c.Nome} -> match #{res.MatchId}, {res.FightsRecorded} lutas" +
                             (res.P1Elo != null ? $"   p1 {res.P1Elo}" : "   (sem elo_update)") +
                             (res.P2Elo != null ? $"   p2 {res.P2Elo}" : ""));
             }

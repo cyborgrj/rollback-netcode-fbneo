@@ -205,26 +205,42 @@ laço sobre linhas, e uma queda no meio custa a última partida em vez de todas.
 O arquivo continua sendo útil depois do banco existir — é o que se lê quando a
 importação parece errada.
 
-## Cada partida vira uma linha no Django
+## A sessão vira uma linha no Django
 
-Quando o resultado da sessão chega, o servidor manda **um POST por partida
-terminada**, na ordem em que foram jogadas:
+Quando o resultado chega, o servidor manda **um POST com a sessão inteira** — o
+placar de cima, e cada luta dentro:
 
 ```
 POST {api}/api/internal/matches/report/
 X-API-KEY: <segredo compartilhado>
 
 {"game_code":"sf2ce","player1_id":1,"player2_id":2,
- "player1_character":"ryu","player2_character":"guile",
- "player1_score":2,"player2_score":1,"winner_id":1,"duration_seconds":185}
+ "player1_score":2,"player2_score":1,          <- PARTIDAS ganhas
+ "winner_id":1,"duration_seconds":375,
+ "player1_character":"guile","player2_character":"ken",
+ "fights":[
+   {"fight_number":1,"player1_character":"ryu","player2_character":"ken",
+    "player1_score":2,"player2_score":1,          <- ROUNDS
+    "winner_id":1},
+   ...
+ ]}
 
-201 {"status":"recorded","match_id":42,
+201 {"status":"recorded","match_id":42,"fights_recorded":3,
      "elo_update":{"player1":{"before":1000,"after":1025,"diff":25}, ...}}
 ```
 
-Uma sessão de cinco partidas são **cinco linhas**, não uma. Os dois lados
-escolhem de novo entre uma partida e outra, então resumir jogaria fora
-exatamente aquilo de que as estatísticas tratam.
+⚠️ **O placar de cima é em partidas; o de dentro de cada luta é em rounds.**
+Trocar os dois é o erro silencioso desse formato — 2 x 1 significa coisas
+diferentes nos dois lugares.
+
+Os personagens do cabeçalho são os da **última** luta; a verdade de cada uma
+está em `fights`, porque os dois lados escolhem de novo entre uma e outra.
+
+O `duration_seconds` de cima é a soma das lutas, não o relógio de parede: o
+intervalo entre elas é tela de seleção e não é tempo de jogo de ninguém.
+
+O `fights_recorded` da resposta é conferido contra o que foi enviado. Se não
+bater, sai um aviso no log — é a única chance de notar um histórico curto.
 
 Três decisões que valem dizer em voz alta:
 
@@ -278,12 +294,13 @@ Contra o Django **de verdade**, escrevendo no banco dele:
 dotnet run --project VerifyTest -- --live http://localhost:8000 <INTERNAL_API_KEY> 1 2
 ```
 
-Manda quatro partidas pelos ids de jogador dados: uma normal, um empate, um time
-de KOF e um personagem que ainda não tem nome. É o que fecha a questão que
+Manda quatro sessões pelos ids de jogador dados: uma de três lutas com troca de
+personagem no meio, um empate, um time de KOF e um personagem que ainda não tem
+nome. É o que fecha a questão que
 nenhum stub responde — se o outro lado aceita o que a gente manda. ⚠️ Use num
 banco de desenvolvimento: isso cria partidas e move o ELO de verdade.
 
-42 checagens do `TokenVerifier` e do `MatchReporter` contra um Django de
+51 checagens do `TokenVerifier` e do `MatchReporter` contra um Django de
 mentira: token válido, expirado, `X-API-KEY` errada, Django mudo, um `200` que
 diz `valid:false`, resposta sem `user`, o corpo do report campo a campo, empate
 sem vencedor, time de KOF e código de personagem. Não sobe rede nenhuma.

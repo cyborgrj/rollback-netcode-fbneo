@@ -591,43 +591,65 @@ namespace Rbf.Server
             string p1SessionId = m.P1Id, p2SessionId = m.P2Id;
             string matchId = m.Id;
 
+            int p1Games = r.P1Games, p2Games = r.P2Games;
+
+            var report = new MatchReport
+            {
+                GameCode = game,
+                P1AccountId = p1Account,
+                P2AccountId = p2Account,
+                P1Games = p1Games,
+                P2Games = p2Games,
+                WinnerId = p1Games > p2Games ? p1Account : p2Games > p1Games ? p2Account : (int?)null,
+                // The session, added up from the fights. The emulator times each
+                // game; the gap between them is character select and is nobody's
+                // playing time.
+                DurationSeconds = games.Sum(g => g.Frames > 0 ? (int)Math.Round(g.Frames / 60.0) : 0),
+                // The pairing the session ended on, which is what a headline
+                // wants. The truth of each game is in the fights below.
+                P1Character = CharacterCode(game, games[games.Count - 1].P1Chars),
+                P2Character = CharacterCode(game, games[games.Count - 1].P2Chars),
+            };
+
+            foreach (var g in games)
+            {
+                report.Fights.Add(new FightReport
+                {
+                    Number      = g.Index,
+                    P1Character = CharacterCode(game, g.P1Chars),
+                    P2Character = CharacterCode(game, g.P2Chars),
+                    P1Team      = Team(game, g.P1Chars),
+                    P2Team      = Team(game, g.P2Chars),
+                    P1Rounds    = g.P1Rounds,
+                    P2Rounds    = g.P2Rounds,
+                    WinnerId    = g.Winner == 1 ? p1Account : g.Winner == 2 ? p2Account : (int?)null,
+                });
+            }
+
             _ = Task.Run(async () =>
             {
-                foreach (var g in games)
+                var res = await _reporter.ReportAsync(report).ConfigureAwait(false);
+
+                if (!res.Ok)
                 {
-                    var report = new MatchReport
-                    {
-                        GameCode = game,
-                        P1AccountId = p1Account,
-                        P2AccountId = p2Account,
-                        P1Character = CharacterCode(game, g.P1Chars),
-                        P2Character = CharacterCode(game, g.P2Chars),
-                        P1CharacterId = g.P1Chars.Count > 0 ? g.P1Chars[0] : -1,
-                        P2CharacterId = g.P2Chars.Count > 0 ? g.P2Chars[0] : -1,
-                        P1Team = Team(game, g.P1Chars),
-                        P2Team = Team(game, g.P2Chars),
-                        P1Score = g.P1Rounds,
-                        P2Score = g.P2Rounds,
-                        WinnerId = g.Winner == 1 ? p1Account : g.Winner == 2 ? p2Account : (int?)null,
-                        DurationSeconds = g.Frames > 0 ? (int)Math.Round(g.Frames / 60.0) : 0,
-                    };
-
-                    var res = await _reporter.ReportAsync(report).ConfigureAwait(false);
-
-                    if (!res.Ok)
-                    {
-                        Console.WriteLine($"! {matchId} partida {g.Index}: Django recusou - {res.Detail}");
-                        continue;
-                    }
-
-                    Console.WriteLine($"  {matchId} partida {g.Index} -> Django #{res.MatchId}" +
-                                      (res.P1Elo != null ? $"   {p1Name} {res.P1Elo}" : "") +
-                                      (res.P2Elo != null ? $"   {p2Name} {res.P2Elo}" : ""));
-
-                    // The rank on everybody's screen should be the rank Django
-                    // just wrote, not the one from login an hour ago.
-                    ApplyElo(p1SessionId, res.P1Elo, p2SessionId, res.P2Elo);
+                    Console.WriteLine($"! {matchId}: Django recusou a sessao - {res.Detail}");
+                    return;
                 }
+
+                Console.WriteLine($"  {matchId} -> Django #{res.MatchId}   " +
+                                  $"{report.Fights.Count} lutas" +
+                                  (res.P1Elo != null ? $"   {p1Name} {res.P1Elo}" : "") +
+                                  (res.P2Elo != null ? $"   {p2Name} {res.P2Elo}" : ""));
+
+                // Django says how many it wrote. If that is not what we sent,
+                // the history is short and only this line will ever say so.
+                if (res.FightsRecorded >= 0 && res.FightsRecorded != report.Fights.Count)
+                    Console.WriteLine($"!! {matchId}: mandei {report.Fights.Count} lutas e o Django " +
+                                      $"gravou {res.FightsRecorded}");
+
+                // The rank on everybody's screen should be the rank Django just
+                // wrote, not the one from login an hour ago.
+                ApplyElo(p1SessionId, res.P1Elo, p2SessionId, res.P2Elo);
             });
         }
 
