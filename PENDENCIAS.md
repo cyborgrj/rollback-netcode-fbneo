@@ -100,9 +100,26 @@ na resolução da janela. Aí não importa o blitter e não depende de DLL nenhu
 rounds`. A vida é lida certo — 4 rounds do P2 são duas partidas vencidas —,
 mas nenhuma partida foi fechada, então nada foi pontuado nem chegou ao FT3.
 
-**Causa provável:** a regra que fecha uma partida é "as duas palavras de vida
-em zero por 12 frames" (`match_score.cpp`). Ela vale no `sf2ce` e no `ssf2t`
-(sessões online com FT3 fechado no log), mas **nunca foi vista no sfa2**:
+**Atualização (13/09, 15:10) — a hipótese abaixo estava errada.** Gravação
+local entre dois humanos, duas partidas seguidas (Sagat 2×1 Rose, Nash 2×0
+Sakura, `rbf-probe-sfa2-20260913-151048`): em f8311 as **duas** palavras de
+vida vão a zero e ficam lá ~25 s, e a regra atual fecha as duas partidas certo,
+com os personagens certos. As gravações contra a CPU só não mostravam isso
+porque todas acabavam no KO. Então **offline a regra funciona; online, naquela
+sessão, não fechou** — e o código não explica: `MatchScoreFrame` roda uma vez
+por tick também em netplay (`run.cpp`), e um zeramento de 25 s não passa
+despercebido.
+
+Próximo passo: **gravar uma sessão online** — o launcher repassa os argumentos
+de Configurações também para a partida online, então basta `-w -noscan
+-rbfprobe` no campo de argumentos do emulador, nas duas máquinas. Suspeitas a
+conferir nessa gravação: o perdedor voltando direto pelo "Here comes a new
+challenger" (sem passar pelo zeramento), ou um dos lados jogando contra a CPU.
+
+Hipótese original, mantida para referência — a regra que fecha uma partida é
+"as duas palavras de vida em zero por 12 frames" (`match_score.cpp`). Ela vale
+no `sf2ce` e no `ssf2t` (sessões online com FT3 fechado no log), mas parecia
+**nunca ter sido vista no sfa2**:
 
 - `--trace 0xFF8450/0xFF8850` na gravação `rbf-probe-sfa2-20260910-210025`:
   o perdedor vai a `0xFFxx` (negativo) e na luta seguinte os dois voltam a
