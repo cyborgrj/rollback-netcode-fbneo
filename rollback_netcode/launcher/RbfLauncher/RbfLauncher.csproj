@@ -25,6 +25,9 @@
     <Company>RBF</Company>
     <Product>Rollback FinalBurn Neo Launcher - CyborgRJ 2026.</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Desenhado por icon\gerar-icone.ps1. As janelas sem Icon proprio usam
+         este tambem, entao ele aparece no exe, na barra de tarefas e no Alt+Tab. -->
+    <ApplicationIcon>icon\app.ico</ApplicationIcon>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
