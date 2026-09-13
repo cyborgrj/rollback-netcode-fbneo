@@ -21,6 +21,10 @@ namespace Rbf.Server
         /// with one character a side, so those send exactly the agreed shape.</summary>
         public string[] P1Team;
         public string[] P2Team;
+        /// <summary>kof98's "advanced" / "extra"; empty for games without a
+        /// mode, and then the key is not sent at all.</summary>
+        public string P1Mode = "";
+        public string P2Mode = "";
         public int    P1Rounds;
         public int    P2Rounds;
         /// <summary>Null on a draw. A double KO at match point belongs to
@@ -191,6 +195,8 @@ namespace Rbf.Server
             // character, so matchup stats work without knowing about this.
             if (f.P1Team != null) d["player1_characters"] = f.P1Team;
             if (f.P2Team != null) d["player2_characters"] = f.P2Team;
+            if (!string.IsNullOrEmpty(f.P1Mode)) d["player1_mode"] = f.P1Mode;
+            if (!string.IsNullOrEmpty(f.P2Mode)) d["player2_mode"] = f.P2Mode;
             return d;
         }
 

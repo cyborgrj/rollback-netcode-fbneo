@@ -191,19 +191,19 @@ antes o contrário, tirado da ordem de entrada de um time da CPU). Partida de
 kof98 que já tenha ido para o Django com `choi`/`chang` pode estar com os dois
 invertidos.
 
-Ainda no `kof98`, achados em 13/09 numa luta entre dois humanos (P1 Extra,
-P2 Advanced), **ainda não enviados ao banco**:
+✅ `kof98` fechado em 13/09, a partir de uma luta entre dois humanos (P1 Extra,
+P2 Advanced, a segunda partida lutada numa ordem diferente da escolha):
 
-- **Modo Advanced/Extra**: `0x10B340` (P1) / `0x10B540` (P2) valem **2 durante a
-  luta quando o lado é Extra, 1 quando é Advanced** (fora da luta, sempre 1).
-  Conferido nas lutas antigas (os dois Advanced: 1/1). Extra só foi visto do
-  lado P1. Levar ao Django pede campo novo lá, no arquivo de resultado, no
-  launcher e no servidor.
-- **Os slots de time guardam a ordem de ESCOLHA**, não a de luta (o jogador
-  reordena depois). O `player1_character` do report, que é o primeiro slot,
-  pode não ser quem abriu a luta. A ordem de luta ainda não foi achada.
-- **Fim de partida contra humano não zera a vida** — resolvido: time de jogo
-  fecha pela contagem de KOs (`nKOsToWin` em `match_score.cpp`).
+- **Fim de partida contra humano não zera a vida** — o jogo de time fecha pela
+  contagem de KOs (`nKOsToWin` em `match_score.cpp`).
+- **Ordem de luta**: os slots de time (`0x10A84E`/`0x10A85F`) guardam a ordem
+  de ESCOLHA; `0x108171`/`0x108371` guardam o lutador em cena. A partida é
+  reportada com o time **na ordem em que lutou** — o `player1_character` é quem
+  abriu.
+- **Modo Advanced/Extra**: `0x10B340`/`0x10B540` valem 2 em luta quando Extra,
+  1 quando Advanced. Vai no report como `player1_mode`/`player2_mode` em cada
+  luta (`"advanced"`/`"extra"`); o Django ignora até criar o campo. Extra só foi
+  visto do lado P1 — vale conferir o P2 numa próxima luta.
 
 (O `0x10B9E1`, que alternou junto com as trocas de modo no menu, é uma
 animação que pisca a cada 30 frames em todas as gravações, não o modo.)

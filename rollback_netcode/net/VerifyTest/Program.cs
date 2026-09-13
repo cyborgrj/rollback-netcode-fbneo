@@ -319,6 +319,8 @@ namespace Rbf.Server.VerifyTest
 
             Check(!f1.TryGetProperty("player1_characters", out _),
                   "jogo de um personagem nao carrega campo extra nenhum");
+            Check(!f1.TryGetProperty("player1_mode", out _) && !f1.TryGetProperty("player2_mode", out _),
+                  "jogo sem modo nao manda player1_mode / player2_mode");
             Console.WriteLine();
         }
 
@@ -365,6 +367,7 @@ namespace Rbf.Server.VerifyTest
                 P1Team = new[] { "kyo", "benimaru", "daimon" },
                 P2Team = new[] { "kim", "choi", "chang" },
                 P1Rounds = 3, P2Rounds = 1, WinnerId = 1,
+                P1Mode = "extra", P2Mode = "advanced",
             });
             Report(stub, s);
 
@@ -374,6 +377,9 @@ namespace Rbf.Server.VerifyTest
             Check(f.TryGetProperty("player1_characters", out var team) &&
                   team.GetArrayLength() == 3 && team[2].GetString() == "daimon",
                   "o time inteiro viaja dentro da luta");
+            Check(f.TryGetProperty("player1_mode", out var m1) && m1.GetString() == "extra" &&
+                  f.TryGetProperty("player2_mode", out var m2) && m2.GetString() == "advanced",
+                  "o modo de cada lado (Advanced/Extra) vai dentro da luta");
             Console.WriteLine();
         }
 

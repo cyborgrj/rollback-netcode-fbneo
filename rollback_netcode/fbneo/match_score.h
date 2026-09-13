@@ -75,7 +75,15 @@ typedef struct MatchGameRow {
 	int nP2Rounds;
 	int nWinner;      // 1 = P1, 2 = P2, 0 = draw (a double KO at match point)
 	int nFrames;      // how long it took, in emulated frames - 3600 is a minute
+	// kof98's Advanced / Extra, per side: 0 = the game has no such thing (or
+	// it was not read), 1 = Advanced, 2 = Extra.
+	int nP1Mode;
+	int nP2Mode;
 } MatchGameRow;
+
+#define MATCH_MODE_NONE     0
+#define MATCH_MODE_ADVANCED 1
+#define MATCH_MODE_EXTRA    2
 
 typedef struct MatchScoreData {
 	char      szGame[32];

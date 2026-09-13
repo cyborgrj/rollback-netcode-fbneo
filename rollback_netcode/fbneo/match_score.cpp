@@ -34,6 +34,8 @@ typedef struct {
 	int          bBars;              // vsav: no rounds, score is bars lost
 	int          bCharAlt;           // vsav: the pick byte also reads id+1 at times
 	int          nKOsToWin;          // team games: a game ends when a side lost this many
+	unsigned int nCurP1, nCurP2;     // team games: the character fighting right now
+	unsigned int nModeP1, nModeP2;   // kof98: 1 = Advanced, 2 = Extra, while fighting
 } ScoreMap;
 
 static const ScoreMap kMaps[] = {
@@ -62,7 +64,15 @@ static const ScoreMap kMaps[] = {
 	// Between two games against a human the life words never both clear -
 	// the loser's stays negative, the winner keeps its life - so a game ends
 	// on the knockout count instead (two games read as one 5 x 5 on 13/09).
-	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0, 0, 3 },
+	//
+	// 0x108171 / 0x108371 hold the character on screen right now, so the
+	// first time each team member shows up there is the order they fought -
+	// what a game row reports, with whoever opened first. 0x10B340 / 0x10B540
+	// read 2 during a fight for an Extra side and 1 for Advanced. All from a
+	// fight between two humans (P1 Extra, P2 Advanced) where game 2 was fought
+	// in a different order than picked.
+	{ "kof98", 0x108238, 0x108438, 0x10A84E, 0x10A85F, 3, 0x0067, 0, 0, 3,
+	           0x108171, 0x108371, 0x10B340, 0x10B540 },
 };
 
 // ---- state ----------------------------------------------------------------
@@ -84,6 +94,41 @@ static int  g_firstTo   = 0;   // games that end the session; 0 = free play
 // round, and his last reading before the KO was 20). Kept out of MatchScoreData
 // because that struct is copied by value.
 static int  g_hist[2][MATCH_SCORE_MAX_CHARS][256];
+
+// Team games: team members in the order they first appeared as the fighter
+// on screen, and how often each side read Advanced / Extra while fighting.
+static int  g_order[2][MATCH_SCORE_MAX_CHARS];
+static int  g_orderN[2];
+static int  g_modeCount[2][3];
+
+static void resetExtras(void)
+{
+	memset(g_hist, 0, sizeof(g_hist));
+	memset(g_order, 0, sizeof(g_order));
+	memset(g_orderN, 0, sizeof(g_orderN));
+	memset(g_modeCount, 0, sizeof(g_modeCount));
+}
+
+// The team as fought: members in the order they came on, then any who never
+// did (a winner who needed only two) in the order they were picked.
+static void orderedTeam(int nSide, const int* pTeam, int* pOut)
+{
+	const int n = g_map->nCharCount;
+	int k = 0;
+	for (int i = 0; i < g_orderN[nSide] && k < n; i++) pOut[k++] = g_order[nSide][i];
+	for (int i = 0; i < n && k < n; i++) {
+		int seen = 0;
+		for (int j = 0; j < g_orderN[nSide]; j++) if (g_order[nSide][j] == pTeam[i]) seen = 1;
+		if (!seen) pOut[k++] = pTeam[i];
+	}
+}
+
+static int modeOf(int nSide)
+{
+	const int* c = g_modeCount[nSide];
+	if (c[MATCH_MODE_EXTRA] > c[MATCH_MODE_ADVANCED]) return MATCH_MODE_EXTRA;
+	return c[MATCH_MODE_ADVANCED] > 0 ? MATCH_MODE_ADVANCED : MATCH_MODE_NONE;
+}
 
 // vsav has no rounds: the score of a game is how many of the two bars each
 // side lost. Two when the gauge went negative, one when they finished at half
@@ -119,7 +164,7 @@ static void awardGame(void)
 		g_gameStart = 0;
 		memset(g_d.nP1Char, 0, sizeof(g_d.nP1Char));
 		memset(g_d.nP2Char, 0, sizeof(g_d.nP2Char));
-		memset(g_hist, 0, sizeof(g_hist));
+		resetExtras();
 		g_d.bHaveP1Char = g_d.bHaveP2Char = 0;
 		g_d.bStarted = 0;
 		return;
@@ -136,6 +181,11 @@ static void awardGame(void)
 		memset(row, 0, sizeof(*row));
 		memcpy(row->nP1Char, g_d.nP1Char, sizeof(row->nP1Char));
 		memcpy(row->nP2Char, g_d.nP2Char, sizeof(row->nP2Char));
+		// Team games: as fought, so the first one is whoever opened.
+		if (g_map && g_map->nCurP1 && g_d.bHaveP1Char) orderedTeam(0, g_d.nP1Char, row->nP1Char);
+		if (g_map && g_map->nCurP2 && g_d.bHaveP2Char) orderedTeam(1, g_d.nP2Char, row->nP2Char);
+		row->nP1Mode = modeOf(0);
+		row->nP2Mode = modeOf(1);
 		row->bHaveP1Char = g_d.bHaveP1Char;
 		row->bHaveP2Char = g_d.bHaveP2Char;
 		row->nP1Rounds   = p1;
@@ -160,7 +210,7 @@ static void awardGame(void)
 	// we failed to read has to report nothing rather than repeat the last one.
 	memset(g_d.nP1Char, 0, sizeof(g_d.nP1Char));
 	memset(g_d.nP2Char, 0, sizeof(g_d.nP2Char));
-	memset(g_hist, 0, sizeof(g_hist));
+	resetExtras();
 	g_d.bHaveP1Char = g_d.bHaveP2Char = 0;
 	g_d.bStarted = 0;      // the next fight has to announce itself the same way
 }
@@ -219,6 +269,29 @@ static void readChars(int nSide, unsigned int nAddr, int* pOut, int nCount, int*
 	*pbHave = 1;
 }
 
+// Team games: note the fighter on screen the first time it appears. Only
+// values that are members of the team read from the pick slots count, so a
+// byte that is briefly something else between two fighters cannot slip in.
+static void trackOrder(int nSide, unsigned int nAddr, const int* pTeam, int bHave)
+{
+	if (!nAddr || !bHave) return;
+	const int v = RamProbeRead8(nAddr);
+	const int n = g_map->nCharCount;
+	int inTeam = 0;
+	for (int i = 0; i < n; i++) if (pTeam[i] == v) inTeam = 1;
+	if (!inTeam) return;
+	for (int i = 0; i < g_orderN[nSide]; i++) if (g_order[nSide][i] == v) return;
+	if (g_orderN[nSide] < n && g_orderN[nSide] < MATCH_SCORE_MAX_CHARS)
+		g_order[nSide][g_orderN[nSide]++] = v;
+}
+
+static void trackMode(int nSide, unsigned int nAddr)
+{
+	if (!nAddr) return;
+	const int v = RamProbeRead8(nAddr);
+	if (v == MATCH_MODE_ADVANCED || v == MATCH_MODE_EXTRA) g_modeCount[nSide][v]++;
+}
+
 // "4" for a single character, "0/1/2" for a KOF team, "?" when unread.
 static void charsToText(char* szOut, size_t nOut, const int* pChars, int nCount, int bHave)
 {
@@ -233,7 +306,7 @@ int MatchScoreStart(int nFirstTo, void (*pfnLog)(const char*))
 	g_map = NULL;
 	g_firstTo = (nFirstTo > 0 && nFirstTo < 100) ? nFirstTo : 0;
 	memset(&g_d, 0, sizeof(g_d));
-	memset(g_hist, 0, sizeof(g_hist));
+	resetExtras();
 	g_p1Hold = g_p2Hold = 0;
 	g_p1Down = g_p2Down = 0;
 	g_p1Low = g_p2Low = 0x7FFFFFFF;
@@ -290,6 +363,10 @@ void MatchScoreFrame(void)
 	if (l1 > 0 && l2 > 0) {
 		readChars(0, g_map->nCharP1, g_d.nP1Char, g_map->nCharCount, &g_d.bHaveP1Char, g_map->bCharAlt);
 		readChars(1, g_map->nCharP2, g_d.nP2Char, g_map->nCharCount, &g_d.bHaveP2Char, g_map->bCharAlt);
+		trackOrder(0, g_map->nCurP1, g_d.nP1Char, g_d.bHaveP1Char);
+		trackOrder(1, g_map->nCurP2, g_d.nP2Char, g_d.bHaveP2Char);
+		trackMode(0, g_map->nModeP1);
+		trackMode(1, g_map->nModeP2);
 	}
 
 	// Zero is the cleared struct, not a life total.
@@ -440,6 +517,9 @@ static void writeGameRow(FILE* f, int nIndex, const MatchGameRow* g, int nCharCo
 		for (int i = 0; i < nCharCount; i++) fprintf(f, i ? ",%d" : "%d", g->nP2Char[i]);
 		fputc(' ', f);
 	}
+	// Only where the game has a mode, so every other game's line is unchanged.
+	if (g->nP1Mode) fprintf(f, "p1modo=%s ", g->nP1Mode == MATCH_MODE_EXTRA ? "extra" : "advanced");
+	if (g->nP2Mode) fprintf(f, "p2modo=%s ", g->nP2Mode == MATCH_MODE_EXTRA ? "extra" : "advanced");
 	fprintf(f, "rounds=%d-%d vencedor=%s frames=%d\n",
 	        g->nP1Rounds, g->nP2Rounds,
 	        g->nWinner == 1 ? "p1" : g->nWinner == 2 ? "p2" : "empate",

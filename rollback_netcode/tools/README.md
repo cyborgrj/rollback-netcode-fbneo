@@ -217,7 +217,9 @@ Personagens confirmados:
   da ordem em que o time da CPU entrou). Random Select faz o cursor sortear
   valores, então não confunda os saltos dele com personagens.
   Luta entre dois humanos (13/09, `rbf-probe-kof98-20260913-162811`):
-  - os slots de time guardam a **ordem de escolha**, não a de luta;
+  - os slots de time guardam a **ordem de escolha**, não a de luta; o lutador
+    em cena fica em `0x108171` (P1) / `0x108371` (P2), e a ordem de luta é a
+    ordem em que cada membro aparece ali (achado com `--pick` em 6 janelas);
   - entre duas partidas a vida **não zera** (o perdedor fica negativo, o
     vencedor mantém a vida) — a partida fecha quando um lado perde os 3;
   - modo: `0x10B340` / `0x10B540` = 2 em luta quando Extra, 1 quando Advanced.

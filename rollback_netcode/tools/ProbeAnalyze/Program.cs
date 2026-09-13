@@ -700,6 +700,8 @@ internal static class Program
         public bool CharAlt;
         // Team games: a game ends when one side lost this many (kof98: 3).
         public int  KOsToWin;
+        // Team games: the fighter on screen, and kof98's mode (1 Adv, 2 Extra).
+        public uint CurP1, CurP2, ModeP1, ModeP2;
     }
 
     private static readonly GameMap[] Maps =
@@ -715,7 +717,8 @@ internal static class Program
         new GameMap { Game = "vsav",  LifeP1 = 0xFF8450, LifeP2 = 0xFF8850,
                       CharP1 = 0xFF841D, CharP2 = 0xFF881D, Full = 0x120, Bars = true, CharAlt = true },
         new GameMap { Game = "kof98", LifeP1 = 0x108238, LifeP2 = 0x108438,
-                      CharP1 = 0x10A84E, CharP2 = 0x10A85F, CharCount = 3, Full = 0x67, KOsToWin = 3 },
+                      CharP1 = 0x10A84E, CharP2 = 0x10A85F, CharCount = 3, Full = 0x67, KOsToWin = 3,
+                      CurP1 = 0x108171, CurP2 = 0x108371, ModeP1 = 0x10B340, ModeP2 = 0x10B540 },
     };
 
     private static int Life(Header h, byte[] ram, uint a)
@@ -728,6 +731,28 @@ internal static class Program
         for (uint k = 0; k < n; k++) v.Add(ram[h.IndexOf(a + k)].ToString());
         return string.Join("/", v);
     }
+
+    // The same three rules as trackOrder / orderedTeam / modeOf in
+    // match_score.cpp: a fighter counts the first time it is on screen and
+    // only if it is on the team; the team is reported as fought, then whoever
+    // never came on; the mode is the one read more.
+    private static List<int> TeamOf(string team) =>
+        team.Split('/').Select(s => int.TryParse(s, out int n) ? n : -1).Where(n => n >= 0).ToList();
+
+    private static void NoteFighter(List<int> order, int v, string team)
+    {
+        if (TeamOf(team).Contains(v) && !order.Contains(v)) order.Add(v);
+    }
+
+    private static string AsFought(string team, List<int> order)
+    {
+        if (order.Count == 0) return team;
+        var t = TeamOf(team);
+        return string.Join("/", order.Concat(t.Where(x => !order.Contains(x))));
+    }
+
+    private static string ModeTag(int[] mode) =>
+        mode[2] > mode[1] ? " extra" : mode[1] > 0 ? " adv" : "";
 
     // Counts one reading and returns the most frequent so far. With alt, a
     // reading of v also counts for v-1, ties going to the value read more on
@@ -760,6 +785,8 @@ internal static class Program
         string c1 = "?", c2 = "?";
         var seen1 = new Dictionary<string, int>();   // readings of the current game
         var seen2 = new Dictionary<string, int>();
+        var order1 = new List<int>(); var order2 = new List<int>();   // as fought
+        var mode1 = new int[3];       var mode2 = new int[3];         // [1] Adv, [2] Extra
         bool started = false;
         uint startFrame = 0, endFrame = 0;
 
@@ -787,7 +814,8 @@ internal static class Program
             if (r1 > 0 || r2 > 0)
             {
                 if (r1 > r2) p1Games++; else if (r2 > r1) p2Games++;
-                games.Add((c1, c2, r1, r2, startFrame, frame));
+                games.Add((AsFought(c1, order1) + ModeTag(mode1), AsFought(c2, order2) + ModeTag(mode2),
+                           r1, r2, startFrame, frame));
             }
 
             p1Won = p2Won = 0;
@@ -795,6 +823,8 @@ internal static class Program
             p1Low = p2Low = int.MaxValue;
             c1 = c2 = "?";           // both sides pick again
             seen1.Clear(); seen2.Clear();
+            order1.Clear(); order2.Clear();
+            Array.Clear(mode1, 0, 3); Array.Clear(mode2, 0, 3);
             started = false;
             startFrame = endFrame = 0;
         }
@@ -823,6 +853,10 @@ internal static class Program
             {
                 c1 = MostSeen(seen1, Who(h, ram, m.CharP1, m.CharCount), m.CharAlt);
                 c2 = MostSeen(seen2, Who(h, ram, m.CharP2, m.CharCount), m.CharAlt);
+                if (m.CurP1 != 0) NoteFighter(order1, ram[h.IndexOf(m.CurP1)], c1);
+                if (m.CurP2 != 0) NoteFighter(order2, ram[h.IndexOf(m.CurP2)], c2);
+                if (m.ModeP1 != 0) { int v = ram[h.IndexOf(m.ModeP1)]; if (v == 1 || v == 2) mode1[v]++; }
+                if (m.ModeP2 != 0) { int v = ram[h.IndexOf(m.ModeP2)]; if (v == 1 || v == 2) mode2[v]++; }
             }
 
             // Zero is the struct being cleared at the end of the match, not a

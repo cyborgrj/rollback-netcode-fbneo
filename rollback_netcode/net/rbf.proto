@@ -224,6 +224,10 @@ message MatchGame {
   int32 p2_rounds = 5;
   int32 winner    = 6;        // 1 = p1, 2 = p2, 0 = empate (double KO at match point)
   int32 frames    = 7;        // emulated frames it lasted; 3600 is a minute
+  // kof98's Advanced / Extra: "advanced", "extra", or empty when the game has
+  // no such mode. Team games send p1_chars/p2_chars in the order fought.
+  string p1_mode  = 8;
+  string p2_mode  = 9;
 }
 
 message Pong { int64 t = 1; }

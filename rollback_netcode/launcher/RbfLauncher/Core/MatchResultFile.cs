@@ -29,6 +29,9 @@ namespace RbfLauncher.Core
             public int P2Rounds;
             public int Winner;   // 1 = p1, 2 = p2, 0 = empate
             public int Frames;
+            /// <summary>"advanced" / "extra" (kof98), empty when the game has no mode.</summary>
+            public string P1Mode = "";
+            public string P2Mode = "";
         }
 
         public string MatchId  = "";
@@ -125,6 +128,8 @@ namespace RbfLauncher.Core
                     case "p1chars": g.P1Chars = Ints(v); break;
                     case "p2chars": g.P2Chars = Ints(v); break;
                     case "frames":  g.Frames = Int(v); break;
+                    case "p1modo":  g.P1Mode = Mode(v); break;
+                    case "p2modo":  g.P2Mode = Mode(v); break;
                     case "vencedor":
                         g.Winner = v == "p1" ? 1 : v == "p2" ? 2 : 0; break;
                     case "rounds":
@@ -139,6 +144,11 @@ namespace RbfLauncher.Core
             }
             return g;
         }
+
+        /// <summary>Only the two values the emulator writes get through; anything
+        /// else is not a mode we know and would end up in the database as one.</summary>
+        private static string Mode(string s) =>
+            s == "advanced" || s == "extra" ? s : "";
 
         private static int Int(string s) =>
             int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) ? n : 0;

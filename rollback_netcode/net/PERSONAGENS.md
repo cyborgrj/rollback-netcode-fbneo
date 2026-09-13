@@ -17,9 +17,12 @@ manda, o que mudou, e o que precisa ser corrigido do lado de lá.
 - **Id sem nome** vai como o próprio número em texto (`"16"`). Não é erro nem
   placeholder: é o valor lido. Quando o nome for descoberto, o número pode ser
   trocado pelo código no banco (tabelas abaixo).
-- **kof98**: `player1_characters` vem na **ordem de escolha** do time, não na
-  ordem em que lutaram (o jogador reordena depois de escolher). O
-  `player1_character` é o primeiro escolhido — pode não ser quem abriu a luta.
+- **kof98**: `player1_characters` vem na **ordem em que o time lutou** (o
+  jogador pode reordenar depois de escolher; o emulador acompanha quem está em
+  cena). O `player1_character` é quem abriu a luta. Se um lado venceu sem usar
+  os três, os que não lutaram vêm no fim, na ordem de escolha.
+- **kof98**: cada item de `fights[]` também traz `player1_mode` /
+  `player2_mode` = `"advanced"` ou `"extra"` (ver o fim deste documento).
 
 ---
 
@@ -204,17 +207,18 @@ Nada é lido ainda; nenhuma partida de kof2002 chega com placar nem personagem.
 
 ---
 
-## Proposta (ainda não enviada): modo Advanced/Extra do kof98
+## Modo Advanced/Extra do kof98 — já é enviado
 
-O emulador já sabe onde o jogo guarda o modo de cada lado, mas isso ainda não
-vai no report. Se o Django quiser guardar, a sugestão é um campo opcional em
-cada item de `fights[]`:
+A partir desta versão do lobby, cada item de `fights[]` de kof98 traz:
 
 ```json
 "player1_mode": "extra",
 "player2_mode": "advanced"
 ```
 
-Valores: `"advanced"` / `"extra"`; ausente nos jogos que não têm modo. Só
-precisa aceitar e guardar — avisem quando o campo existir que o lobby passa a
-mandar.
+Valores: `"advanced"` / `"extra"`. **Ausente** nos jogos que não têm modo (todos
+os outros). Hoje o Django ignora esses campos (a view lê com `data.get`), então
+nada quebra; para guardar, criar em `MatchFight` algo como
+`player1_mode = CharField(max_length=10, blank=True, default="")` e o mesmo
+para o P2, e ler de `item.get('player1_mode', '')`. Partidas antigas ficam em
+branco.

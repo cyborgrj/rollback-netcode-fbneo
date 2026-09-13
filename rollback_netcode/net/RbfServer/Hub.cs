@@ -653,6 +653,8 @@ namespace Rbf.Server
                     P1Rounds    = g.P1Rounds,
                     P2Rounds    = g.P2Rounds,
                     WinnerId    = g.Winner == 1 ? p1Account : g.Winner == 2 ? p2Account : (int?)null,
+                    P1Mode      = g.P1Mode ?? "",
+                    P2Mode      = g.P2Mode ?? "",
                 });
             }
 

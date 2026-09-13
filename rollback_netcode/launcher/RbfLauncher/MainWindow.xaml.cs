@@ -440,6 +440,8 @@ namespace RbfLauncher
                         P2Rounds = g.P2Rounds,
                         Winner   = g.Winner,
                         Frames   = g.Frames,
+                        P1Mode   = g.P1Mode ?? "",
+                        P2Mode   = g.P2Mode ?? "",
                     };
                     pg.P1Chars.AddRange(g.P1Chars);
                     pg.P2Chars.AddRange(g.P2Chars);

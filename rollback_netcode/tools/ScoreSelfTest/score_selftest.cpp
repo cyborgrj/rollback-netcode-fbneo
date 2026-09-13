@@ -31,6 +31,8 @@
 // Life is a signed 16-bit big-endian word; the character is one byte.
 static int g_life1 = 0, g_life2 = 0;
 static int g_char1 = 0, g_char2 = 0;
+static int g_cur1 = 0, g_cur2 = 0;     // kof98: fighter on screen
+static int g_mode1 = 0, g_mode2 = 0;   // kof98: 1 Advanced, 2 Extra
 
 extern "C" {
 
@@ -55,6 +57,10 @@ unsigned char RamProbeRead8(unsigned int nAddr)
 			return (unsigned char)(g_char1 + (nAddr - 0x10A84E));
 		case 0x10A85F: case 0x10A860: case 0x10A861:
 			return (unsigned char)(g_char2 + (nAddr - 0x10A85F));
+		case 0x108171: return (unsigned char)g_cur1;    // fighter on screen
+		case 0x108371: return (unsigned char)g_cur2;
+		case 0x10B340: return (unsigned char)g_mode1;   // 1 Advanced, 2 Extra
+		case 0x10B540: return (unsigned char)g_mode2;
 	}
 	return 0;
 }
@@ -256,23 +262,28 @@ int main(void)
 	MatchScoreStart(3, NULL);
 	const int K = 0x67;
 
-	// 1. Iori/Mature/Vice (27) x Terry/Andy/Joe (3): P1 3 x 2
+	// 1. Iori/Mature/Vice (27) x Terry/Andy/Joe (3): P1 3 x 2, fought as picked.
+	//    P1 Extra, P2 Advanced.
 	pick(27, 3);
+	g_mode1 = 2; g_mode2 = 1;
+	g_cur1 = 27; g_cur2 = 3;
 	live(K, K, 30);
-	live(40, -1, 30);  live(40, K, 30);    // Terry down
-	live(-1, 50, 30);  live(K, 50, 30);    // Iori down
-	live(60, -1, 30);  live(60, K, 30);    // Andy down
-	live(-1, 20, 30);  live(K, 20, 30);    // Mature down
+	live(40, -1, 30);  g_cur2 = 4;  live(40, K, 30);    // Terry down
+	live(-1, 50, 30);  g_cur1 = 28; live(K, 50, 30);    // Iori down
+	live(60, -1, 30);  g_cur2 = 5;  live(60, K, 30);    // Andy down
+	live(-1, 20, 30);  g_cur1 = 29; live(K, 20, 30);    // Mature down
 	live(30, -1, 30);                      // Joe down: whole team
 	live(30, -1, 200);                     // loser stays negative, nothing clears
 
-	// 2. the same P1 team x Kyo/Benimaru/Daimon (0): P2 3 x 2
+	// 2. same picks for P1, Kyo/Benimaru/Daimon (0) for P2 - but fought as
+	//    Vice, Iori, Mature against Daimon, Kyo, Benimaru. P2 3 x 2.
 	pick(27, 0);
+	g_cur1 = 29; g_cur2 = 2;
 	live(K, K, 30);
-	live(50, -1, 30);  live(50, K, 30);    // Daimon down
-	live(50, -1, 30);  live(50, K, 30);    // Kyo down
-	live(-1, 40, 30);  live(K, 40, 30);    // Vice down
-	live(-1, 40, 30);  live(K, 40, 30);    // Iori down
+	live(50, -1, 30);  g_cur2 = 0;  live(50, K, 30);    // Daimon down
+	live(50, -1, 30);  g_cur2 = 1;  live(50, K, 30);    // Kyo down
+	live(-1, 40, 30);  g_cur1 = 27; live(K, 40, 30);    // Vice down
+	live(-1, 40, 30);  g_cur1 = 28; live(K, 40, 30);    // Iori down
 	live(-1, 10, 30);                      // Mature down: whole team
 	live(-1, 10, 100);
 
@@ -283,8 +294,17 @@ int main(void)
 	      k.aGames[0].nWinner == 1, "partida 1: P1 3 x 2");
 	check(k.nGameRows == 2 && k.aGames[1].nP1Rounds == 2 && k.aGames[1].nP2Rounds == 3 &&
 	      k.aGames[1].nWinner == 2, "partida 2: P2 3 x 2");
-	check(k.nGameRows == 2 && k.aGames[0].nP2Char[0] == 3 && k.aGames[1].nP2Char[0] == 0 &&
-	      k.aGames[1].nP2Char[2] == 2, "o time do P2 muda de uma partida para a outra");
+	check(k.nGameRows == 2 && k.aGames[0].nP2Char[0] == 3 && k.aGames[0].nP2Char[2] == 5,
+	      "partida 1: time do P2 na ordem de luta (3/4/5)");
+	check(k.nGameRows == 2 && k.aGames[1].nP1Char[0] == 29 && k.aGames[1].nP1Char[1] == 27 &&
+	      k.aGames[1].nP1Char[2] == 28, "partida 2: P1 na ordem em que lutou (Vice, Iori, Mature)");
+	check(k.nGameRows == 2 && k.aGames[1].nP2Char[0] == 2 && k.aGames[1].nP2Char[1] == 0 &&
+	      k.aGames[1].nP2Char[2] == 1, "partida 2: P2 na ordem em que lutou (Daimon, Kyo, Benimaru)");
+	check(k.nGameRows == 2 && k.aGames[0].nP1Mode == MATCH_MODE_EXTRA &&
+	      k.aGames[0].nP2Mode == MATCH_MODE_ADVANCED && k.aGames[1].nP1Mode == MATCH_MODE_EXTRA,
+	      "modo de cada lado: P1 Extra, P2 Advanced");
+	check(d.nGameRows == 3 && d.aGames[0].nP1Mode == MATCH_MODE_NONE,
+	      "jogo sem modo (sfa2) nao inventa um");
 	check(k.nP1Rounds == 0 && k.nP2Rounds == 0,
 	      "a vida negativa do perdedor depois do fim nao virou KO da partida seguinte");
 	g_driver = "sfa2";
