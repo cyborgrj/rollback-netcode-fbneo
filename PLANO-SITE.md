@@ -22,7 +22,7 @@ Túnel SSH. O Postgres escuta **só em `localhost`** no VPS; nenhuma porta nova 
 firewall, que também é o certo para LGPD.
 
 ```bash
-ssh -L 5432:localhost:5432 ubuntu@18.228.40.244 -N
+ssh -L 5432:localhost:5432 ubuntu@56.126.42.71 -N
 ```
 
 O `settings.py` local aponta para `127.0.0.1:5432`.

@@ -152,7 +152,7 @@ que nunca estiveram certos.
   "romsDir": "roms\\arcade",
   "playerName": "you",
   "apiBaseUrl": "http://localhost:8000",
-  "serverHost": "18.228.40.244",
+  "serverHost": "lobby.frameperfect.cc",
   "serverPort": 50051
 }
 ```

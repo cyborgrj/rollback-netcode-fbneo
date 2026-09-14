@@ -40,10 +40,13 @@ namespace RbfLauncher.Core
     public sealed class AppConfig
     {
         /// <summary>Lobby a fresh install points at, so a new build is playable
-        /// without visiting Configurações first. Lightsail hands out a new public
-        /// address on every stop/start, so this needs editing whenever that
-        /// happens - attach a static IP (or a hostname) to stop chasing it.</summary>
-        public const string DefaultServerHost = "18.228.40.244";
+        /// without visiting Configurações first. A name, not the address: the
+        /// Lightsail instance has a static IP now (56.126.42.71, 13/09), and
+        /// lobby.frameperfect.cc is a DNS-only record pointing at it - if the IP
+        /// ever changes, only the Cloudflare record does. Not the bare domain:
+        /// that one goes through Cloudflare's proxy, which carries HTTP/HTTPS
+        /// only, and the lobby is gRPC on 50051 with UDP for the matches.</summary>
+        public const string DefaultServerHost = "lobby.frameperfect.cc";
 
         /// <summary>Relative to the launcher's folder. The Frame Perfect package
         /// keeps the launcher in launcher\ and the emulator at the root, hence
