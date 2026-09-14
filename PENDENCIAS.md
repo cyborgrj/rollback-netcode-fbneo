@@ -3,6 +3,27 @@
 Coisas conhecidas que não estão feitas, para não se perderem no meio de uma
 conversa. O plano das partes 4 e 5 está em [PLANO-SITE.md](PLANO-SITE.md).
 
+## Instalador .exe além do zip, e botão de download com as duas opções
+
+**Ideia de 14/09, para a semana.** No site, o botão Download abre um dropdown
+com "Instalador (.exe)" e "Zip". Plano combinado:
+
+- **Inno Setup** (grátis), projeto `.iss` no repo, gerado pelo
+  `montar-pacote.ps1` a partir da mesma pasta do zip. Nome fixo:
+  `FramePerfect-Setup.exe` (link do site não muda).
+- Instala em `%LOCALAPPDATA%\Frame Perfect` (sem administrador; o jogador pode
+  trocar a pasta), cria atalho na área de trabalho (opcional) e no menu Iniciar,
+  registra desinstalador em Aplicativos — que **não** apaga `roms\` nem
+  `rbf-launcher.json`. Instalar a versão nova por cima atualiza.
+- Não resolve o aviso de "app não reconhecido" (SmartScreen/Smart App Control):
+  isso só com certificado — assinar emulador, launcher **e** instalador.
+
+Lições do dia: nada de `powershell` em `.cmd`/instalador (o Defender marcou o
+zip como `Trojan:Script/Sabsik` por isso), e a Cloudflare guarda
+`/downloads/` por 4 h — criar Cache Rule "Bypass cache" para `/downloads/`, senão
+cada upload novo continua servindo o arquivo antigo (foi o que aconteceu com
+`www.frameperfect.cc`).
+
 ## ✅ Mesma conta em duas máquinas: a sessão antiga continua jogando
 
 **Resolvido em 13/09.** Era a hipótese 1: o `Hub.Login` tirava a sessão antiga
