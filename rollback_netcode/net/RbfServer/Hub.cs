@@ -582,6 +582,24 @@ namespace Rbf.Server
 
                 if (m.ResultFromId == s.UserId) return;   // the same client saying it twice
 
+                // A reading with no games at all loses to one that has them.
+                // 13/09: a session dropped right after a full game; this side's
+                // emulator had the game, the other side's closed first and sent
+                // "interrupted" - and being first, it erased the game from the
+                // record. Only from empty to something: an empty reading never
+                // went to Django, so this cannot report a session twice.
+                if (m.Result.GamesPlayed.Count == 0 && r.GamesPlayed.Count > 0)
+                {
+                    Console.WriteLine($"~ {m.Id}: a primeira leitura nao tinha partida nenhuma - " +
+                                      $"fica a de {s.Username}");
+                    m.Result = r;
+                    m.ResultFromId = s.UserId;
+                    PrintResult(m, r, s.Username);
+                    MatchArchive.Write(m, r, s.UserId);
+                    ReportToDjango(m, r);
+                    return;
+                }
+
                 // Two readings of one match that disagree means a desync or a
                 // client that was changed. Neither is something to swallow -
                 // but the record is already written, and it stays written.

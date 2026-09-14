@@ -119,13 +119,22 @@ round vencido** (`nKOsToWin = 2`), igual ao kof98 com três — o zeramento,
 quando vier, encontra a partida já fechada. ScoreSelfTest cobre duas partidas
 seguidas sem zerar; a gravação local continua dando 2 x 1 e 2 x 0.
 
-## ⚠️ Servidor fica com a primeira leitura da sessão, mesmo se ela tiver menos
+## ✅ Servidor ficava com a primeira leitura da sessão, mesmo vazia
 
-Sessão kof98 `47d12a3beef3` (13/09) caiu por desconexão depois de uma partida
-completa: este emulador gravou 0 x 3, o da VM gravou "interrompida" — e o da
-VM chegou primeiro, então o servidor arquivou a sessão sem partida nenhuma. O
-`Hub.ReportResult` deveria preferir a leitura com mais partidas (ou juntar as
-duas), não a que chegou antes.
+Sessões kof98 `47d12a3beef3` e `1adc6074c1d0` (13/09) caíram depois de uma
+partida completa: este emulador gravou a partida, o da VM mandou "interrompida"
+antes, e o servidor arquivou a sessão sem partida nenhuma. Agora uma leitura
+**sem partidas** é trocada pela segunda quando ela tem partidas (arquiva de novo
+e reporta ao Django — a vazia nunca tinha ido). Duas leituras com partidas que
+divergem continuam só gerando o aviso no log. Teste no `RbfProtoTest`.
+
+## ✅ Fim do FT fechava o emulador no frame do último KO
+
+Nem dava para ver o K.O. Agora a sessão segue **5 s** depois de a FT ser
+decidida (`FBN_LIMIT_GRACE_FRAMES` em `fbneo_host.cpp`), com o placar já
+congelado (`match_score` para de ler quando o limite é atingido), e só então
+mostra o aviso e fecha. Se o outro lado fechar antes, conta como fim de FT.
+Confirmado online em 13/09: sfa2 FT3 0 x 3 e kof98 FT3 0 x 3 fecharam certo.
 
 ## (histórico) sfa2: o diagnóstico antes da correção
 

@@ -355,6 +355,12 @@ void MatchScoreFrame(void)
 {
 	if (!g_map) return;
 
+	// The session is decided. It keeps running for a few seconds so the
+	// players see the ending (fbneo_host.cpp), and nothing that happens on
+	// screen in that time - the next fight starting, a clearing - may change
+	// the result.
+	if (g_d.bLimitReached) return;
+
 	g_frame++;
 
 	const int l1 = lifeAt(g_map->nLifeP1);

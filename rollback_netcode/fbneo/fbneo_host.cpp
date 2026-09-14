@@ -80,6 +80,10 @@ static int           g_peerGone    = 0;   // the opponent left; end the match
 static const char*   g_endReason   = "closed";   // why the session ended
 static int           g_finalP1     = 0;   // games when the first-to was reached,
 static int           g_finalP2     = 0;   // kept for the notice after Stop
+static int           g_limitFrames = 0;   // frames played since the first-to was reached
+// How long the session keeps running after the last game is decided, so the
+// K.O. and the win screen show before the window closes. 5 s at 60 fps.
+#define FBN_LIMIT_GRACE_FRAMES 300
 static int           g_analogWarned = 0;
 static FbnHostConfig g_cfg;
 
@@ -364,6 +368,7 @@ static int startCommon(const FbnHostConfig* cfg)
 	g_endReason   = "closed";
 	g_finalP1     = 0;
 	g_finalP2     = 0;
+	g_limitFrames = 0;
 	g_watch       = 0;
 	g_watchFrames = 0;
 
@@ -729,11 +734,28 @@ int FbnHostRunFrame(int bDraw)
 	// connection. (libggpo waits 5 s of silence before calling it a disconnect,
 	// so in practice the lagging side reaches the limit on its own first.)
 	if (MatchScoreLimitReached()) {
-		g_endReason = "limit";
-		MatchScoreGames(&g_finalP1, &g_finalP2);
-		RbfLog("first to %d reached (%d x %d) - ending the session.",
-		       g_cfg.nFirstTo, g_finalP1, g_finalP2);
-		return -1;
+		// Not the same frame the last knockout is counted: that closed the
+		// window before the K.O. was even on screen, and read as a crash.
+		// The session runs on for a few seconds so both players see the
+		// ending, then closes. The score is already final - match_score stops
+		// reading once the limit is reached. The opponent's emulator waits
+		// the same, and if it closes first that is still the FT ending.
+		if (g_limitFrames == 0) {
+			g_endReason = "limit";
+			MatchScoreGames(&g_finalP1, &g_finalP2);
+			RbfLog("first to %d reached (%d x %d) - closing in %d s.",
+			       g_cfg.nFirstTo, g_finalP1, g_finalP2, FBN_LIMIT_GRACE_FRAMES / 60);
+		}
+		if (r != GGPO_BRIDGE_OK && r != GGPO_BRIDGE_SKIPPED) {
+			RbfLog("ggpo tick failed during the closing seconds (bridge %d) - ending now.", r);
+			return -1;
+		}
+		if (r == GGPO_BRIDGE_OK) g_limitFrames++;
+		if (g_limitFrames >= FBN_LIMIT_GRACE_FRAMES || g_peerGone) {
+			RbfLog("ending the session.");
+			return -1;
+		}
+		return r == GGPO_BRIDGE_SKIPPED ? 0 : 1;
 	}
 
 	// Checked after the tick, so the frame that carried the disconnect event

@@ -258,6 +258,7 @@ namespace Rbf.ProtoTest
                 FirstToSurvivesTheRoundTrip(host, 5);
                 FirstToSurvivesTheRoundTrip(host, 0);   // "Livre" is a value, not an absence
                 SessionDetailReachesTheArchive(host, archive, django);
+                EmptyFirstReadingLosesToFullOne(host, django);
             }
             catch (Exception ex)
             {
@@ -670,6 +671,75 @@ namespace Rbf.ProtoTest
                       "o id virou nome na gravacao");
             }
 
+            Console.WriteLine();
+        }
+
+        // 13/09: a kof98 session dropped right after one full game. One emulator
+        // had the game; the other closed first and reported nothing - and the
+        // server kept the first reading, so the session was archived empty and
+        // never reached Django.
+        private static void EmptyFirstReadingLosesToFullOne(string host, StubDjango django)
+        {
+            Console.WriteLine("-- leitura vazia chega antes da leitura com partidas");
+
+            string suffix = Guid.NewGuid().ToString("N").Substring(0, 4);
+            int before = django.Reports.Count;
+
+            using (var a = new Peer(host, "v" + suffix))
+            using (var b = new Peer(host, "w" + suffix))
+            {
+                a.Send(new ClientMsg { Hello = new Hello { Username = a.Name, ClientVer = "test", LanIp = "192.168.1.10", AccessToken = StubDjango.TokenFor(a.Name) } });
+                b.Send(new ClientMsg { Hello = new Hello { Username = b.Name, ClientVer = "test", LanIp = "192.168.1.11", AccessToken = StubDjango.TokenFor(b.Name) } });
+                if (a.Await(ServerMsg.KindOneofCase.Welcome) == null ||
+                    b.Await(ServerMsg.KindOneofCase.Welcome) == null) { Check(false, "os dois entraram"); Console.WriteLine(); return; }
+
+                a.Send(new ClientMsg { JoinRoom = new JoinRoom { Game = "kof98" } });
+                b.Send(new ClientMsg { JoinRoom = new JoinRoom { Game = "kof98" } });
+                if (a.Await(ServerMsg.KindOneofCase.Roster, m => m.Roster.Players.Any(p => p.Username == b.Name)) == null)
+                { Check(false, "a enxerga b na sala"); Console.WriteLine(); return; }
+
+                a.Send(new ClientMsg { Challenge = new Challenge { TargetUserId = b.UserId, FrameDelay = 1, FirstTo = 3 } });
+                var inc = b.Await(ServerMsg.KindOneofCase.ChallengeIn);
+                if (inc == null) { Check(false, "b recebeu o desafio"); Console.WriteLine(); return; }
+                b.Send(new ClientMsg { ChallengeReply = new ChallengeReply
+                                       { ChallengeId = inc.ChallengeIn.ChallengeId, Accept = true, FrameDelay = 1 } });
+                var ms = a.Await(ServerMsg.KindOneofCase.MatchStart);
+                if (ms == null) { Check(false, "a recebeu MatchStart"); Console.WriteLine(); return; }
+                string matchId = ms.MatchStart.MatchId;
+
+                // First: the side that closed early, with nothing in it.
+                a.Send(new ClientMsg { MatchResult = new MatchResult
+                {
+                    MatchId = matchId, Game = "kof98", Reason = "closed", FirstTo = 3,
+                }});
+                Thread.Sleep(400);
+
+                // Then: the side that saw the game end.
+                var full = new MatchResult
+                {
+                    MatchId = matchId, Game = "kof98", P1Games = 0, P2Games = 1, Games = 1,
+                    FirstTo = 3, Reason = "disconnect",
+                };
+                var g = new MatchGame { Index = 1, P1Rounds = 0, P2Rounds = 3, Winner = 2, Frames = 4538 };
+                g.P1Chars.Add(0); g.P1Chars.Add(1); g.P1Chars.Add(2);
+                g.P2Chars.Add(27); g.P2Chars.Add(28); g.P2Chars.Add(29);
+                full.GamesPlayed.Add(g);
+                b.Send(new ClientMsg { MatchResult = full });
+                Thread.Sleep(900);
+            }
+
+            var reports = django.Reports;
+            if (!django.Running) { Console.WriteLine("  -     sem Django de mentira; parte nao verificada."); Console.WriteLine(); return; }
+            Check(reports.Count == before + 1,
+                  $"a sessao chegou ao Django uma vez so ({reports.Count - before} report(s))");
+            if (reports.Count == before + 1)
+            {
+                var sent = JsonDocument.Parse(reports[reports.Count - 1]).RootElement;
+                Check(sent.GetProperty("game_code").GetString() == "kof98" &&
+                      sent.GetProperty("player2_score").GetInt32() == 1 &&
+                      sent.GetProperty("fights").GetArrayLength() == 1,
+                      "e com a partida da segunda leitura, nao vazia");
+            }
             Console.WriteLine();
         }
 
