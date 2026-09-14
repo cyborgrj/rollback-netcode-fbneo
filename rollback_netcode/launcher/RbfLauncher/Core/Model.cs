@@ -121,7 +121,10 @@ namespace RbfLauncher.Core
                 if (File.Exists(ConfigPath))
                 {
                     var cfg = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig();
-                    cfg.FixKnownMistakes();
+                    // Written back right away: fixed only in memory, the file
+                    // kept the wrong host until the next login saved it, and
+                    // anyone opening rbf-launcher.json saw the old value.
+                    if (cfg.FixKnownMistakes()) cfg.Save();
                     return cfg;
                 }
             }
@@ -137,7 +140,8 @@ namespace RbfLauncher.Core
         /// and Site fields next to it DO take "https://frameperfect.cc", so
         /// typing the same into the lobby is the natural mistake. Both are
         /// corrected on load instead of asking every player to find the field.</summary>
-        internal void FixKnownMistakes()
+        /// <returns>True when something was changed.</returns>
+        internal bool FixKnownMistakes()
         {
             string h = (ServerHost ?? "").Trim();
             if (h.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) h = h.Substring(8);
@@ -148,7 +152,9 @@ namespace RbfLauncher.Core
                 string.Equals(h, "www.frameperfect.cc", StringComparison.OrdinalIgnoreCase))
                 h = DefaultServerHost;
 
-            if (h != ServerHost) ServerHost = h;
+            if (h == ServerHost) return false;
+            ServerHost = h;
+            return true;
         }
 
         public void Save()
