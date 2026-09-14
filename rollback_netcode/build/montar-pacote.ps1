@@ -138,6 +138,18 @@ $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Write-Host ""
 Write-Host ":: pronto: $zip  ($mb MB, $version)"
 Write-Host "   lobby $Lobby`:$Port   api $Api   site $Site"
+# No servidor: um arquivo por versao (FP-Launcher_v1.0.0.zip), e o
+# FP-Launcher.zip como link para a ultima - o botao do site aponta para esse e
+# nao muda a cada versao, e as antigas continuam la.
+$numero = if ($version -match 'v(\d+\.\d+\.\d+)') { $Matches[1] } else { $version }
+$remoto = "FP-Launcher_v$numero.zip"
+$pem    = "`$env:USERPROFILE\.ssh\LightsailDefaultKey-sa-east-1.pem"
+$host_  = "ubuntu@56.126.42.71"
+$pasta  = "/home/ubuntu/FramePerfect/downloads"
+
 Write-Host ""
-Write-Host "Subir para o site (download em /home/ubuntu/FramePerfect/downloads/):"
-Write-Host "  scp -i `"`$env:USERPROFILE\.ssh\LightsailDefaultKey-sa-east-1.pem`" `"$zip`" ubuntu@56.126.42.71:/home/ubuntu/FramePerfect/downloads/FramePerfect-Launcher.zip"
+Write-Host "Subir para o site (PowerShell, aqui):"
+Write-Host "  1) enviar"
+Write-Host "     scp -i `"$pem`" `"$zip`" ${host_}:$pasta/$remoto"
+Write-Host "  2) apontar o FP-Launcher.zip (link do site) para esta versao"
+Write-Host "     ssh -i `"$pem`" $host_ `"ln -sfn $remoto $pasta/FP-Launcher.zip && ls -l $pasta`""
