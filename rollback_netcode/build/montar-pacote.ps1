@@ -1,4 +1,4 @@
-# ---------------------------------------------------------------------------
+﻿# ---------------------------------------------------------------------------
 # montar-pacote.ps1 - monta a pasta "Frame Perfect" e o zip para o site.
 #
 #   & "D:\Rollback Netcode\rollback_netcode\build\montar-pacote.ps1"
@@ -10,6 +10,8 @@
 #
 #   Frame Perfect\
 #     Abrir Frame Perfect.cmd     cria os atalhos (area de trabalho e raiz) e abre
+#     README.md                   o que e, primeira vez, problemas comuns
+#     versao.txt                  "Frame Perfect alpha_test_v1.0.1"
 #     fbneo64d.exe
 #     d3dx9_43.dll
 #     fonte_metricas.ttf
@@ -63,7 +65,9 @@ foreach ($need in @($emu, (Join-Path $launcher "RbfLauncher.exe"),
 # RbfLauncher.csproj) - o zip nunca pode dizer uma versao que o exe nao tem.
 $version = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $launcher "RbfLauncher.exe")).ProductVersion
 if ([string]::IsNullOrWhiteSpace($version)) { Write-Host "!! o launcher publicado nao tem versao" -ForegroundColor Red; exit 1 }
-$zipName = "FramePerfect-$version.zip"
+# Nome fixo: a versao fica no versao.txt e no titulo das janelas, nao no nome
+# do arquivo (um nome por versao mudaria o link do site e acumularia zips).
+$zipName = "Frame Perfect.zip"
 $zip     = Join-Path $dist $zipName
 
 if (Test-Path $pkg) { Remove-Item -LiteralPath $pkg -Recurse -Force }
@@ -119,14 +123,85 @@ setlocal
 rem Frame Perfect - cria o atalho "Frame Perfect" na area de trabalho e nesta
 rem pasta, e abre o launcher. Pode rodar de novo a qualquer momento (por
 rem exemplo, depois de mover a pasta para outro lugar).
+rem Se o Windows bloquear: botao direito > Executar como administrador.
 set "FP_DIR=%~dp0"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:FP_DIR; $exe = Join-Path $d 'launcher\RbfLauncher.exe'; $desk = if ($env:FP_DESKTOP) { $env:FP_DESKTOP } else { [Environment]::GetFolderPath('Desktop') }; $sh = New-Object -ComObject WScript.Shell; foreach ($p in @((Join-Path $desk 'Frame Perfect.lnk'), (Join-Path $d 'Frame Perfect.lnk'))) { $s = $sh.CreateShortcut($p); $s.TargetPath = $exe; $s.WorkingDirectory = (Join-Path $d 'launcher'); $s.IconLocation = $exe + ',0'; $s.Description = 'Frame Perfect'; $s.Save() }"
-if not defined FP_TESTE start "" "%~dp0launcher\RbfLauncher.exe"
+rem Pelo explorer: se este .cmd foi aberto como administrador, o launcher (e o
+rem emulador que ele abre) ainda roda como o usuario normal.
+if not defined FP_TESTE start "" explorer.exe "%~dp0launcher\RbfLauncher.exe"
 '@
 Set-Content -Path (Join-Path $pkg "Abrir Frame Perfect.cmd") -Value $cmd -Encoding ASCII
 
 # Quem abre a pasta sabe qual versao tem, sem abrir o launcher.
 Set-Content -Path (Join-Path $pkg "versao.txt") -Value "Frame Perfect $version" -Encoding ASCII
+
+Write-Host ":: README.md"
+$readme = @'
+# Frame Perfect
+
+Jogos de luta clássicos online, com rollback netcode: a partida responde como
+se os dois jogadores estivessem no mesmo fliperama, mesmo com a distância.
+
+Versão: **{VERSAO}** · site: {SITE}
+
+## Primeira vez
+
+1. Extraia o zip numa pasta sua, por exemplo `Documentos\Frame Perfect`.
+   Não rode direto de dentro do zip.
+2. Clique com o **botão direito** em **`Abrir Frame Perfect.cmd`** e escolha
+   **Executar como administrador**. Aberto com clique normal, às vezes o
+   Windows bloqueia.
+   Ele cria o atalho **Frame Perfect** na área de trabalho e nesta pasta, e
+   abre o launcher. Daí em diante, use o atalho.
+3. Entre com a conta criada no site ({SITE}).
+
+Se mover a pasta de lugar, rode o `Abrir Frame Perfect.cmd` de novo para
+refazer os atalhos.
+
+## Jogando
+
+- Escolha um jogo na biblioteca para entrar na sala dele. Quem estiver na
+  mesma sala aparece na lista; clique em **Desafiar**.
+- Na hora do desafio se combina o atraso de entrada (delay) e o limite de
+  partidas (FT). Quando alguém chega ao limite, o emulador mostra o placar e
+  fecha sozinho.
+- O launcher baixa o jogo da sala na primeira vez que for preciso.
+- Clique no nome de um jogador para ver as estatísticas dele.
+- Durante a partida, **Backspace** mostra/esconde o painel de ping, atraso,
+  rollback e fps.
+
+## Requisitos
+
+- Windows 10 ou 11, 64 bits.
+- .NET Framework 4.8 (já vem no Windows 10 e 11).
+
+## O que tem nesta pasta
+
+| arquivo / pasta | para que serve |
+|---|---|
+| `Abrir Frame Perfect.cmd` | cria os atalhos e abre o launcher |
+| `launcher\` | o launcher (login, salas, desafios) |
+| `fbneo64d.exe` | o emulador, aberto pelo launcher na hora da partida |
+| `roms\` | onde os jogos baixados ficam |
+| `versao.txt` | a versão deste pacote |
+
+## Problemas
+
+- **O Windows bloqueou o programa** ("uma política de Controle de Aplicativo
+  bloqueou este arquivo" ou "o Windows protegeu o computador"): execute o
+  `Abrir Frame Perfect.cmd` como administrador. O Frame Perfect ainda não tem
+  assinatura digital, e o Windows desconfia de programas novos sem ela.
+- **Não conecta ao lobby**: em Configurações, o lobby deve ser
+  `{LOBBY}`, porta `{PORTA}` — sem `https://`.
+- **Qualquer outro erro**: mande para o suporte a versão (`versao.txt`) e estes
+  dois arquivos, que dizem o que aconteceu:
+  - `launcher\rbf-launcher.log`
+  - `rbf-netplay.log` (aparece depois da primeira partida)
+
+Frame Perfect por CyborgRJ. Emulação por FinalBurn Neo.
+'@
+$readme = $readme.Replace("{VERSAO}", $version).Replace("{SITE}", $Site).Replace("{LOBBY}", $Lobby).Replace("{PORTA}", "$Port")
+[IO.File]::WriteAllText((Join-Path $pkg "README.md"), $readme, (New-Object Text.UTF8Encoding($false)))
 
 Write-Host ":: zip"
 # Pastas vazias nao entram num Compress-Archive; o tar do Windows as mantem.
@@ -138,18 +213,6 @@ $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Write-Host ""
 Write-Host ":: pronto: $zip  ($mb MB, $version)"
 Write-Host "   lobby $Lobby`:$Port   api $Api   site $Site"
-# No servidor: um arquivo por versao (FP-Launcher_v1.0.0.zip), e o
-# FP-Launcher.zip como link para a ultima - o botao do site aponta para esse e
-# nao muda a cada versao, e as antigas continuam la.
-$numero = if ($version -match 'v(\d+\.\d+\.\d+)') { $Matches[1] } else { $version }
-$remoto = "FP-Launcher_v$numero.zip"
-$pem    = "`$env:USERPROFILE\.ssh\LightsailDefaultKey-sa-east-1.pem"
-$host_  = "ubuntu@56.126.42.71"
-$pasta  = "/home/ubuntu/FramePerfect/downloads"
-
 Write-Host ""
-Write-Host "Subir para o site (PowerShell, aqui):"
-Write-Host "  1) enviar"
-Write-Host "     scp -i `"$pem`" `"$zip`" ${host_}:$pasta/$remoto"
-Write-Host "  2) apontar o FP-Launcher.zip (link do site) para esta versao"
-Write-Host "     ssh -i `"$pem`" $host_ `"ln -sfn $remoto $pasta/FP-Launcher.zip && ls -l $pasta`""
+Write-Host "Subir para o site (substitui o anterior; o link de download nao muda):"
+Write-Host "  scp -i `"`$env:USERPROFILE\.ssh\LightsailDefaultKey-sa-east-1.pem`" `"$zip`" ubuntu@56.126.42.71:/home/ubuntu/FramePerfect/downloads/FramePerfect-Launcher.zip"
