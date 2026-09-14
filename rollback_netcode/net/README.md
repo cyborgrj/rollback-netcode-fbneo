@@ -96,11 +96,24 @@ A chave vem do **ambiente**, nunca da linha de comando: qualquer coisa em
 `argv` é legível por outro usuário da máquina via `ps`.
 
 ```ini
-# /etc/systemd/system/rbfserver.service
+# /etc/systemd/system/rbfserver.service  (frameperfect-site/deploy/rbfserver.service)
 [Service]
-Environment=RBF_INTERNAL_API_KEY=<o mesmo INTERNAL_API_KEY do Django>
+EnvironmentFile=-/home/ubuntu/rbfserver/.env
 ExecStart=/home/ubuntu/rbfserver/RbfServer --bind 0.0.0.0 --port 50051
 ```
+
+```ini
+# /home/ubuntu/rbfserver/.env   (chmod 600, fora do git)
+RBF_INTERNAL_API_KEY=<o mesmo INTERNAL_API_KEY do .env do Django>
+```
+
+**Deploy na Lightsail**: compile no Windows com
+`build\publicar-servidor.ps1` (linux-x64, self-contained — a instância é pequena
+e trava no `dotnet publish`), mande o `.tar.gz` por `scp` e extraia por cima de
+`/home/ubuntu/rbfserver`. O pacote não leva `.env` nem `resultados.jsonl`, então
+a chave e o histórico de lá sobrevivem ao deploy. Portas a abrir no firewall da
+Lightsail: **tcp/50051** (lobby), **tcp/50053** (espectadores), **udp/50052**
+(NAT) e **udp/50054** (relay de partida).
 
 `--api-url` muda o endereço do Django (padrão `http://localhost:8000`, que é o
 caso em produção — os dois moram na mesma instância). `--api-key-file <arquivo>`

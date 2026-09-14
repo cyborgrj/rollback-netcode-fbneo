@@ -12,17 +12,16 @@ WorkingDirectory=/home/ubuntu/rbfserver
 ExecStart=/home/ubuntu/rbfserver/RbfServer --bind 0.0.0.0 --port 50051
 
 # A chave que autoriza este servico a chamar /api/internal/ do Django (verify-token
-# e matches/report). Tem que ser a mesma INTERNAL_API_KEY do .env do backend.
+# e matches/report). Tem que ser a MESMA INTERNAL_API_KEY do .env do backend.
+#
+# Ela fica num .env ao lado do binario, fora do git, legivel so pelo ubuntu:
+#   /home/ubuntu/rbfserver/.env   (chmod 600)
+#   RBF_INTERNAL_API_KEY=<a chave>
 #
 # Sem ela o lobby SOBE ABERTO: nenhum token e verificado e nenhuma partida e
-# reportada. Ele avisa isso no boot, em maiusculas.
-#
-# Prefira nao deixar a chave aqui - este arquivo vive no git. Use um drop-in:
-#   sudo mkdir -p /etc/systemd/system/rbfserver.service.d
-#   sudo nano /etc/systemd/system/rbfserver.service.d/chave.conf
-#   [Service]
-#   Environment=RBF_INTERNAL_API_KEY=<a chave>
-Environment="RBF_INTERNAL_API_KEY=troque-isto"
+# reportada. Ele avisa isso no boot, em maiusculas. O "-" deixa o servico subir
+# mesmo sem o arquivo, justamente para esse aviso aparecer no journal.
+EnvironmentFile=-/home/ubuntu/rbfserver/.env
 
 Restart=always
 RestartSec=3
