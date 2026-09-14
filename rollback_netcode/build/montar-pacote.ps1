@@ -3,7 +3,7 @@
 #
 #   & "D:\Rollback Netcode\rollback_netcode\build\montar-pacote.ps1"
 #
-# Padrao: API e site em https://frameperfect.cc, lobby em frameperfect.cc:50051.
+# Padrao: API e site em https://frameperfect.cc, lobby em lobby.frameperfect.cc:50051.
 # Outros enderecos: -Api "..." -Site "..." -Lobby "..."
 #
 # Resultado em rollback_netcode\dist\:
@@ -33,9 +33,11 @@
 param(
     [string]$Api   = "https://frameperfect.cc",
     [string]$Site  = "https://frameperfect.cc",
-    # O dominio e nao o IP: o IP da Lightsail muda a cada stop/start, o DNS nao.
-    # Precisa do registro A de frameperfect.cc apontando para a instancia.
-    [string]$Lobby = "frameperfect.cc",
+    # Um nome e nao o IP, e um subdominio proprio: o site passa pelo proxy da
+    # Cloudflare (nuvem laranja), que so repassa HTTP/HTTPS - o lobby e gRPC na
+    # 50051 e o jogo usa UDP, entao lobby.frameperfect.cc precisa ser um registro
+    # A "somente DNS" (nuvem cinza) apontando para o IP estatico da Lightsail.
+    [string]$Lobby = "lobby.frameperfect.cc",
     [int]$Port     = 50051,
     # De onde vem o que nao e compilado aqui (dll do DirectX e as fontes).
     [string]$Assets = "D:\RBF"
