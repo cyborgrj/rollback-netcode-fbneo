@@ -122,6 +122,10 @@ namespace RbfLauncher
             }
             catch (Exception ex)
             {
+                // Always in the log, loud or not: the dialog shows one sentence
+                // and is gone, and "could not connect" has half a dozen causes -
+                // wrong host in Configurações, DNS, firewall, server down.
+                LauncherLog.Error($"conexao ao lobby {_config.ServerHost}:{_config.ServerPort} falhou", ex);
                 client.Dispose();
                 // On the automatic attempt at startup, a dialog in the player's
                 // face before they have seen the library is noise: the header
