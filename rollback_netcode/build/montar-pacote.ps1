@@ -1,13 +1,15 @@
 # ---------------------------------------------------------------------------
 # montar-pacote.ps1 - monta a pasta "Frame Perfect" e o zip para o site.
 #
-#   & "D:\Rollback Netcode\rollback_netcode\build\montar-pacote.ps1" `
-#       -Api "https://frameperfect.net" -Site "https://frameperfect.net" -Lobby "18.228.40.244"
+#   & "D:\Rollback Netcode\rollback_netcode\build\montar-pacote.ps1"
+#
+# Padrao: API e site em https://frameperfect.cc, lobby em frameperfect.cc:50051.
+# Outros enderecos: -Api "..." -Site "..." -Lobby "..."
 #
 # Resultado em rollback_netcode\dist\:
 #
 #   Frame Perfect\
-#     Abrir Frame Perfect.cmd     primeira execucao (o launcher cria o .lnk)
+#     Abrir Frame Perfect.cmd     cria os atalhos (area de trabalho e raiz) e abre
 #     fbneo64d.exe
 #     d3dx9_43.dll
 #     fonte_metricas.ttf
@@ -29,9 +31,11 @@
 # (publicar-launcher.ps1) - este script so junta o que ja esta pronto.
 # ---------------------------------------------------------------------------
 param(
-    [string]$Api   = "https://frameperfect.net",
-    [string]$Site  = "https://frameperfect.net",
-    [string]$Lobby = "18.228.40.244",
+    [string]$Api   = "https://frameperfect.cc",
+    [string]$Site  = "https://frameperfect.cc",
+    # O dominio e nao o IP: o IP da Lightsail muda a cada stop/start, o DNS nao.
+    # Precisa do registro A de frameperfect.cc apontando para a instancia.
+    [string]$Lobby = "frameperfect.cc",
     [int]$Port     = 50051,
     # De onde vem o que nao e compilado aqui (dll do DirectX e as fontes).
     [string]$Assets = "D:\RBF"
@@ -95,12 +99,22 @@ foreach ($d in "arcade", "astrocade", "channelf", "coleco", "fds", "gamegear", "
 }
 
 Write-Host ":: atalho da primeira vez"
-$cmd = @"
+# Cria "Frame Perfect.lnk" na area de trabalho e nesta pasta, com o caminho de
+# onde o zip foi extraido, e abre o launcher. A pasta vai numa variavel e nao
+# colada no comando: um caminho com espaco, acento ou apostrofo quebraria as
+# aspas. GetFolderPath('Desktop') acha a area de trabalho mesmo quando o
+# OneDrive a redirecionou. FP_DESKTOP / FP_TESTE existem so para testar o .cmd
+# sem mexer na area de trabalho de ninguem nem abrir o launcher.
+$cmd = @'
 @echo off
-rem Abre o launcher. Na primeira vez ele cria "Frame Perfect.lnk" nesta pasta,
-rem e dai em diante e so usar o atalho. Este arquivo pode ser apagado depois.
-start "" "%~dp0launcher\RbfLauncher.exe"
-"@
+setlocal
+rem Frame Perfect - cria o atalho "Frame Perfect" na area de trabalho e nesta
+rem pasta, e abre o launcher. Pode rodar de novo a qualquer momento (por
+rem exemplo, depois de mover a pasta para outro lugar).
+set "FP_DIR=%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:FP_DIR; $exe = Join-Path $d 'launcher\RbfLauncher.exe'; $desk = if ($env:FP_DESKTOP) { $env:FP_DESKTOP } else { [Environment]::GetFolderPath('Desktop') }; $sh = New-Object -ComObject WScript.Shell; foreach ($p in @((Join-Path $desk 'Frame Perfect.lnk'), (Join-Path $d 'Frame Perfect.lnk'))) { $s = $sh.CreateShortcut($p); $s.TargetPath = $exe; $s.WorkingDirectory = (Join-Path $d 'launcher'); $s.IconLocation = $exe + ',0'; $s.Description = 'Frame Perfect'; $s.Save() }"
+if not defined FP_TESTE start "" "%~dp0launcher\RbfLauncher.exe"
+'@
 Set-Content -Path (Join-Path $pkg "Abrir Frame Perfect.cmd") -Value $cmd -Encoding ASCII
 
 Write-Host ":: zip"
