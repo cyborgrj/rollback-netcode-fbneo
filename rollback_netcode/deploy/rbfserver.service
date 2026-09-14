@@ -1,4 +1,5 @@
-# O lobby .NET que ja existe, para ficar tudo junto.
+# Servidor de matchmaking do Frame Perfect (RbfServer) como servico do Linux.
+# Nao tem relacao com o site: so diz ao systemd como ligar o lobby.
 #   sudo cp rbfserver.service /etc/systemd/system/
 
 [Unit]

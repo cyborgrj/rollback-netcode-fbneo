@@ -96,7 +96,7 @@ A chave vem do **ambiente**, nunca da linha de comando: qualquer coisa em
 `argv` é legível por outro usuário da máquina via `ps`.
 
 ```ini
-# /etc/systemd/system/rbfserver.service  (frameperfect-site/deploy/rbfserver.service)
+# /etc/systemd/system/rbfserver.service  (rollback_netcode/deploy/rbfserver.service)
 [Service]
 EnvironmentFile=-/home/ubuntu/rbfserver/.env
 ExecStart=/home/ubuntu/rbfserver/RbfServer --bind 0.0.0.0 --port 50051
