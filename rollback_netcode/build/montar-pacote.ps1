@@ -117,18 +117,16 @@ Write-Host ":: atalho da primeira vez"
 # aspas. GetFolderPath('Desktop') acha a area de trabalho mesmo quando o
 # OneDrive a redirecionou. FP_DESKTOP / FP_TESTE existem so para testar o .cmd
 # sem mexer na area de trabalho de ninguem nem abrir o launcher.
+# SO abre o launcher - quem cria os atalhos e o proprio launcher
+# (Core\Shortcuts.cs). Nada de powershell aqui: um .cmd chamando
+# "powershell -ExecutionPolicy Bypass" dentro de um zip com executaveis sem
+# assinatura tem a cara de um instalador de virus, e em 14/09 o Defender
+# marcou o zip como Trojan:Script/Sabsik e o Chrome bloqueou o download.
 $cmd = @'
 @echo off
-setlocal
-rem Frame Perfect - cria o atalho "Frame Perfect" na area de trabalho e nesta
-rem pasta, e abre o launcher. Pode rodar de novo a qualquer momento (por
-rem exemplo, depois de mover a pasta para outro lugar).
-rem Se o Windows bloquear: botao direito > Executar como administrador.
-set "FP_DIR=%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$d = $env:FP_DIR; $exe = Join-Path $d 'launcher\RbfLauncher.exe'; $desk = if ($env:FP_DESKTOP) { $env:FP_DESKTOP } else { [Environment]::GetFolderPath('Desktop') }; $sh = New-Object -ComObject WScript.Shell; foreach ($p in @((Join-Path $desk 'Frame Perfect.lnk'), (Join-Path $d 'Frame Perfect.lnk'))) { $s = $sh.CreateShortcut($p); $s.TargetPath = $exe; $s.WorkingDirectory = (Join-Path $d 'launcher'); $s.IconLocation = $exe + ',0'; $s.Description = 'Frame Perfect'; $s.Save() }"
-rem Pelo explorer: se este .cmd foi aberto como administrador, o launcher (e o
-rem emulador que ele abre) ainda roda como o usuario normal.
-if not defined FP_TESTE start "" explorer.exe "%~dp0launcher\RbfLauncher.exe"
+rem Frame Perfect - abre o launcher. Na primeira vez ele cria o atalho
+rem "Frame Perfect" na area de trabalho e nesta pasta.
+start "" "%~dp0launcher\RbfLauncher.exe"
 '@
 Set-Content -Path (Join-Path $pkg "Abrir Frame Perfect.cmd") -Value $cmd -Encoding ASCII
 
@@ -151,12 +149,12 @@ Versão: **{VERSAO}** · site: {SITE}
 2. Clique com o **botão direito** em **`Abrir Frame Perfect.cmd`** e escolha
    **Executar como administrador**. Aberto com clique normal, às vezes o
    Windows bloqueia.
-   Ele cria o atalho **Frame Perfect** na área de trabalho e nesta pasta, e
-   abre o launcher. Daí em diante, use o atalho.
+   O launcher abre e, nessa primeira vez, cria o atalho **Frame Perfect** na
+   área de trabalho e nesta pasta. Daí em diante, use o atalho.
 3. Entre com a conta criada no site ({SITE}).
 
-Se mover a pasta de lugar, rode o `Abrir Frame Perfect.cmd` de novo para
-refazer os atalhos.
+Se mover a pasta de lugar, abra o launcher uma vez pelo
+`Abrir Frame Perfect.cmd`: ele corrige os atalhos sozinho.
 
 ## Jogando
 
@@ -179,7 +177,7 @@ refazer os atalhos.
 
 | arquivo / pasta | para que serve |
 |---|---|
-| `Abrir Frame Perfect.cmd` | cria os atalhos e abre o launcher |
+| `Abrir Frame Perfect.cmd` | abre o launcher (que cria os atalhos) |
 | `launcher\` | o launcher (login, salas, desafios) |
 | `fbneo64d.exe` | o emulador, aberto pelo launcher na hora da partida |
 | `roms\` | onde os jogos baixados ficam |

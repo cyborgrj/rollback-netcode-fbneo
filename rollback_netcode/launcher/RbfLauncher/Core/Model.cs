@@ -97,6 +97,11 @@ namespace RbfLauncher.Core
         /// que NÃO é o Django: em desenvolvimento é o Vite, na porta padrão
         /// 5173. Quando o site ganhar domínio próprio, basta trocar em
         /// Configurações.</summary>
+        /// <summary>The desktop shortcut was already created once. Never again
+        /// after that: a player who deletes it from the desktop meant it.</summary>
+        [JsonPropertyName("desktopShortcutDone")]
+        public bool DesktopShortcutDone { get; set; }
+
         [JsonPropertyName("siteBaseUrl")]
         public string SiteBaseUrl { get; set; } = DefaultSiteBaseUrl;
 

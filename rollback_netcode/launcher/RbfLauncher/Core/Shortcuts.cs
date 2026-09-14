@@ -7,14 +7,19 @@ namespace RbfLauncher.Core
     /// <summary>"Frame Perfect.lnk" pointing at this launcher: at the root of
     /// the program folder, and on the desktop.
     ///
-    /// A shortcut cannot simply ship inside the zip: a .lnk stores an absolute
-    /// path, and nobody extracts to the folder the zip was made in. The package's
-    /// "Abrir Frame Perfect.cmd" writes both on first use; the launcher keeps them
-    /// right from then on, because a player who moves the whole folder leaves
-    /// both pointing at a folder that is gone.
+    /// The launcher makes both itself. It used to be the package's .cmd, through
+    /// PowerShell - and a .cmd that runs "powershell -ExecutionPolicy Bypass"
+    /// inside a zip of unsigned executables is exactly the shape of a malware
+    /// dropper: Defender flagged the zip as Trojan:Script/Sabsik (14/09) and
+    /// Chrome refused the download. Here it is just the app writing a shortcut
+    /// to itself.
     ///
-    /// The root one is always (re)written. The desktop one is only corrected,
-    /// never created: a player who deleted it from the desktop meant it.
+    /// A shortcut cannot ship inside the zip either: a .lnk stores an absolute
+    /// path, and nobody extracts to the folder the zip was made in.
+    ///
+    ///   root    - always (re)written, so moving the folder fixes itself;
+    ///   desktop - created once (first run), corrected afterwards if it points
+    ///             at an old folder, never recreated after being deleted.
     ///
     /// Only in the packaged layout (launcher\ next to fbneo64d.exe), so a
     /// development build never litters its output folder's parent.</summary>
@@ -22,7 +27,7 @@ namespace RbfLauncher.Core
     {
         public const string Name = "Frame Perfect.lnk";
 
-        public static void EnsureRootShortcut()
+        public static void EnsureShortcuts()
         {
             try
             {
@@ -37,8 +42,15 @@ namespace RbfLauncher.Core
                 Write(Path.Combine(root, Name), exe, launcherDir, onlyIfExists: false);
 
                 string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
-                if (!string.IsNullOrEmpty(desktop))
-                    Write(Path.Combine(desktop, Name), exe, launcherDir, onlyIfExists: true);
+                if (string.IsNullOrEmpty(desktop)) return;
+
+                var cfg = AppConfig.Load();
+                Write(Path.Combine(desktop, Name), exe, launcherDir, onlyIfExists: cfg.DesktopShortcutDone);
+                if (!cfg.DesktopShortcutDone)
+                {
+                    cfg.DesktopShortcutDone = true;
+                    cfg.Save();
+                }
             }
             catch (Exception ex)
             {
