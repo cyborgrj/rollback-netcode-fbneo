@@ -119,10 +119,36 @@ namespace RbfLauncher.Core
             try
             {
                 if (File.Exists(ConfigPath))
-                    return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig();
+                {
+                    var cfg = JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(ConfigPath), JsonOpts) ?? new AppConfig();
+                    cfg.FixKnownMistakes();
+                    return cfg;
+                }
             }
             catch { }
             return new AppConfig();
+        }
+
+        /// <summary>Lobby addresses that look right and cannot work.
+        ///
+        /// 14/09: a package built before lobby.frameperfect.cc existed had the
+        /// lobby at frameperfect.cc - the site's name, which goes through
+        /// Cloudflare's proxy, and the proxy carries HTTP/HTTPS only. The API
+        /// and Site fields next to it DO take "https://frameperfect.cc", so
+        /// typing the same into the lobby is the natural mistake. Both are
+        /// corrected on load instead of asking every player to find the field.</summary>
+        internal void FixKnownMistakes()
+        {
+            string h = (ServerHost ?? "").Trim();
+            if (h.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) h = h.Substring(8);
+            else if (h.StartsWith("http://", StringComparison.OrdinalIgnoreCase)) h = h.Substring(7);
+            h = h.TrimEnd('/');
+
+            if (string.Equals(h, "frameperfect.cc", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(h, "www.frameperfect.cc", StringComparison.OrdinalIgnoreCase))
+                h = DefaultServerHost;
+
+            if (h != ServerHost) ServerHost = h;
         }
 
         public void Save()
