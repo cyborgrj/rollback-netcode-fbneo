@@ -45,8 +45,11 @@ namespace RbfLauncher.Core
         /// happens - attach a static IP (or a hostname) to stop chasing it.</summary>
         public const string DefaultServerHost = "18.228.40.244";
 
+        /// <summary>Relative to the launcher's folder. The Frame Perfect package
+        /// keeps the launcher in launcher\ and the emulator at the root, hence
+        /// the "..". An existing rbf-launcher.json keeps whatever it says.</summary>
         [JsonPropertyName("emulatorPath")]
-        public string EmulatorPath { get; set; } = "fbneo.exe";
+        public string EmulatorPath { get; set; } = @"..\fbneo64d.exe";
 
         /// <summary>Where the .zip ROM sets live. Leave EMPTY to track the
         /// emulator automatically: &lt;fbneo.exe folder&gt;\roms\arcade — the exact

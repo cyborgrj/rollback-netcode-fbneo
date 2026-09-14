@@ -29,6 +29,9 @@ namespace RbfLauncher
             Core.LauncherLog.Info("launcher iniciado, versao " +
                                   typeof(App).Assembly.GetName().Version);
 
+            // "Frame Perfect.lnk" next to fbneo64d.exe, pointing here - see Shortcuts.
+            Core.Shortcuts.EnsureRootShortcut();
+
             // The login window is a dialog shown before any main window exists,
             // so the default "quit when the last window closes" would end the
             // process the moment it is dismissed - including on a successful

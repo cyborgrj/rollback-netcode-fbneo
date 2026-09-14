@@ -21,6 +21,8 @@ publish/
 # backups numerados dos builds (build/publicar-launcher.ps1)
 backups/
 publish-server/
+# pacote para o site (build/montar-pacote.ps1)
+dist/
 *.user
 rbf-launcher.json
 
