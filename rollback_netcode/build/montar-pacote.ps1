@@ -49,7 +49,6 @@ $rbn      = Split-Path -Parent $PSScriptRoot           # rollback_netcode
 $repo     = Split-Path -Parent $rbn
 $dist     = Join-Path $rbn "dist"
 $pkg      = Join-Path $dist "Frame Perfect"
-$zip      = Join-Path $dist "Frame Perfect.zip"
 $emu      = Join-Path $repo "fbneo\fbneo64d.exe"
 $launcher = Join-Path $rbn "launcher\publish"
 
@@ -59,6 +58,13 @@ foreach ($need in @($emu, (Join-Path $launcher "RbfLauncher.exe"),
                     (Join-Path $Assets "fonte_placar.otf"))) {
     if (-not (Test-Path $need)) { Write-Host "!! falta: $need" -ForegroundColor Red; exit 1 }
 }
+
+# A versao vem do proprio launcher publicado ("alpha_test_v1.0.0", definida no
+# RbfLauncher.csproj) - o zip nunca pode dizer uma versao que o exe nao tem.
+$version = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $launcher "RbfLauncher.exe")).ProductVersion
+if ([string]::IsNullOrWhiteSpace($version)) { Write-Host "!! o launcher publicado nao tem versao" -ForegroundColor Red; exit 1 }
+$zipName = "FramePerfect-$version.zip"
+$zip     = Join-Path $dist $zipName
 
 if (Test-Path $pkg) { Remove-Item -LiteralPath $pkg -Recurse -Force }
 if (Test-Path $zip) { Remove-Item -LiteralPath $zip -Force }
@@ -119,15 +125,18 @@ if not defined FP_TESTE start "" "%~dp0launcher\RbfLauncher.exe"
 '@
 Set-Content -Path (Join-Path $pkg "Abrir Frame Perfect.cmd") -Value $cmd -Encoding ASCII
 
+# Quem abre a pasta sabe qual versao tem, sem abrir o launcher.
+Set-Content -Path (Join-Path $pkg "versao.txt") -Value "Frame Perfect $version" -Encoding ASCII
+
 Write-Host ":: zip"
 # Pastas vazias nao entram num Compress-Archive; o tar do Windows as mantem.
 Push-Location $dist
-try { tar -a -cf "Frame Perfect.zip" "Frame Perfect" } finally { Pop-Location }
+try { tar -a -cf $zipName "Frame Perfect" } finally { Pop-Location }
 if ($LASTEXITCODE -ne 0) { Write-Host "!! o zip falhou" -ForegroundColor Red; exit 1 }
 
 $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Write-Host ""
-Write-Host ":: pronto: $zip  ($mb MB)"
+Write-Host ":: pronto: $zip  ($mb MB, $version)"
 Write-Host "   lobby $Lobby`:$Port   api $Api   site $Site"
 Write-Host ""
 Write-Host "Subir para o site (download em /home/ubuntu/FramePerfect/downloads/):"

@@ -21,7 +21,16 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <AssemblyName>RbfLauncher</AssemblyName>
     <RootNamespace>RbfLauncher</RootNamespace>
-    <Version>0.1.0</Version>
+    <!-- A versao do Frame Perfect, a que aparece no titulo das janelas e no
+         nome do zip: "alpha_test_v1.0.0". Mudou algo que vai para os
+         jogadores (launcher, emulador ou servidor)? Suba aqui:
+           correcao -> 1.0.1   recurso novo -> 1.1.0   quebra de compatibilidade -> 2.0.0
+         O canal vira "beta" quando abrir para alem do circulo de amigos. -->
+    <FpChannel>alpha_test</FpChannel>
+    <Version>1.0.0</Version>
+    <InformationalVersion>$(FpChannel)_v$(Version)</InformationalVersion>
+    <!-- Sem o "+hash_do_commit" que o SDK colaria no fim da versao. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>Frame Perfect</Company>
     <Product>Frame Perfect</Product>
     <Copyright>CyborgRJ 2026</Copyright>

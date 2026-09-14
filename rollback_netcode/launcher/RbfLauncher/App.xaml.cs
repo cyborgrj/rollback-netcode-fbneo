@@ -26,8 +26,7 @@ namespace RbfLauncher
             AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
                 Core.LauncherLog.Error("erro nao tratado fora da interface", ev.ExceptionObject as Exception);
 
-            Core.LauncherLog.Info("launcher iniciado, versao " +
-                                  typeof(App).Assembly.GetName().Version);
+            Core.LauncherLog.Info("launcher iniciado, " + Core.AppVersion.Label);
 
             // "Frame Perfect.lnk" next to fbneo64d.exe, pointing here - see Shortcuts.
             Core.Shortcuts.EnsureRootShortcut();

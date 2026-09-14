@@ -30,6 +30,7 @@ namespace RbfLauncher
         public MainWindow(UserSession session)
         {
             InitializeComponent();
+            Title = AppVersion.FullTitle;
 
             _session = session ?? throw new ArgumentNullException(nameof(session));
             _config = AppConfig.Load();

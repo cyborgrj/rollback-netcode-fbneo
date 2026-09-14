@@ -21,6 +21,7 @@ namespace RbfLauncher.Views
         public LoginWindow(AppConfig config)
         {
             InitializeComponent();
+            Title = AppVersion.ShortTitle;
             _config = config;
 
             UserBox.Text = _config.PlayerName ?? "";
