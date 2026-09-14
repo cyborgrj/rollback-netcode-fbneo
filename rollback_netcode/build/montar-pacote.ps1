@@ -129,3 +129,6 @@ $mb = [math]::Round((Get-Item $zip).Length / 1MB, 1)
 Write-Host ""
 Write-Host ":: pronto: $zip  ($mb MB)"
 Write-Host "   lobby $Lobby`:$Port   api $Api   site $Site"
+Write-Host ""
+Write-Host "Subir para o site (download em /home/ubuntu/FramePerfect/downloads/):"
+Write-Host "  scp -i `"`$env:USERPROFILE\.ssh\LightsailDefaultKey-sa-east-1.pem`" `"$zip`" ubuntu@56.126.42.71:/home/ubuntu/FramePerfect/downloads/FramePerfect-Launcher.zip"
