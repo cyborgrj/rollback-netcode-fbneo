@@ -9,9 +9,8 @@
 # Resultado em rollback_netcode\dist\:
 #
 #   Frame Perfect\
-#     Abrir Frame Perfect.cmd     cria os atalhos (area de trabalho e raiz) e abre
 #     README.md                   o que e, primeira vez, problemas comuns
-#     versao.txt                  "Frame Perfect alpha_test_v1.0.1"
+#     versao.txt                  "Frame Perfect alpha_test_vX.Y.Z"
 #     fbneo64d.exe
 #     d3dx9_43.dll
 #     fonte_metricas.ttf
@@ -110,25 +109,14 @@ foreach ($d in "arcade", "astrocade", "channelf", "coleco", "fds", "gamegear", "
     New-Item -ItemType Directory -Force (Join-Path $pkg "roms\$d") | Out-Null
 }
 
-Write-Host ":: atalho da primeira vez"
-# Cria "Frame Perfect.lnk" na area de trabalho e nesta pasta, com o caminho de
-# onde o zip foi extraido, e abre o launcher. A pasta vai numa variavel e nao
-# colada no comando: um caminho com espaco, acento ou apostrofo quebraria as
-# aspas. GetFolderPath('Desktop') acha a area de trabalho mesmo quando o
-# OneDrive a redirecionou. FP_DESKTOP / FP_TESTE existem so para testar o .cmd
-# sem mexer na area de trabalho de ninguem nem abrir o launcher.
-# SO abre o launcher - quem cria os atalhos e o proprio launcher
-# (Core\Shortcuts.cs). Nada de powershell aqui: um .cmd chamando
-# "powershell -ExecutionPolicy Bypass" dentro de um zip com executaveis sem
-# assinatura tem a cara de um instalador de virus, e em 14/09 o Defender
-# marcou o zip como Trojan:Script/Sabsik e o Chrome bloqueou o download.
-$cmd = @'
-@echo off
-rem Frame Perfect - abre o launcher. Na primeira vez ele cria o atalho
-rem "Frame Perfect" na area de trabalho e nesta pasta.
-start "" "%~dp0launcher\RbfLauncher.exe"
-'@
-Set-Content -Path (Join-Path $pkg "Abrir Frame Perfect.cmd") -Value $cmd -Encoding ASCII
+# Sem .cmd no pacote. Os atalhos sao criados pelo proprio launcher ao abrir
+# (Core\Shortcuts.cs). Duas vezes o .cmd deu problema em 14/09:
+#   - com powershell dentro, o Defender marcou o zip como Trojan:Script/Sabsik
+#     e o Chrome bloqueou o download;
+#   - so com "start", o Smart App Control do Windows 11 ainda bloqueou o
+#     cmd.exe: ele barra QUALQUER script baixado da internet sem assinatura
+#     (Code Integrity 3033 no log), e "executar como administrador" nao libera.
+# Na primeira vez o jogador abre launcher\RbfLauncher.exe - esta no README.
 
 # Quem abre a pasta sabe qual versao tem, sem abrir o launcher.
 Set-Content -Path (Join-Path $pkg "versao.txt") -Value "Frame Perfect $version" -Encoding ASCII
@@ -146,15 +134,13 @@ Versão: **{VERSAO}** · site: {SITE}
 
 1. Extraia o zip numa pasta sua, por exemplo `Documentos\Frame Perfect`.
    Não rode direto de dentro do zip.
-2. Clique com o **botão direito** em **`Abrir Frame Perfect.cmd`** e escolha
-   **Executar como administrador**. Aberto com clique normal, às vezes o
-   Windows bloqueia.
-   O launcher abre e, nessa primeira vez, cria o atalho **Frame Perfect** na
-   área de trabalho e nesta pasta. Daí em diante, use o atalho.
+2. Abra a pasta **`launcher`** e dê dois cliques em **`RbfLauncher.exe`**.
+   Nessa primeira vez ele cria o atalho **Frame Perfect** na área de trabalho
+   e nesta pasta. Daí em diante, use o atalho.
 3. Entre com a conta criada no site ({SITE}).
 
-Se mover a pasta de lugar, abra o launcher uma vez pelo
-`Abrir Frame Perfect.cmd`: ele corrige os atalhos sozinho.
+Se mover a pasta de lugar, abra o `launcher\RbfLauncher.exe` uma vez: ele
+corrige os atalhos sozinho.
 
 ## Jogando
 
@@ -177,7 +163,6 @@ Se mover a pasta de lugar, abra o launcher uma vez pelo
 
 | arquivo / pasta | para que serve |
 |---|---|
-| `Abrir Frame Perfect.cmd` | abre o launcher (que cria os atalhos) |
 | `launcher\` | o launcher (login, salas, desafios) |
 | `fbneo64d.exe` | o emulador, aberto pelo launcher na hora da partida |
 | `roms\` | onde os jogos baixados ficam |
@@ -185,10 +170,13 @@ Se mover a pasta de lugar, abra o launcher uma vez pelo
 
 ## Problemas
 
-- **O Windows bloqueou o programa** ("uma política de Controle de Aplicativo
-  bloqueou este arquivo" ou "o Windows protegeu o computador"): execute o
-  `Abrir Frame Perfect.cmd` como administrador. O Frame Perfect ainda não tem
-  assinatura digital, e o Windows desconfia de programas novos sem ela.
+- **"O Windows protegeu o computador"** (tela azul do SmartScreen): clique em
+  **Mais informações** e depois em **Executar assim mesmo**.
+- **"O Controle de Aplicativo Inteligente bloqueou um aplicativo"** (Windows
+  11): esse bloqueio não tem botão para liberar, nem como administrador. O
+  Frame Perfect ainda não tem assinatura digital, e o Windows desconfia de
+  programas novos sem ela; costuma passar depois de algumas horas, quando o
+  arquivo fica conhecido. Avise o suporte com a versão (`versao.txt`).
 - **Não conecta ao lobby**: em Configurações, o lobby deve ser
   `{LOBBY}`, porta `{PORTA}` — sem `https://`.
 - **Qualquer outro erro**: mande para o suporte a versão (`versao.txt`) e estes
