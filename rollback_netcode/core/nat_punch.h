@@ -71,6 +71,13 @@ int NatPunchResolvePeer(const char*      szRendezvousHost,
                         int              nTimeoutMs,
                         void           (*pfnLog)(const char*));
 
+// "lobby.frameperfect.cc" -> "56.126.42.71" (an IP passes through unchanged).
+// libggpo takes the peer as a dotted IPv4 and parses it with inet_pton, which
+// fails SILENTLY on a host name - the session then talks to an invalid
+// address and never syncs. Anything headed for libggpo goes through this.
+// Returns NAT_PUNCH_OK or NAT_PUNCH_ERR_RESOLVE.
+int NatPunchResolveIpv4(const char* szHost, char* szOut, int nOut);
+
 #ifdef __cplusplus
 }
 #endif

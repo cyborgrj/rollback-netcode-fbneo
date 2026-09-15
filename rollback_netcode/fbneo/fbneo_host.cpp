@@ -442,11 +442,22 @@ int FbnHostStart(const FbnHostConfig* cfg)
 			// Point libggpo at the relay and let it believe that IS the peer.
 			// Every packet it receives then comes from that one address, so its
 			// own peer-address check passes and no libggpo change is needed.
-			RbfLog("relaying the match through %s:%d (symmetric NAT)",
-			       g_cfg.szPunchIp, g_cfg.nGameRelayPort);
-			strncpy(bc.szRemoteIp, g_cfg.szPunchIp, sizeof(bc.szRemoteIp) - 1);
-			bc.szRemoteIp[sizeof(bc.szRemoteIp) - 1] = 0;
-			bc.nRemotePort = g_cfg.nGameRelayPort;
+			//
+			// The relay lives on the lobby host, which is a NAME now
+			// (lobby.frameperfect.cc). libggpo parses the peer with inet_pton and
+			// silently gets garbage from a name, so resolve it first - 14/09:
+			// every relayed match stopped right here once the lobby moved from an
+			// IP to the domain.
+			char szRelayIp[64];
+			if (NatPunchResolveIpv4(g_cfg.szPunchIp, szRelayIp, sizeof(szRelayIp)) != NAT_PUNCH_OK) {
+				RbfLog("relay: could not resolve %s - cannot relay this match", g_cfg.szPunchIp);
+			} else {
+				RbfLog("relaying the match through %s:%d = %s (symmetric NAT)",
+				       g_cfg.szPunchIp, g_cfg.nGameRelayPort, szRelayIp);
+				strncpy(bc.szRemoteIp, szRelayIp, sizeof(bc.szRemoteIp) - 1);
+				bc.szRemoteIp[sizeof(bc.szRemoteIp) - 1] = 0;
+				bc.nRemotePort = g_cfg.nGameRelayPort;
+			}
 		} else {
 			RbfLog("nat punch OK: peer %s:%d (lobby had said %s:%d)",
 			       plan.szPeerIp, plan.nPeerPort, bc.szRemoteIp, bc.nRemotePort);

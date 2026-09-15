@@ -27,6 +27,29 @@ static void punch_log(void (*pfnLog)(const char*), const char* fmt, ...)
     pfnLog(buf);
 }
 
+int NatPunchResolveIpv4(const char* szHost, char* szOut, int nOut)
+{
+    if (!szHost || !*szHost || !szOut || nOut < 16) return NAT_PUNCH_ERR_ARG;
+
+    WSADATA wsad;
+    int wsaStarted = (WSAStartup(MAKEWORD(2, 2), &wsad) == 0);
+
+    struct addrinfo hints, *ai = NULL;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int rc = NAT_PUNCH_ERR_RESOLVE;
+    if (getaddrinfo(szHost, NULL, &hints, &ai) == 0 && ai != NULL) {
+        struct sockaddr_in* sin = (struct sockaddr_in*)ai->ai_addr;
+        if (inet_ntop(AF_INET, &sin->sin_addr, szOut, (size_t)nOut) != NULL) rc = NAT_PUNCH_OK;
+        freeaddrinfo(ai);
+    }
+
+    if (wsaStarted) WSACleanup();
+    return rc;
+}
+
 int NatPunchResolvePeer(const char*      szRendezvousHost,
                         unsigned short   nRendezvousPort,
                         unsigned short   nGameRelayPort,
